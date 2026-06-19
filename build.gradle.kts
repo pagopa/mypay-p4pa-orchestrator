@@ -163,7 +163,8 @@ openApiGenerate {
     mapOf(
       "dateLibrary" to "java8",
       "requestMappingMode" to "api_interface",
-      "useSpringBoot3" to "true",
+      "useSpringBoot4" to "true",
+      "useJackson3" to "true",
       "interfaceOnly" to "true",
       "useTags" to "true",
       "useBeanValidation" to "true",
