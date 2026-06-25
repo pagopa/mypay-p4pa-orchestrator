@@ -95,6 +95,10 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 ##### 🌍 External services
 | ENV                                | DESCRIPTION                                    | DEFAULT |
 |------------------------------------|------------------------------------------------|---------|
+| PU_AUTH_BASE_URL                   | PU Auth service URL                            |         |
+| PU_AUTH_MAX_ATTEMPTS               | PU Auth API max attempts                       | 3       |
+| PU_AUTH_WAIT_TIME_MILLIS           | PU Auth retry waiting time (milliseconds)      | 500     |
+| PU_AUTH_PRINT_BODY_WHEN_ERROR      | To print body when an error occurs             | true    |
 | PU_MIGRATION_BASE_URL              | PU Migration service URL                       |         |
 | PU_MIGRATION_MAX_ATTEMPTS          | PU Migration API max attempts                  | 3       |
 | PU_MIGRATION_WAIT_TIME_MILLIS      | PU Migration retry waiting time (milliseconds) | 500     |
