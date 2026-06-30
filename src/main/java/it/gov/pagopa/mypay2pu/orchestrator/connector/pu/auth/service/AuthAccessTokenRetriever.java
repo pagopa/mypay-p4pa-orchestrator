@@ -38,7 +38,7 @@ public class AuthAccessTokenRetriever {
     public AccessToken getAccessToken(String orgIpaCode) {
         String clientId = CLIENT_ID_PREFIX + StringUtils.stripToEmpty(orgIpaCode);
         return clientId2accessTokensMap.compute(clientId, (k, v) -> {
-            if (v == null || LocalDateTime.now().isAfter(v.getLeft())) {
+            if (v == null || LocalDateTime.now(Constants.ZONEID).isAfter(v.getLeft())) {
                 log.info("M2M AccessToken with clientId[{}] expired, refreshing", clientId);
                 LocalDateTime tokenRequestDateTime = LocalDateTime.now(Constants.ZONEID);
                 AccessToken accessToken = puAuthnClient.postToken(clientId, GRANT_TYPE, SCOPE, null, null, null, clientSecret);
