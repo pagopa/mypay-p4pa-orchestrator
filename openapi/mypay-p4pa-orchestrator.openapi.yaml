@@ -45,6 +45,9 @@ components:
             - BAD_REQUEST
             - GENERIC_ERROR
             - TOO_MANY_REQUESTS
+            - CONFLICT
+            - FORBIDDEN
+            - UNAUTHORIZED
         code:
           type: string
         message:

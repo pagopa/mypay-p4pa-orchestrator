@@ -126,6 +126,54 @@ class ControllerExceptionHandlerTest {
   }
 
   @Test
+  void handleInvalidValueException() throws Exception {
+    doThrow(new InvalidValueException("ERRORCODE", "Error")).when(testControllerSpy).testEndpoint(DATA, BODY);
+
+    performRequest(DATA, MediaType.APPLICATION_JSON)
+      .andExpect(MockMvcResultMatchers.status().isBadRequest())
+      .andExpect(MockMvcResultMatchers.jsonPath("$.category").value("BAD_REQUEST"))
+      .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("ERRORCODE"))
+      .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("[ERRORCODE] Error"))
+      .andExpect(MockMvcResultMatchers.jsonPath("$.traceId").value(traceId));
+  }
+
+  @Test
+  void handleConflictException() throws Exception {
+    doThrow(new ConflictException("ERRORCODE", "Error")).when(testControllerSpy).testEndpoint(DATA, BODY);
+
+    performRequest(DATA, MediaType.APPLICATION_JSON)
+      .andExpect(MockMvcResultMatchers.status().isConflict())
+      .andExpect(MockMvcResultMatchers.jsonPath("$.category").value("CONFLICT"))
+      .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("ERRORCODE"))
+      .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("[ERRORCODE] Error"))
+      .andExpect(MockMvcResultMatchers.jsonPath("$.traceId").value(traceId));
+  }
+
+  @Test
+  void handleForbiddenException() throws Exception {
+    doThrow(new ForbiddenException("ERRORCODE", "Error")).when(testControllerSpy).testEndpoint(DATA, BODY);
+
+    performRequest(DATA, MediaType.APPLICATION_JSON)
+      .andExpect(MockMvcResultMatchers.status().isForbidden())
+      .andExpect(MockMvcResultMatchers.jsonPath("$.category").value("FORBIDDEN"))
+      .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("ERRORCODE"))
+      .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("[ERRORCODE] Error"))
+      .andExpect(MockMvcResultMatchers.jsonPath("$.traceId").value(traceId));
+  }
+
+  @Test
+  void handleNotAuthorized() throws Exception {
+    doThrow(new NotAuthorizedException("ERRORCODE", "Error")).when(testControllerSpy).testEndpoint(DATA, BODY);
+
+    performRequest(DATA, MediaType.APPLICATION_JSON)
+      .andExpect(MockMvcResultMatchers.status().isUnauthorized())
+      .andExpect(MockMvcResultMatchers.jsonPath("$.category").value("UNAUTHORIZED"))
+      .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("ERRORCODE"))
+      .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("[ERRORCODE] Error"))
+      .andExpect(MockMvcResultMatchers.jsonPath("$.traceId").value(traceId));
+  }
+
+  @Test
   void handleMissingServletRequestParameterException() throws Exception {
 
     performRequest(null, MediaType.APPLICATION_JSON)
