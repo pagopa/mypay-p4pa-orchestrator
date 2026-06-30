@@ -73,3 +73,19 @@ rest:
     timeout:
       connect-millis: "\${DEFAULT_REST_TIMEOUT_CONNECT_MILLIS:120000}"
       read-millis: "\${DEFAULT_REST_TIMEOUT_READ_MILLIS:120000}"
+  extractor:
+    base-url: "\${EXTRACTOR_BASE_URL:}"
+    max-attempts: "\${EXTRACTOR_MAX_ATTEMPTS:3}" # It's counting also the first attempt
+    wait-time-millis: "\${EXTRACTOR_WAIT_TIME_MILLIS:500}"
+    print-body-when-error: "\${EXTRACTOR_PRINT_BODY_WHEN_ERROR:true}"
+  pu:
+    auth:
+      base-url: "\${PU_AUTH_BASE_URL:\${PU_BASE_URL:}/pu/auth}"
+      max-attempts: "\${PU_AUTH_MAX_ATTEMPTS:3}" # It's counting also the first attempt
+      wait-time-millis: "\${PU_AUTH_WAIT_TIME_MILLIS:500}"
+      print-body-when-error: "\${APU_UTH_PRINT_BODY_WHEN_ERROR:true}"
+    migration:
+      base-url: "\${PU_MIGRATION_BASE_URL:\${PU_BASE_URL:}/pu/migration}"
+      max-attempts: "\${PU_MIGRATION_MAX_ATTEMPTS:3}" # It's counting also the first attempt
+      wait-time-millis: "\${PU_MIGRATION_WAIT_TIME_MILLIS:500}"
+      print-body-when-error: "\${PU_MIGRATION_PRINT_BODY_WHEN_ERROR:true}"

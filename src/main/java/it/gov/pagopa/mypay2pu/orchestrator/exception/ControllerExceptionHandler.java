@@ -39,7 +39,22 @@ public class ControllerExceptionHandler {
 
   private static final String ERROR_MESSAGE_FORMAT = "[%s] %s";
 
-  @ExceptionHandler({ValidationException.class, HttpMessageNotReadableException.class, MethodArgumentNotValidException.class, MethodArgumentTypeMismatchException.class, ConversionFailedException.class})
+  @ExceptionHandler(ConflictException.class)
+  public ResponseEntity<ErrorDTO> handleConflictException(ConflictException ex, HttpServletRequest request) {
+    return handleException(ex, request, HttpStatus.CONFLICT, ErrorDTO.CategoryEnum.CONFLICT);
+  }
+
+  @ExceptionHandler(ForbiddenException.class)
+  public ResponseEntity<ErrorDTO> handleForbiddenException(ForbiddenException ex, HttpServletRequest request) {
+    return handleException(ex, request, HttpStatus.FORBIDDEN, ErrorDTO.CategoryEnum.FORBIDDEN);
+  }
+
+  @ExceptionHandler(NotAuthorizedException.class)
+  public ResponseEntity<ErrorDTO> handleNotAuthorizedException(Exception ex, HttpServletRequest request) {
+    return handleException(ex, request, HttpStatus.UNAUTHORIZED, ErrorDTO.CategoryEnum.UNAUTHORIZED);
+  }
+
+  @ExceptionHandler({ValidationException.class, HttpMessageNotReadableException.class, MethodArgumentNotValidException.class, MethodArgumentTypeMismatchException.class, ConversionFailedException.class, InvalidValueException.class})
   public ResponseEntity<ErrorDTO> handleViolationException(Exception ex, HttpServletRequest request) {
     return handleException(ex, request, HttpStatus.BAD_REQUEST, ErrorDTO.CategoryEnum.BAD_REQUEST);
   }

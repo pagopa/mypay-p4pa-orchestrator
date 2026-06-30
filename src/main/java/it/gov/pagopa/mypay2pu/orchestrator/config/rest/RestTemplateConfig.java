@@ -2,7 +2,7 @@ package it.gov.pagopa.mypay2pu.orchestrator.config.rest;
 
 import it.gov.pagopa.mypay2pu.orchestrator.performancelogger.RestInvokePerformanceLogger;
 import it.gov.pagopa.mypay2pu.orchestrator.utils.HttpUtils;
-import it.gov.pagopa.mypay2pu.orchestrator.utils.SecurityUtils;
+import it.gov.pagopa.mypay2pu.orchestrator.utils.Utilities;
 import jakarta.annotation.Nonnull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
@@ -53,7 +53,7 @@ public class RestTemplateConfig {
                 } catch (HttpStatusCodeException ex) {
                     errorBodyLogger.info("{} {} Returned status {}: {}",
                       method,
-                      SecurityUtils.removePiiFromURI(url),
+                      Utilities.removePiiFromURI(url),
                       ex.getStatusCode(),
                       ex.getResponseBodyAsString());
                     throw ex;

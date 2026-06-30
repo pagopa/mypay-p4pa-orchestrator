@@ -1,3 +1,4 @@
+import java.util.*
 import com.github.jk1.license.filter.SpdxLicenseBundleNormalizer
 import com.github.jk1.license.render.XmlReportRenderer
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
@@ -11,6 +12,7 @@ plugins {
   id("org.sonarqube") version "7.3.1.8318"
   id("com.github.ben-manes.versions") version "0.54.0"
   id("org.openapi.generator") version "7.23.0"
+  id("org.ajoberstar.grgit") version "5.3.2"
   id("com.gorylenko.gradle-git-properties") version "4.0.1"
   id("com.github.jk1.dependency-license-report") version "3.1.4"
 }
@@ -63,6 +65,7 @@ dependencies {
   implementation("org.springframework.data:spring-data-commons")
   implementation("org.springframework.boot:spring-boot-starter-validation")
   implementation("org.springframework.boot:spring-boot-starter-actuator")
+  implementation("org.springframework.boot:spring-boot-starter-security")
   implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springDocOpenApiVersion")
   implementation("io.micrometer:micrometer-tracing-bridge-otel:$micrometerVersion")
   implementation("io.micrometer:micrometer-registry-prometheus")
@@ -138,7 +141,10 @@ tasks.register("dependenciesBuild") {
   description = "grouping all together automatically generate code tasks"
 
   dependsOn(
-    "openApiGenerate"
+    "openApiGenerate",
+    "openApiGenerate_P4PAAUTH",
+    "openApiGenerate_P4PAMIGRATION",
+    "openApiGenerate_MYPAYP4PAEXTRACTOR"
   )
 }
 
@@ -174,4 +180,113 @@ openApiGenerate {
       "additionalModelTypeAnnotations" to "@lombok.experimental.SuperBuilder(toBuilder = true)"
     )
   )
+}
+
+var targetEnv = when (Objects.requireNonNullElse(
+  System.getProperty("targetBranch"),
+  grgit.branch.current().name
+)) {
+  "uat" -> "uat"
+  "main" -> "main"
+  else -> "develop"
+}
+
+tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("openApiGenerate_P4PAAUTH") {
+  group = "openapi"
+  description = "description"
+
+  generatorName.set("java")
+  remoteInputSpec.set("https://raw.githubusercontent.com/pagopa/p4pa-api/refs/heads/main/api/openapi/prod/api.p4pa.pagopa.it_pu_auth.openapi.yaml")
+  outputDir.set("$projectDir/build/generated")
+  invokerPackage.set("it.gov.pagopa.pu.auth.generated")
+  apiPackage.set("it.gov.pagopa.pu.auth.controller.generated")
+  modelPackage.set("it.gov.pagopa.pu.auth.dto.generated")
+  configOptions.set(
+    mapOf(
+      "swaggerAnnotations" to "false",
+      "openApiNullable" to "false",
+      "dateLibrary" to "java8",
+      "serializableModel" to "true",
+      "useSpringBoot4" to "true",
+      "useJackson3" to "true",
+      "openApiNullable" to "false",
+      "useJakartaEe" to "true",
+      "useOneOfInterfaces" to "true",
+      "useBeanValidation" to "true",
+      "serializationLibrary" to "jackson",
+      "generateSupportingFiles" to "true",
+      "generateConstructorWithAllArgs" to "true",
+      "generatedConstructorWithRequiredArgs" to "true",
+      "enumPropertyNaming" to "original",
+      "additionalModelTypeAnnotations" to "@lombok.experimental.SuperBuilder(toBuilder = true)"
+    )
+  )
+  library.set("resttemplate")
+}
+
+tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("openApiGenerate_P4PAMIGRATION") {
+  group = "openapi"
+  description = "description"
+
+  generatorName.set("java")
+  remoteInputSpec.set("https://raw.githubusercontent.com/pagopa/p4pa-api/refs/heads/main/api/openapi/prod/api.p4pa.pagopa.it_pu_migration.openapi.json")
+  outputDir.set("$projectDir/build/generated")
+  invokerPackage.set("it.gov.pagopa.pu.migration.generated")
+  apiPackage.set("it.gov.pagopa.pu.migration.controller.generated")
+  modelPackage.set("it.gov.pagopa.pu.migration.dto.generated")
+  configOptions.set(
+    mapOf(
+      "swaggerAnnotations" to "false",
+      "openApiNullable" to "false",
+      "dateLibrary" to "java8",
+      "serializableModel" to "true",
+      "useSpringBoot4" to "true",
+      "useJackson3" to "true",
+      "openApiNullable" to "false",
+      "useJakartaEe" to "true",
+      "useOneOfInterfaces" to "true",
+      "useBeanValidation" to "true",
+      "serializationLibrary" to "jackson",
+      "generateSupportingFiles" to "true",
+      "useAbstractionForFiles" to "true",
+      "generateConstructorWithAllArgs" to "true",
+      "generatedConstructorWithRequiredArgs" to "true",
+      "enumPropertyNaming" to "original",
+      "additionalModelTypeAnnotations" to "@lombok.experimental.SuperBuilder(toBuilder = true)"
+    )
+  )
+  library.set("resttemplate")
+}
+
+tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("openApiGenerate_MYPAYP4PAEXTRACTOR") {
+  group = "openapi"
+  description = "description"
+
+  generatorName.set("java")
+  remoteInputSpec.set("https://raw.githubusercontent.com/pagopa/mypay-p4pa-orchestrator/refs/heads/$targetEnv/openapi/mypay-p4pa-orchestrator.openapi.yaml")
+  outputDir.set("$projectDir/build/generated")
+  invokerPackage.set("it.gov.pagopa.mypay2pu.extractor.generated")
+  apiPackage.set("it.gov.pagopa.mypay2pu.extractor.controller.generated")
+  modelPackage.set("it.gov.pagopa.mypay2pu.extractor.dto.generated")
+  configOptions.set(
+    mapOf(
+      "swaggerAnnotations" to "false",
+      "openApiNullable" to "false",
+      "dateLibrary" to "java8",
+      "serializableModel" to "true",
+      "useSpringBoot4" to "true",
+      "useJackson3" to "true",
+      "openApiNullable" to "false",
+      "useJakartaEe" to "true",
+      "useOneOfInterfaces" to "true",
+      "useBeanValidation" to "true",
+      "serializationLibrary" to "jackson",
+      "generateSupportingFiles" to "true",
+      "generateConstructorWithAllArgs" to "true",
+      "generatedConstructorWithRequiredArgs" to "true",
+      "enumPropertyNaming" to "original",
+      "additionalModelTypeAnnotations" to "@lombok.experimental.SuperBuilder(toBuilder = true)"
+    )
+  )
+  library.set("resttemplate")
 }
