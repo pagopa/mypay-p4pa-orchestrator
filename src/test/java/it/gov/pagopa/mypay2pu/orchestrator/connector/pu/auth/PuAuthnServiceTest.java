@@ -1,6 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.connector.pu.auth;
 
-import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.auth.service.AuthAccessTokenRetriever;
+import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.auth.service.PuAuthAccessTokenRetriever;
 import it.gov.pagopa.pu.auth.dto.generated.AccessToken;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -15,7 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class PuAuthnServiceTest {
 
     @Mock
-    private AuthAccessTokenRetriever accessTokenRetrieverMock;
+    private PuAuthAccessTokenRetriever accessTokenRetrieverMock;
 
     private PuAuthnService puAuthnService;
 
@@ -32,10 +32,10 @@ class PuAuthnServiceTest {
     }
 
     @Test
-    void givenNoOrgIpaCodewhenGetAccessTokenThenInvokeAccessTokenRetriever(){
+    void whenGetAccessTokenThenInvokeAccessTokenRetriever(){
         // Given
         String expectedResult = "TOKEN";
-        Mockito.when(accessTokenRetrieverMock.getAccessToken(null))
+        Mockito.when(accessTokenRetrieverMock.getAccessToken())
                 .thenReturn(AccessToken.builder().accessToken(expectedResult).tokenType("TOKENTYPE").expiresIn(0).build());
 
         // When
@@ -45,18 +45,4 @@ class PuAuthnServiceTest {
         Assertions.assertSame(expectedResult, result);
     }
 
-    @Test
-    void givenOrgIpaCodeWhenGetAccessTokenThenInvokeAccessTokenRetriever(){
-        // Given
-        String expectedResult = "TOKEN";
-        String orgIpaCode = "ORGIPACODE";
-        Mockito.when(accessTokenRetrieverMock.getAccessToken(orgIpaCode))
-                .thenReturn(AccessToken.builder().accessToken(expectedResult).tokenType("TOKENTYPE").expiresIn(0).build());
-
-        // When
-        String result = puAuthnService.getAccessToken(orgIpaCode);
-
-        // Then
-        Assertions.assertSame(expectedResult, result);
-    }
 }

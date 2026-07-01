@@ -1,26 +1,21 @@
 package it.gov.pagopa.mypay2pu.orchestrator.connector.pu.auth;
 
-import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.auth.service.AuthAccessTokenRetriever;
+import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.auth.service.PuAuthAccessTokenRetriever;
 import org.springframework.stereotype.Service;
 
 @Service
 public class PuAuthnServiceImpl implements PuAuthnService {
 
-    private final AuthAccessTokenRetriever accessTokenRetriever;
+    private final PuAuthAccessTokenRetriever accessTokenRetriever;
 
-    public PuAuthnServiceImpl(AuthAccessTokenRetriever accessTokenRetriever) {
+    public PuAuthnServiceImpl(PuAuthAccessTokenRetriever accessTokenRetriever) {
         this.accessTokenRetriever = accessTokenRetriever;
     }
 
     @Override
     public String getAccessToken() {
-        return accessTokenRetriever.getAccessToken(null)
+        return accessTokenRetriever.getAccessToken()
                 .getAccessToken();
     }
 
-    @Override
-    public String getAccessToken(String orgIpaCode) {
-        return accessTokenRetriever.getAccessToken(orgIpaCode)
-                .getAccessToken();
-    }
 }

@@ -4,7 +4,6 @@ import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.auth.client.PuAuthnClien
 import it.gov.pagopa.mypay2pu.orchestrator.utils.Constants;
 import it.gov.pagopa.pu.auth.dto.generated.AccessToken;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -15,28 +14,31 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
-public class AuthAccessTokenRetriever {
+public class PuAuthAccessTokenRetriever {
 
     private static final String GRANT_TYPE = "client_credentials";
     private static final String SCOPE = "openid";
-    private static final String CLIENT_ID_PREFIX = "piattaforma-unitaria_";
 
-    private final PuAuthnClient puAuthnClient;
-    private final String clientSecret;
+  private final String clientId;
+  private final String clientSecret;
+
+  private final PuAuthnClient puAuthnClient;
 
     private final Map<String, Pair<LocalDateTime, AccessToken>> clientId2accessTokensMap = new ConcurrentHashMap<>();
 
-    public AuthAccessTokenRetriever(
-            @Value("${rest.auth.post-token.client_secret}")
+    public PuAuthAccessTokenRetriever(
+            @Value("${rest.pu.auth.post-token.client-id}")
+            String clientId,
+            @Value("${rest.pu.auth.post-token.client-secret}")
             String clientSecret,
 
             PuAuthnClient puAuthnClient) {
-        this.puAuthnClient = puAuthnClient;
-        this.clientSecret = clientSecret;
+      this.clientId = clientId;
+      this.clientSecret = clientSecret;
+      this.puAuthnClient = puAuthnClient;
     }
 
-    public AccessToken getAccessToken(String orgIpaCode) {
-        String clientId = CLIENT_ID_PREFIX + StringUtils.stripToEmpty(orgIpaCode);
+    public AccessToken getAccessToken() {
         return clientId2accessTokensMap.compute(clientId, (k, v) -> {
             if (v == null || LocalDateTime.now(Constants.ZONEID).isAfter(v.getLeft())) {
                 log.info("M2M AccessToken with clientId[{}] expired, refreshing", clientId);

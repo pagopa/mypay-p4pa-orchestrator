@@ -12,18 +12,19 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class AuthAccessTokenRetrieverTest {
+class PuAuthAccessTokenRetrieverTest {
 
+    private static final String CLIENTID = "clientid";
     private static final String CLIENTSECRET = "clientsecret";
 
     @Mock
     private PuAuthnClient puAuthnClientMock;
 
-    private AuthAccessTokenRetriever accessTokenRetriever;
+    private PuAuthAccessTokenRetriever accessTokenRetriever;
 
     @BeforeEach
     void init(){
-        accessTokenRetriever = new AuthAccessTokenRetriever(CLIENTSECRET, puAuthnClientMock);
+        accessTokenRetriever = new PuAuthAccessTokenRetriever(CLIENTID, CLIENTSECRET, puAuthnClientMock);
     }
 
     @AfterEach
@@ -69,13 +70,12 @@ class AuthAccessTokenRetrieverTest {
 
     private void configureAndInvoke(AccessToken expectedResult) {
         // Given
-        String orgIpaCode = "ORGIPACODE";
-        Mockito.when(puAuthnClientMock.postToken("piattaforma-unitaria_" + orgIpaCode, "client_credentials", "openid", null, null, null, CLIENTSECRET))
+        Mockito.when(puAuthnClientMock.postToken(CLIENTID, "client_credentials", "openid", null, null, null, CLIENTSECRET))
                 .thenReturn(expectedResult);
 
         // When
-        AccessToken result1 = accessTokenRetriever.getAccessToken(orgIpaCode);
-        AccessToken result2 = accessTokenRetriever.getAccessToken(orgIpaCode);
+        AccessToken result1 = accessTokenRetriever.getAccessToken();
+        AccessToken result2 = accessTokenRetriever.getAccessToken();
 
         // Then
         Assertions.assertSame(expectedResult, result1);
