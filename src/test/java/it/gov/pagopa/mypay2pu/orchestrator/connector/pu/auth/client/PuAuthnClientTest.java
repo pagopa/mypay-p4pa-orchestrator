@@ -12,6 +12,8 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import static org.mockito.Mockito.when;
+
 @ExtendWith(MockitoExtension.class)
 class PuAuthnClientTest {
     @Mock
@@ -46,9 +48,9 @@ class PuAuthnClientTest {
         String subjectTokenType = "subjectTokenType";
         String clientSecret = "clientSecret";
 
-        Mockito.when(puAuthApisHolderMock.getAuthnApi(null))
+        when(puAuthApisHolderMock.getAuthnApi(null))
                 .thenReturn(authnApiMock);
-        Mockito.when(authnApiMock.postToken(clientId, grantType, scope, subjectToken, subjectIssuer, subjectTokenType, clientSecret))
+        when(authnApiMock.postToken(clientId, grantType, scope, subjectToken, subjectIssuer, subjectTokenType, clientSecret, null))
                 .thenReturn(expectedResult);
 
         // When
