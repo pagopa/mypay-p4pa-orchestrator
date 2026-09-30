@@ -1,14 +1,13 @@
 package it.gov.pagopa.mypay2pu.orchestrator.validation;
 
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.FileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationPhase;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import org.openapitools.jackson.nullable.JsonNullable;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -20,13 +19,13 @@ class MigrationRequestValidatorTest {
   private final MigrationRequestValidator validator = new MigrationRequestValidator();
 
   @Test
-  void exportRequiresIpaCodes() {
-    MigrationRequestDto request = exportRequest();
-    request.setIpaCodes(null);
+  void nullRequestIsIgnored() {
+    assertDoesNotThrow(() -> validator.validate(null));
+  }
 
-    InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
-
-    assertEquals("ipaCodes are required and must not be empty", exception.getMessage());
+  @Test
+  void requestWithoutPhaseDoesNotRequireTransferOrExportFields() {
+    assertDoesNotThrow(() -> validator.validate(new MigrationRequestDto()));
   }
 
   @Test
@@ -43,37 +42,50 @@ class MigrationRequestValidatorTest {
 
   @Test
   void fullCycleRequiresPeriod() {
-    MigrationRequestDto request = exportRequest();
-    request.setPhase(MigrationPhase.TRANSFER);
-    request.setMigrationId(UUID.randomUUID());
+    MigrationRequestDto request = transferRequest();
     request.setCycleMode(CycleMode.FULL);
 
     InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
 
     assertEquals("period is required when cycleMode is FULL", exception.getMessage());
+
+    request.setPeriod(new PeriodDto());
+    assertDoesNotThrow(() -> validator.validate(request));
+  }
+
+  @Test
+  void deltaCycleDoesNotRequirePeriod() {
+    MigrationRequestDto request = transferRequest();
+    request.setCycleMode(CycleMode.DELTA);
+
+    assertDoesNotThrow(() -> validator.validate(request));
   }
 
   @Test
   void rejectsOnlyCycleRequiresRejectsPayload() {
-    MigrationRequestDto request = new MigrationRequestDto();
-    request.setPhase(MigrationPhase.TRANSFER);
-    request.setMigrationId(UUID.randomUUID());
+    MigrationRequestDto request = transferRequest();
     request.setCycleMode(CycleMode.REJECTS_ONLY);
 
     InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
 
     assertEquals("rejectsPayload is required when cycleMode is REJECTS_ONLY", exception.getMessage());
 
+    request.setRejectsPayload(null);
+    exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
+    assertEquals("rejectsPayload is required when cycleMode is REJECTS_ONLY", exception.getMessage());
+
+    request.setRejectsPayload(JsonNullable.of(null));
+    exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
+    assertEquals("rejectsPayload is required when cycleMode is REJECTS_ONLY", exception.getMessage());
+
     request.setRejectsPayload(JsonNullable.of(Map.of()));
     assertDoesNotThrow(() -> validator.validate(request));
   }
 
-  private MigrationRequestDto exportRequest() {
+  private MigrationRequestDto transferRequest() {
     MigrationRequestDto request = new MigrationRequestDto();
-    request.setPhase(MigrationPhase.EXPORT);
-    request.setIpaCodes(List.of("ipa-code"));
-    request.setCycleMode(CycleMode.DELTA);
-    request.setFileTypesToInclude(List.of(FileType.ORGANIZATIONS));
+    request.setPhase(MigrationPhase.TRANSFER);
+    request.setMigrationId(UUID.randomUUID());
     return request;
   }
 }
