@@ -50,16 +50,18 @@ repositories {
   mavenCentral()
 }
 
-val springDocOpenApiVersion = "3.1.0"
+val springDocOpenApiVersion = "3.1.1"
 val openApiToolsVersion = "0.2.11"
 val micrometerVersion = "1.7.1"
 val httpClientVersion = "5.6.4"
-val httpCoreVersion = "5.4.3"
+val httpCoreVersion = "5.4.4"
 val kafkaAppender = "0.2.0-RC2"
-val lz4JavaVersion = "1.11.2"
+val lz4JavaVersion = "1.12.0"
 
 // CVE Security dependencies
-val tomcatEmbedCoreVersion = "11.0.25"
+val tomcatEmbedCoreVersion = "11.0.26"
+val jackson2DatabindVersion = "2.22.3"
+val jackson3DatabindVersion = "3.1.7"
 
 dependencies {
   implementation("org.springframework.boot:spring-boot-starter-webmvc")
@@ -83,6 +85,8 @@ dependencies {
 
   // CVE Security dependencies
   implementation("org.apache.tomcat.embed:tomcat-embed-core:$tomcatEmbedCoreVersion")
+    implementation("com.fasterxml.jackson.core:jackson-databind:$jackson2DatabindVersion")
+    implementation("tools.jackson.core:jackson-databind:$jackson3DatabindVersion")
 
   compileOnly("org.projectlombok:lombok")
   annotationProcessor("org.projectlombok:lombok")
