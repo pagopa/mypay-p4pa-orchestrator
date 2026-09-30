@@ -8,6 +8,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import org.openapitools.jackson.nullable.JsonNullable;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -26,6 +27,18 @@ class MigrationRequestValidatorTest {
   @Test
   void requestWithoutPhaseDoesNotRequireTransferOrExportFields() {
     assertDoesNotThrow(() -> validator.validate(new MigrationRequestDto()));
+  }
+
+  @Test
+  void exportAndAllPhasesRequireIpaCodes() {
+    for (MigrationPhase phase : List.of(MigrationPhase.EXPORT, MigrationPhase.ALL)) {
+      MigrationRequestDto request = new MigrationRequestDto();
+      request.setPhase(phase);
+      request.setIpaCodes(null);
+
+      InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
+      assertEquals("ipaCodes are required and must not be empty", exception.getMessage());
+    }
   }
 
   @Test
