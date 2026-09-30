@@ -150,28 +150,6 @@
         "type" : "string",
         "enum" : [ "ORGANIZATIONS", "ORG_SIL_SERVICES", "DEBT_POSITIONS_TYPE", "DEBT_POSITIONS_TYPE_ORG", "DEBT_POSITIONS_TYPE_ORG_OPERATORS", "PAYMENT_NOTIFICATION", "PAYMENTS_REPORTING", "TREASURY_CSV_COMPLETE", "ASSESSMENTS", "ASSESSMENTS_REGISTRY", "DEBT_POSITIONS", "DEBT_POSITIONS_PAID" ]
       },
-      "JsonNullableLocalDate" : {
-        "type" : "object",
-        "properties" : {
-          "present" : {
-            "type" : "boolean"
-          },
-          "undefined" : {
-            "type" : "boolean"
-          }
-        }
-      },
-      "JsonNullableMapStringObject" : {
-        "type" : "object",
-        "properties" : {
-          "present" : {
-            "type" : "boolean"
-          },
-          "undefined" : {
-            "type" : "boolean"
-          }
-        }
-      },
       "MigrationRequestDto" : {
         "type" : "object",
         "properties" : {
@@ -206,8 +184,8 @@
             "description" : "Required for TRANSFER phase"
           },
           "rejectsPayload" : {
-            "type" : "null",
-            "$ref" : "#/components/schemas/JsonNullableMapStringObject",
+            "type" : [ "object", "null" ],
+            "additionalProperties" : true,
             "description" : "Required when cycleMode is REJECTS_ONLY"
           }
         },
@@ -217,12 +195,12 @@
         "type" : "object",
         "properties" : {
           "fromDate" : {
-            "type" : "null",
-            "$ref" : "#/components/schemas/JsonNullableLocalDate"
+            "type" : [ "string", "null" ],
+            "format" : "date"
           },
           "toDate" : {
-            "type" : "null",
-            "$ref" : "#/components/schemas/JsonNullableLocalDate"
+            "type" : [ "string", "null" ],
+            "format" : "date"
           }
         }
       }
