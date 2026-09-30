@@ -6,8 +6,10 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import org.openapitools.jackson.nullable.JsonNullable;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Validates migration requests before they are delegated to the application service.
@@ -25,13 +27,13 @@ public class MigrationRequestValidator {
   protected void validatePhase(MigrationRequestDto request) {
     MigrationPhase phase = request.getPhase();
     if (phase == MigrationPhase.EXPORT || phase == MigrationPhase.ALL) {
-      if (request.getIpaCodes() == null || request.getIpaCodes().isEmpty()) {
+      if (!StringUtils.hasText((CharSequence) request.getIpaCodes())) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "ipaCodes are required and must not be empty");
       }
-      if (request.getCycleMode() == null) {
+      if (!StringUtils.hasText(Objects.requireNonNull(request.getCycleMode()).toString())) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "cycleMode is required");
       }
-      if (request.getFileTypesToInclude() == null || request.getFileTypesToInclude().isEmpty()) {
+      if (!StringUtils.hasText(request.getFileTypesToInclude().toString())) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "fileTypesToInclude are required and must not be empty");
       }
     } else if (phase == MigrationPhase.TRANSFER && request.getMigrationId() == null) {

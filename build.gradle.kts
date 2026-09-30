@@ -100,21 +100,6 @@ tasks.withType<Test> {
   finalizedBy(tasks.jacocoTestReport)
 }
 
-val generateOpenApiSpec = tasks.register("generateOpenApiSpec") {
-  group = "documentation"
-  description = "Generates and stores the OpenAPI specification served by Springdoc."
-  dependsOn(tasks.test)
-}
-
-tasks.named<Test>("test") {
-  outputs.upToDateWhen {
-    !gradle.taskGraph.hasTask(generateOpenApiSpec.get())
-  }
-  doFirst {
-    systemProperty("openapi.update", gradle.taskGraph.hasTask(generateOpenApiSpec.get()).toString())
-  }
-}
-
 val mockitoAgent = configurations.create("mockitoAgent")
 dependencies {
   mockitoAgent("org.mockito:mockito-core") { isTransitive = false }
@@ -202,15 +187,6 @@ openApiGenerate {
       "additionalModelTypeAnnotations" to "@lombok.experimental.SuperBuilder(toBuilder = true)"
     )
   )
-}
-
-tasks.named("openApiGenerate") {
-  doFirst {
-    project.delete(
-      "$projectDir/build/generated/src/main/java/it/gov/pagopa/mypay2pu/orchestrator/controller/generated",
-      "$projectDir/build/generated/src/main/java/it/gov/pagopa/mypay2pu/orchestrator/dto/generated"
-    )
-  }
 }
 
 var targetEnv = when (Objects.requireNonNullElse(

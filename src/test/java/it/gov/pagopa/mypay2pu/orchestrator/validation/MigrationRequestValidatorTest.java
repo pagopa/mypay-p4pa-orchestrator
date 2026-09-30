@@ -44,6 +44,8 @@ class MigrationRequestValidatorTest {
   @Test
   void fullCycleRequiresPeriod() {
     MigrationRequestDto request = exportRequest();
+    request.setPhase(MigrationPhase.TRANSFER);
+    request.setMigrationId(UUID.randomUUID());
     request.setCycleMode(CycleMode.FULL);
 
     InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
