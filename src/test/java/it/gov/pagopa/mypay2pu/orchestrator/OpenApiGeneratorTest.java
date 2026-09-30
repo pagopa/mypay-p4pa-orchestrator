@@ -1,7 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator;
 
-import it.gov.pagopa.mypay2pu.orchestrator.service.OrchestrateMigrationService;
-import org.junit.jupiter.api.AfterEach;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,44 +9,39 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.MockMvcPrint;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.json.JsonAssert;
 import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @AutoConfigureMockMvc(print = MockMvcPrint.NONE, addFilters = false)
 @TestPropertySource(properties = {
+  "spring.datasource.driver-class-name=org.h2.Driver",
+  "spring.datasource.url=jdbc:h2:mem:db;DB_CLOSE_DELAY=-1",
+  "spring.datasource.username=sa",
+  "spring.datasource.password=sa",
+
   "logging.level.org.springdoc.core.utils.SpringDocAnnotationsUtils=OFF",
   "springdoc.api-docs.enabled=true",
   "springdoc.swagger-ui.enabled=false",
   "springdoc.writer-with-default-pretty-printer=true"
 })
+@Slf4j
 class OpenApiGeneratorTest {
 
   @Autowired
   private MockMvc mockMvc;
 
-  @MockitoBean
-  private OrchestrateMigrationService orchestrateMigrationService;
-
-  @AfterEach
-  void verifyMocks() {
-    verifyNoMoreInteractions(orchestrateMigrationService);
-  }
-
   @Test
-  void generatedOpenApiMatchesVersionedSpecification() throws Exception {
+  void generateAndVerifyCommit() throws Exception {
     MvcResult result = mockMvc.perform(
         get("/v3/api-docs")
           .contentType(MediaType.APPLICATION_JSON)
@@ -61,22 +55,26 @@ class OpenApiGeneratorTest {
     Assertions.assertTrue(openApiResult.startsWith("{\n  \"openapi\" : \"3."));
 
     Path openApiGeneratedPath = Path.of("openapi/generated.openapi.json");
-    if (Boolean.getBoolean("openapi.update")) {
-      Files.writeString(
-        openApiGeneratedPath,
-        openApiResult,
-        StandardCharsets.UTF_8,
-        StandardOpenOption.CREATE,
-        StandardOpenOption.TRUNCATE_EXISTING
-      );
-      return;
+    boolean toStore=true;
+    if(Files.exists(openApiGeneratedPath)){
+      String storedOpenApi = Files.readString(openApiGeneratedPath);
+      try {
+        JsonAssert.comparator(JsonCompareMode.STRICT).assertIsMatch(storedOpenApi, openApiResult);
+        toStore=false;
+      } catch (Throwable e){
+        log.info("Observed the following changes: {}", e.getMessage());
+      }
+    }
+    if(toStore){
+      Files.writeString(openApiGeneratedPath, openApiResult, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
     }
 
-    Assertions.assertTrue(
-      Files.exists(openApiGeneratedPath),
-      "Missing versioned OpenAPI snapshot; run generateOpenApiSpec to create it"
-    );
-    String storedOpenApi = Files.readString(openApiGeneratedPath, StandardCharsets.UTF_8);
-    JsonAssert.comparator(JsonCompareMode.STRICT).assertIsMatch(storedOpenApi, openApiResult);
+    String gitStatus = execCmd("git", "status");
+    Assertions.assertFalse(gitStatus.contains("openapi/generated.openapi.json"), "Generated OpenApi not committed");
+  }
+
+  public static String execCmd(String... cmd) throws java.io.IOException {
+    java.util.Scanner s = new java.util.Scanner(Runtime.getRuntime().exec(cmd).getInputStream()).useDelimiter("\\A");
+    return s.hasNext() ? s.next() : "";
   }
 }
