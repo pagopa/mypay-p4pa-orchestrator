@@ -15,11 +15,41 @@ See [OpenAPI](openapi/generated.openapi.json), exposed through the following pat
 * `/swagger-ui/index.html`
 
 ### 📌 Relevant APIs
-TBD
+#### `POST /orchestrate/migrate`
+
+Starts an `EXPORT`, `TRANSFER` or `ALL` migration orchestration. A valid request is delegated to the application service and the endpoint returns **202 Accepted** with a `MigrationResponseDto`.
+
+The request must include `phase`. Conditional requirements are:
+
+| `phase` | Required fields |
+|---------|-----------------|
+| `EXPORT` or `ALL` | `ipaCodes` (non-empty), `cycleMode`, `fileTypesToInclude` (non-empty) |
+| `TRANSFER` | `migrationId` |
+
+For any phase, `cycleMode: FULL` also requires `period`; `cycleMode: REJECTS_ONLY` requires `rejectsPayload`. `period.fromDate` and `period.toDate` are nullable.
+
+Example request:
+
+```json
+{
+  "phase": "EXPORT",
+  "ipaCodes": ["example-ipa"],
+  "cycleMode": "FULL",
+  "fileTypesToInclude": ["ORGANIZATIONS"],
+  "period": {
+    "fromDate": "2025-01-01",
+    "toDate": "2025-12-31"
+  }
+}
+```
+
+The response includes the migration ID, phase, execution status, cycle mode, IPA codes and creation timestamp. `workflowIds` is populated only for `TRANSFER` migrations. See Swagger UI for the complete response schema and the supported file type values.
 
 ### 📌 Common HTTP status returned:
-* `200`: Successful operation;
-* `400`: Bad request, e.g. missing required parameters or invalid values;
+* `202`: Migration orchestration accepted;
+* `400`: Invalid request, e.g. missing required fields or invalid values;
+* `404`: Requested resource not found;
+* `409`: Conflict with an existing operation;
 
 ## 🔎 Monitoring
 See available actuator endpoints through the following path:

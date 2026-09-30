@@ -100,6 +100,21 @@ tasks.withType<Test> {
   finalizedBy(tasks.jacocoTestReport)
 }
 
+val generateOpenApiSpec = tasks.register("generateOpenApiSpec") {
+  group = "documentation"
+  description = "Generates and stores the OpenAPI specification served by Springdoc."
+  dependsOn(tasks.test)
+}
+
+tasks.named<Test>("test") {
+  outputs.upToDateWhen {
+    !gradle.taskGraph.hasTask(generateOpenApiSpec.get())
+  }
+  doFirst {
+    systemProperty("openapi.update", gradle.taskGraph.hasTask(generateOpenApiSpec.get()).toString())
+  }
+}
+
 val mockitoAgent = configurations.create("mockitoAgent")
 dependencies {
   mockitoAgent("org.mockito:mockito-core") { isTransitive = false }
@@ -189,6 +204,15 @@ openApiGenerate {
   )
 }
 
+tasks.named("openApiGenerate") {
+  doFirst {
+    project.delete(
+      "$projectDir/build/generated/src/main/java/it/gov/pagopa/mypay2pu/orchestrator/controller/generated",
+      "$projectDir/build/generated/src/main/java/it/gov/pagopa/mypay2pu/orchestrator/dto/generated"
+    )
+  }
+}
+
 var targetEnv = when (Objects.requireNonNullElse(
   System.getProperty("targetBranch"),
   grgit.branch.current().name
@@ -216,7 +240,6 @@ tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("ope
       "serializableModel" to "true",
       "useSpringBoot4" to "true",
       "useJackson3" to "true",
-      "openApiNullable" to "false",
       "useJakartaEe" to "true",
       "useOneOfInterfaces" to "true",
       "useBeanValidation" to "true",
@@ -249,7 +272,6 @@ tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("ope
       "serializableModel" to "true",
       "useSpringBoot4" to "true",
       "useJackson3" to "true",
-      "openApiNullable" to "false",
       "useJakartaEe" to "true",
       "useOneOfInterfaces" to "true",
       "useBeanValidation" to "true",
@@ -270,7 +292,7 @@ tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("ope
   description = "description"
 
   generatorName.set("java")
-  remoteInputSpec.set("https://raw.githubusercontent.com/pagopa/mypay-p4pa-orchestrator/refs/heads/$targetEnv/openapi/mypay-p4pa-orchestrator.openapi.yaml")
+  remoteInputSpec.set("https://raw.githubusercontent.com/pagopa/mypay-p4pa-extractor/refs/heads/$targetEnv/openapi/mypay-p4pa-extractor.openapi.yaml")
   outputDir.set("$projectDir/build/generated")
   invokerPackage.set("it.gov.pagopa.mypay2pu.extractor.generated")
   apiPackage.set("it.gov.pagopa.mypay2pu.extractor.controller.generated")
@@ -283,7 +305,6 @@ tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("ope
       "serializableModel" to "true",
       "useSpringBoot4" to "true",
       "useJackson3" to "true",
-      "openApiNullable" to "false",
       "useJakartaEe" to "true",
       "useOneOfInterfaces" to "true",
       "useBeanValidation" to "true",

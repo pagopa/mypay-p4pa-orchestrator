@@ -1,0 +1,231 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "mypay-p4pa-orchestrator",
+    "description" : "Api and Models",
+    "version" : "0.0.1"
+  },
+  "servers" : [ {
+    "url" : "http://localhost",
+    "description" : "Generated server url"
+  } ],
+  "tags" : [ {
+    "name" : "OrchestrateMigration",
+    "description" : "Migration orchestration APIs"
+  } ],
+  "paths" : {
+    "/orchestrate/migrate" : {
+      "post" : {
+        "tags" : [ "OrchestrateMigration" ],
+        "summary" : "Start a migration orchestration",
+        "description" : "Start an EXPORT, TRANSFER or ALL migration flow. EXPORT and ALL requests require non-empty ipaCodes and fileTypesToInclude, and a cycleMode. TRANSFER requests require migrationId. FULL cycle mode requires period; REJECTS_ONLY cycle mode requires rejectsPayload.",
+        "operationId" : "orchestrateMigration",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MigrationRequestDto"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "description" : "Migration orchestration accepted",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MigrationResponseDto"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Invalid migration request",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Requested resource not found",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Migration conflicts with an existing operation",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "CycleMode" : {
+        "type" : [ "string", "null" ],
+        "enum" : [ "FULL", "DELTA", "REJECTS_ONLY" ]
+      },
+      "MigrationExecutionStatus" : {
+        "type" : [ "string", "null" ],
+        "enum" : [ "PENDING", "EXTRACTING", "EXTRACTED", "UPLOADING", "WAITING_PU", "COMPLETED", "PARTIAL", "FAILED" ]
+      },
+      "MigrationPhase" : {
+        "type" : [ "string", "null" ],
+        "enum" : [ "EXPORT", "TRANSFER", "ALL" ]
+      },
+      "MigrationResponseDto" : {
+        "type" : "object",
+        "properties" : {
+          "migrationId" : {
+            "type" : [ "string", "null" ],
+            "format" : "uuid"
+          },
+          "phase" : {
+            "$ref" : "#/components/schemas/MigrationPhase"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/MigrationExecutionStatus"
+          },
+          "cycleMode" : {
+            "$ref" : "#/components/schemas/CycleMode"
+          },
+          "ipaCodes" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "createdAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time"
+          },
+          "workflowIds" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "description" : "Workflow identifiers, populated only for TRANSFER migrations"
+          }
+        }
+      },
+      "CategoryEnum" : {
+        "type" : "string",
+        "enum" : [ "NOT_FOUND", "BAD_REQUEST", "GENERIC_ERROR", "TOO_MANY_REQUESTS", "CONFLICT", "FORBIDDEN", "UNAUTHORIZED" ]
+      },
+      "ErrorDTO" : {
+        "type" : "object",
+        "properties" : {
+          "category" : {
+            "$ref" : "#/components/schemas/CategoryEnum"
+          },
+          "code" : {
+            "type" : "string"
+          },
+          "message" : {
+            "type" : "string"
+          },
+          "traceId" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "category", "code", "message" ]
+      },
+      "FileType" : {
+        "type" : "string",
+        "enum" : [ "ORGANIZATIONS", "ORG_SIL_SERVICES", "DEBT_POSITIONS_TYPE", "DEBT_POSITIONS_TYPE_ORG", "DEBT_POSITIONS_TYPE_ORG_OPERATORS", "PAYMENT_NOTIFICATION", "PAYMENTS_REPORTING", "TREASURY_CSV_COMPLETE", "ASSESSMENTS", "ASSESSMENTS_REGISTRY", "DEBT_POSITIONS", "DEBT_POSITIONS_PAID" ]
+      },
+      "JsonNullableLocalDate" : {
+        "type" : "object",
+        "properties" : {
+          "present" : {
+            "type" : "boolean"
+          },
+          "undefined" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "JsonNullableMapStringObject" : {
+        "type" : "object",
+        "properties" : {
+          "present" : {
+            "type" : "boolean"
+          },
+          "undefined" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "MigrationRequestDto" : {
+        "type" : "object",
+        "properties" : {
+          "phase" : {
+            "$ref" : "#/components/schemas/MigrationPhase"
+          },
+          "ipaCodes" : {
+            "type" : "array",
+            "description" : "Required and non-empty for EXPORT and ALL phases",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "cycleMode" : {
+            "$ref" : "#/components/schemas/CycleMode",
+            "description" : "Required for EXPORT and ALL phases"
+          },
+          "fileTypesToInclude" : {
+            "type" : "array",
+            "description" : "Required and non-empty for EXPORT and ALL phases",
+            "items" : {
+              "$ref" : "#/components/schemas/FileType"
+            }
+          },
+          "period" : {
+            "$ref" : "#/components/schemas/PeriodDto",
+            "description" : "Required when cycleMode is FULL"
+          },
+          "migrationId" : {
+            "type" : [ "string", "null" ],
+            "format" : "uuid",
+            "description" : "Required for TRANSFER phase"
+          },
+          "rejectsPayload" : {
+            "type" : "null",
+            "$ref" : "#/components/schemas/JsonNullableMapStringObject",
+            "description" : "Required when cycleMode is REJECTS_ONLY"
+          }
+        },
+        "required" : [ "phase" ]
+      },
+      "PeriodDto" : {
+        "type" : "object",
+        "properties" : {
+          "fromDate" : {
+            "type" : "null",
+            "$ref" : "#/components/schemas/JsonNullableLocalDate"
+          },
+          "toDate" : {
+            "type" : "null",
+            "$ref" : "#/components/schemas/JsonNullableLocalDate"
+          }
+        }
+      }
+    }
+  }
+}
