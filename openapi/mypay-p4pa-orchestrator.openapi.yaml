@@ -80,6 +80,8 @@ components:
           type: string
           format: uuid
           description: Required for TRANSFER phase
+        logicalKey:
+          type: string
         rejectsPayload:
           type:
             - object

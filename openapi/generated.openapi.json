@@ -183,6 +183,9 @@
             "format" : "uuid",
             "description" : "Required for TRANSFER phase"
           },
+          "logicalKey" : {
+            "type" : [ "string", "null" ]
+          },
           "rejectsPayload" : {
             "type" : [ "object", "null" ],
             "additionalProperties" : { },
