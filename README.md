@@ -82,7 +82,6 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | ORCHESTRATOR_DB_NAME     | Database name (required)               |         |
 | ORCHESTRATOR_DB_USER     | Database username (required)           |         |
 | ORCHESTRATOR_DB_PASSWORD | Database password (required)           |         |
-| ORCHESTRATOR_DB_SCHEMA   | PostgreSQL schema                      | public  |
 
 #### 🔁 Integrations
 

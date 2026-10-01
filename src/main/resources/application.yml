@@ -9,15 +9,6 @@ spring:
   threads:
     virtual:
       enabled: true
-  datasource:
-    url: "jdbc:postgresql://\${ORCHESTRATOR_DB_HOST:}:\${ORCHESTRATOR_DB_PORT:5432}/\${ORCHESTRATOR_DB_NAME:}"
-    username: "\${ORCHESTRATOR_DB_USER:}"
-    password: "\${ORCHESTRATOR_DB_PASSWORD:}"
-    hikari:
-      schema: "\${ORCHESTRATOR_DB_SCHEMA:public}"
-  servlet:
-    multipart:
-      max-file-size: "\${MULTIPART_MAX_FILE_SIZE:52428800}"
 management:
   info:
     build.enabled: true
@@ -102,6 +93,13 @@ rest:
       wait-time-millis: "\${PU_MIGRATION_WAIT_TIME_MILLIS:500}"
       print-body-when-error: "\${PU_MIGRATION_PRINT_BODY_WHEN_ERROR:true}"
 
+datasource:
+  orchestrator:
+    jdbc-url: "jdbc:postgresql://\${ORCHESTRATOR_DB_HOST:}:\${ORCHESTRATOR_DB_PORT:5432}/\${ORCHESTRATOR_DB_NAME:}"
+    username: "\${ORCHESTRATOR_DB_USER:}"
+    password: "\${ORCHESTRATOR_DB_PASSWORD:}"
+    driver-class-name: org.postgresql.Driver
+
 orchestrator:
   extractor:
     api-timeout-seconds: "\${EXTRACTOR_API_TIMEOUT_SECONDS:3600}"
@@ -120,3 +118,5 @@ orchestrator:
     queue-capacity: "\${ASYNC_QUEUE_CAPACITY:100}"
   storage:
     extractor-output-path: "\${STORAGE_PATH_EXTRACTOR_OUTPUT:}"
+    multipart:
+      max-file-size: "\${MULTIPART_MAX_FILE_SIZE:52428800}"
