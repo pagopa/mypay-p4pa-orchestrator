@@ -16,10 +16,8 @@ import java.util.List;
 public class MigrationRequestValidator {
 
   public void validate(MigrationRequestDto request) {
-    if (request != null) {
-      validatePhase(request);
-      validateCycleMode(request);
-    }
+    validatePhase(request);
+    validateCycleMode(request);
   }
 
   protected void validatePhase(MigrationRequestDto request) {

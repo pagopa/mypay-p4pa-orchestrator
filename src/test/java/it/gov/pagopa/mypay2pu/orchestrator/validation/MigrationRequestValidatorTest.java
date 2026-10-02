@@ -18,11 +18,6 @@ class MigrationRequestValidatorTest {
   private final MigrationRequestValidator validator = new MigrationRequestValidator();
 
   @Test
-  void nullRequestIsIgnored() {
-    assertDoesNotThrow(() -> validator.validate(null));
-  }
-
-  @Test
   void requestWithoutPhaseDoesNotRequireTransferOrExportFields() {
     assertDoesNotThrow(() -> validator.validate(new MigrationRequestDto()));
   }

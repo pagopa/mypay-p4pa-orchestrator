@@ -179,7 +179,6 @@ openApiGenerate {
   typeMappings.set(mapOf(
     "MigrationFileType" to "it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType"
   ))
-  globalProperties.set(mapOf("apis" to "", "models" to "", "supportingFiles" to "ApiUtil.java"))
   configOptions.set(
     mapOf(
       "dateLibrary" to "java8",
