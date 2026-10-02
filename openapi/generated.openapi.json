@@ -116,11 +116,11 @@
             "format" : "date-time"
           },
           "uploadIds" : {
-            "type" : "object",
-            "additionalProperties" : {
+            "type" : "array",
+            "description" : "Upload identifiers, populated only for TRANSFER migrations",
+            "items" : {
               "type" : "string"
-            },
-            "description" : "Upload identifiers, populated only for TRANSFER migrations"
+            }
           }
         }
       },
@@ -187,9 +187,11 @@
             "type" : [ "string", "null" ]
           },
           "rejectsPayload" : {
-            "type" : [ "object", "null" ],
-            "additionalProperties" : { },
-            "description" : "Required when cycleMode is REJECTS_ONLY"
+            "type" : [ "array", "null" ],
+            "description" : "Required when cycleMode is REJECTS_ONLY; an array of strings",
+            "items" : {
+              "type" : "string"
+            }
           }
         },
         "required" : [ "cycleMode", "phase" ]
