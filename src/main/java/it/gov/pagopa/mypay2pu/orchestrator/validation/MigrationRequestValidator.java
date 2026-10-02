@@ -6,9 +6,9 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import org.openapitools.jackson.nullable.JsonNullable;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
+import org.springframework.util.CollectionUtils;
 
-import java.util.Map;
+import java.util.List;
 
 /**
  * Validates migration requests before they are delegated to the application service.
@@ -26,10 +26,10 @@ public class MigrationRequestValidator {
   protected void validatePhase(MigrationRequestDto request) {
     MigrationPhase phase = request.getPhase();
     if (phase == MigrationPhase.EXPORT || phase == MigrationPhase.ALL) {
-      if (!StringUtils.hasText((CharSequence) request.getIpaCodes())) {
+      if (CollectionUtils.isEmpty(request.getIpaCodes())) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "ipaCodes are required and must not be empty");
       }
-      if (request.getFileTypesToInclude() == null || request.getFileTypesToInclude().isEmpty()) {
+      if (CollectionUtils.isEmpty(request.getFileTypesToInclude())) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "fileTypesToInclude are required and must not be empty");
       }
     } else if (phase == MigrationPhase.TRANSFER && request.getMigrationId() == null) {
@@ -42,7 +42,7 @@ public class MigrationRequestValidator {
       throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "period is required when cycleMode is FULL");
     }
     if (request.getCycleMode() == CycleMode.REJECTS_ONLY) {
-      JsonNullable<Map<String, Object>> rejectsPayload = request.getRejectsPayload();
+      JsonNullable<List<String>> rejectsPayload = request.getRejectsPayload();
       if (rejectsPayload == null || !rejectsPayload.isPresent() || rejectsPayload.get() == null) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "rejectsPayload is required when cycleMode is REJECTS_ONLY");
       }

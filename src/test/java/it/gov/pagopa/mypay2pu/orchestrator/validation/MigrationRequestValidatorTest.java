@@ -9,7 +9,6 @@ import org.junit.jupiter.api.Test;
 import org.openapitools.jackson.nullable.JsonNullable;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -92,7 +91,7 @@ class MigrationRequestValidatorTest {
     exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
     assertEquals("rejectsPayload is required when cycleMode is REJECTS_ONLY", exception.getMessage());
 
-    request.setRejectsPayload(JsonNullable.of(Map.of()));
+    request.setRejectsPayload(JsonNullable.of(List.of("rejected-item")));
     assertDoesNotThrow(() -> validator.validate(request));
   }
 
