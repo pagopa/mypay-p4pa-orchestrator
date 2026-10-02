@@ -83,7 +83,7 @@ rest:
       base-url: "\${PU_AUTH_BASE_URL:\${PU_BASE_URL:}/pu/auth}"
       max-attempts: "\${PU_AUTH_MAX_ATTEMPTS:3}" # It's counting also the first attempt
       wait-time-millis: "\${PU_AUTH_WAIT_TIME_MILLIS:500}"
-      print-body-when-error: "\${APU_UTH_PRINT_BODY_WHEN_ERROR:true}"
+      print-body-when-error: "\${PU_AUTH_PRINT_BODY_WHEN_ERROR:true}"
       post-token:
         client-id: "\${PU_AUTH_CLIENT_ID:clientid}"
         client-secret: "\${PU_AUTH_CLIENT_SECRET:clientsecret}"

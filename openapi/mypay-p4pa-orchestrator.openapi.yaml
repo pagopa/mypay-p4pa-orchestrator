@@ -1,36 +1,147 @@
 openapi: 3.1.0
 info:
-  title: Fake API
-  description: "Sample API"
+  title: MyPay P4PA Orchestrator API
+  description: API for orchestrating MyPay4 data migrations to Piattaforma Unitaria.
   version: "1.0.0"
+tags:
+  - name: OrchestrateMigration
+    description: Migration orchestration APIs
 paths:
-  /api/v1/greet:
-    get:
-      summary: "Hello World"
-      description: "Sample endpoint that return greetings"
+  /orchestrate/migrate:
+    post:
+      tags:
+        - OrchestrateMigration
+      operationId: orchestrateMigration
+      summary: Start a migration orchestration
+      description: |-
+        Start an EXPORT, TRANSFER or ALL migration flow.
+        EXPORT and ALL requests require non-empty ipaCodes and fileTypesToInclude, and a cycleMode.
+        TRANSFER requests require migrationId.
+        FULL cycle mode requires period; REJECTS_ONLY cycle mode requires rejectsPayload.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MigrationRequestDto'
       responses:
-        '200':
-          description: "Success"
+        '202':
+          description: Migration orchestration accepted
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "Hello, World!"
-        '500':
-          description: "Internal Server Error"
+                $ref: '#/components/schemas/MigrationResponseDto'
+        '400':
+          description: Invalid migration request
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Internal Server Error"
+                $ref: '#/components/schemas/ErrorDTO'
+        '404':
+          description: Requested resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDTO'
+        '409':
+          description: Migration conflicts with an existing operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDTO'
 components:
   schemas:
+    MigrationRequestDto:
+      type: object
+      required:
+        - phase
+        - cycleMode
+      properties:
+        phase:
+          $ref: '#/components/schemas/MigrationPhase'
+        ipaCodes:
+          description: Required and non-empty for EXPORT and ALL phases
+          type: array
+          items:
+            type: string
+        cycleMode:
+          description: Required for all migration phases
+          $ref: '#/components/schemas/CycleMode'
+        fileTypesToInclude:
+          description: Required and non-empty for EXPORT and ALL phases
+          type: array
+          items:
+            type: 'MigrationFileType'
+        period:
+          description: Required when cycleMode is FULL
+          $ref: '#/components/schemas/PeriodDto'
+        migrationId:
+          description: Required for TRANSFER phase
+          type: string
+          format: uuid
+        logicalKey:
+          type: string
+        rejectsPayload:
+          description: Required when cycleMode is REJECTS_ONLY; an array of strings
+          type: array
+          items:
+            type: string
+    PeriodDto:
+      type: object
+      properties:
+        fromDate:
+          type: string
+          format: date
+        toDate:
+          type: string
+          format: date
+    MigrationResponseDto:
+      type: object
+      properties:
+        migrationId:
+          type: string
+          format: uuid
+        phase:
+          $ref: '#/components/schemas/MigrationPhase'
+        status:
+          $ref: '#/components/schemas/MigrationExecutionStatus'
+        cycleMode:
+          $ref: '#/components/schemas/CycleMode'
+        ipaCodes:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        uploadIds:
+          description: Upload identifiers, populated only for TRANSFER migrations
+          type: array
+          items:
+            type: string
+    MigrationPhase:
+      type: string
+      enum:
+        - EXPORT
+        - TRANSFER
+        - ALL
+    CycleMode:
+      type: string
+      enum:
+        - FULL
+        - DELTA
+        - REJECTS_ONLY
+    MigrationExecutionStatus:
+      type: string
+      enum:
+        - PENDING
+        - EXTRACTING
+        - EXTRACTED
+        - UPLOADING
+        - WAITING_PU
+        - COMPLETED
+        - PARTIAL
+        - FAILED
     ErrorDTO:
       type: object
       required:

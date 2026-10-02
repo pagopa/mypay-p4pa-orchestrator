@@ -15,11 +15,16 @@ See [OpenAPI](openapi/generated.openapi.json), exposed through the following pat
 * `/swagger-ui/index.html`
 
 ### 📌 Relevant APIs
-TBD
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/orchestrate/migrate` | Start an `EXPORT`, `TRANSFER` or `ALL` migration |
 
 ### 📌 Common HTTP status returned:
-* `200`: Successful operation;
-* `400`: Bad request, e.g. missing required parameters or invalid values;
+* `202`: Migration orchestration accepted
+* `400`: Invalid request
+* `404`: Requested resource not found
+* `409`: Conflict with an existing operation
 
 ## 🔎 Monitoring
 See available actuator endpoints through the following path:
