@@ -92,3 +92,31 @@ rest:
       max-attempts: "\${PU_MIGRATION_MAX_ATTEMPTS:3}" # It's counting also the first attempt
       wait-time-millis: "\${PU_MIGRATION_WAIT_TIME_MILLIS:500}"
       print-body-when-error: "\${PU_MIGRATION_PRINT_BODY_WHEN_ERROR:true}"
+
+datasource:
+  orchestrator:
+    jdbc-url: "jdbc:postgresql://\${ORCHESTRATOR_DB_HOST:}:\${ORCHESTRATOR_DB_PORT:5432}/\${ORCHESTRATOR_DB_NAME:}"
+    username: "\${ORCHESTRATOR_DB_USER:}"
+    password: "\${ORCHESTRATOR_DB_PASSWORD:}"
+    driver-class-name: org.postgresql.Driver
+
+orchestrator:
+  extractor:
+    api-timeout-seconds: "\${EXTRACTOR_API_TIMEOUT_SECONDS:3600}"
+  transfer:
+    upload-timeout-seconds: "\${UPLOAD_P4PA_TIMEOUT_SECONDS:600}"
+  polling:
+    workflow:
+      base-url: "\${POLLING_WORKFLOW_BASE_URL:}"
+      interval-seconds: "\${POLLING_WORKFLOW_INTERVAL_SECONDS:30}"
+      max-attempts: "\${POLLING_WORKFLOW_MAX_ATTEMPTS:1440}"
+  dag:
+    config-path: "\${DAG_CONFIG_PATH:/app/config/dag.yaml}"
+  async:
+    core-pool-size: "\${ASYNC_CORE_POOL_SIZE:4}"
+    max-pool-size: "\${ASYNC_MAX_POOL_SIZE:8}"
+    queue-capacity: "\${ASYNC_QUEUE_CAPACITY:100}"
+  storage:
+    extractor-output-path: "\${STORAGE_PATH_EXTRACTOR_OUTPUT:}"
+    multipart:
+      max-file-size: "\${MULTIPART_MAX_FILE_SIZE:52428800}"
