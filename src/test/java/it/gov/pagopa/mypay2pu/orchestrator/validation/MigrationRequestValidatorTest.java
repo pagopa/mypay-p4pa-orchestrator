@@ -5,8 +5,8 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationPhase;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
-import org.openapitools.jackson.nullable.JsonNullable;
 import org.junit.jupiter.api.Test;
+import org.openapitools.jackson.nullable.JsonNullable;
 
 import java.util.List;
 import java.util.Map;
@@ -34,6 +34,7 @@ class MigrationRequestValidatorTest {
     for (MigrationPhase phase : List.of(MigrationPhase.EXPORT, MigrationPhase.ALL)) {
       MigrationRequestDto request = new MigrationRequestDto();
       request.setPhase(phase);
+      request.setCycleMode(CycleMode.DELTA);
       request.setIpaCodes(null);
 
       InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
@@ -45,7 +46,7 @@ class MigrationRequestValidatorTest {
   void transferRequiresMigrationIdButNoExportFields() {
     MigrationRequestDto request = new MigrationRequestDto();
     request.setPhase(MigrationPhase.TRANSFER);
-
+    request.setCycleMode(CycleMode.DELTA);
     InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
     assertEquals("migrationId is required for TRANSFER", exception.getMessage());
 

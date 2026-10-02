@@ -115,12 +115,12 @@
             "type" : [ "string", "null" ],
             "format" : "date-time"
           },
-          "workflowIds" : {
+          "uploadIds" : {
             "type" : "object",
             "additionalProperties" : {
               "type" : "string"
             },
-            "description" : "Workflow identifiers, populated only for TRANSFER migrations"
+            "description" : "Upload identifiers, populated only for TRANSFER migrations"
           }
         }
       },
@@ -146,9 +146,9 @@
         },
         "required" : [ "category", "code", "message" ]
       },
-      "FileType" : {
+      "MigrationFileType" : {
         "type" : "string",
-        "enum" : [ "ORGANIZATIONS", "ORG_SIL_SERVICES", "DEBT_POSITIONS_TYPE", "DEBT_POSITIONS_TYPE_ORG", "DEBT_POSITIONS_TYPE_ORG_OPERATORS", "PAYMENT_NOTIFICATION", "PAYMENTS_REPORTING", "TREASURY_CSV_COMPLETE", "ASSESSMENTS", "ASSESSMENTS_REGISTRY", "DEBT_POSITIONS", "DEBT_POSITIONS_PAID" ]
+        "enum" : [ "ORGANIZATIONS", "ORG_SIL_SERVICES", "DEBT_POSITIONS_TYPE", "DEBT_POSITIONS_TYPE_ORG", "DEBT_POSITIONS_TYPE_ORG_OPERATORS", "DEBT_POSITIONS", "DEBT_POSITIONS_PAID", "PAYMENT_NOTIFICATION", "PAYMENTS_REPORTING", "TREASURY_CSV_COMPLETE", "ASSESSMENTS", "ASSESSMENTS_REGISTRY" ]
       },
       "MigrationRequestDto" : {
         "type" : "object",
@@ -165,13 +165,13 @@
           },
           "cycleMode" : {
             "$ref" : "#/components/schemas/CycleMode",
-            "description" : "Required for EXPORT and ALL phases"
+            "description" : "Required for all migration phases"
           },
           "fileTypesToInclude" : {
             "type" : "array",
             "description" : "Required and non-empty for EXPORT and ALL phases",
             "items" : {
-              "$ref" : "#/components/schemas/FileType"
+              "$ref" : "#/components/schemas/MigrationFileType"
             }
           },
           "period" : {
@@ -192,7 +192,7 @@
             "description" : "Required when cycleMode is REJECTS_ONLY"
           }
         },
-        "required" : [ "phase" ]
+        "required" : [ "cycleMode", "phase" ]
       },
       "PeriodDto" : {
         "type" : "object",

@@ -24,9 +24,9 @@ The request must include `phase`. Conditional requirements are:
 | `phase` | Required fields |
 |---------|-----------------|
 | `EXPORT` or `ALL` | `ipaCodes` (non-empty), `cycleMode`, `fileTypesToInclude` (non-empty) |
-| `TRANSFER` | `migrationId` |
+| `TRANSFER` | `migrationId`, `cycleMode` |
 
-For any phase, `cycleMode: FULL` also requires `period`; `cycleMode: REJECTS_ONLY` requires `rejectsPayload`. `period.fromDate` and `period.toDate` are nullable.
+`cycleMode` is required for every phase. For any phase, `cycleMode: FULL` also requires `period`; `cycleMode: REJECTS_ONLY` requires `rejectsPayload`. `period.fromDate` and `period.toDate` are optional ISO date strings.
 
 Example request:
 
@@ -43,7 +43,7 @@ Example request:
 }
 ```
 
-The response includes the migration ID, phase, execution status, cycle mode, IPA codes and creation timestamp. `workflowIds` is populated only for `TRANSFER` migrations. See Swagger UI for the complete response schema and the supported file type values.
+The response includes the migration ID, phase, execution status, cycle mode, IPA codes and creation timestamp. `uploadIds` is populated only for `TRANSFER` migrations. See Swagger UI for the complete response schema and the supported file type values.
 
 ### 📌 Common HTTP status returned:
 * `202`: Migration orchestration accepted;

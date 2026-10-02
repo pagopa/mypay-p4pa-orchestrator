@@ -55,6 +55,7 @@ components:
       type: object
       required:
         - phase
+        - cycleMode
       properties:
         phase:
           $ref: '#/components/schemas/MigrationPhase'
@@ -66,12 +67,12 @@ components:
         cycleMode:
           allOf:
             - $ref: '#/components/schemas/CycleMode'
-          description: Required for EXPORT and ALL phases
+          description: Required for all migration phases
         fileTypesToInclude:
           type: array
           description: Required and non-empty for EXPORT and ALL phases
           items:
-            $ref: '#/components/schemas/FileType'
+            type: 'MigrationFileType'
         period:
           allOf:
             - $ref: '#/components/schemas/PeriodDto'
@@ -92,14 +93,10 @@ components:
       type: object
       properties:
         fromDate:
-          type:
-            - string
-            - "null"
+          type: string
           format: date
         toDate:
-          type:
-            - string
-            - "null"
+          type: string
           format: date
     MigrationResponseDto:
       type: object
@@ -120,11 +117,11 @@ components:
         createdAt:
           type: string
           format: date-time
-        workflowIds:
+        uploadIds:
           type: object
           additionalProperties:
             type: string
-          description: Workflow identifiers, populated only for TRANSFER migrations
+          description: Upload identifiers, populated only for TRANSFER migrations
     MigrationPhase:
       type: string
       enum:
@@ -148,21 +145,6 @@ components:
         - COMPLETED
         - PARTIAL
         - FAILED
-    FileType:
-      type: string
-      enum:
-        - ORGANIZATIONS
-        - ORG_SIL_SERVICES
-        - DEBT_POSITIONS_TYPE
-        - DEBT_POSITIONS_TYPE_ORG
-        - DEBT_POSITIONS_TYPE_ORG_OPERATORS
-        - PAYMENT_NOTIFICATION
-        - PAYMENTS_REPORTING
-        - TREASURY_CSV_COMPLETE
-        - ASSESSMENTS
-        - ASSESSMENTS_REGISTRY
-        - DEBT_POSITIONS
-        - DEBT_POSITIONS_PAID
     ErrorDTO:
       type: object
       required:
