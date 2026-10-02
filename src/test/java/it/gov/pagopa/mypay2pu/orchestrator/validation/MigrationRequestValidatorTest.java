@@ -6,7 +6,6 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import org.junit.jupiter.api.Test;
-import org.openapitools.jackson.nullable.JsonNullable;
 
 import java.util.List;
 import java.util.UUID;
@@ -83,15 +82,7 @@ class MigrationRequestValidatorTest {
 
     assertEquals("rejectsPayload is required when cycleMode is REJECTS_ONLY", exception.getMessage());
 
-    request.setRejectsPayload(null);
-    exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
-    assertEquals("rejectsPayload is required when cycleMode is REJECTS_ONLY", exception.getMessage());
-
-    request.setRejectsPayload(JsonNullable.of(null));
-    exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
-    assertEquals("rejectsPayload is required when cycleMode is REJECTS_ONLY", exception.getMessage());
-
-    request.setRejectsPayload(JsonNullable.of(List.of("rejected-item")));
+    request.setRejectsPayload(List.of("rejected-item"));
     assertDoesNotThrow(() -> validator.validate(request));
   }
 

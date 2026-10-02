@@ -60,36 +60,32 @@ components:
         phase:
           $ref: '#/components/schemas/MigrationPhase'
         ipaCodes:
-          type: array
           description: Required and non-empty for EXPORT and ALL phases
+          type: array
           items:
             type: string
         cycleMode:
-          allOf:
-            - $ref: '#/components/schemas/CycleMode'
           description: Required for all migration phases
+          $ref: '#/components/schemas/CycleMode'
         fileTypesToInclude:
-          type: array
           description: Required and non-empty for EXPORT and ALL phases
+          type: array
           items:
             type: 'MigrationFileType'
         period:
-          allOf:
-            - $ref: '#/components/schemas/PeriodDto'
           description: Required when cycleMode is FULL
+          $ref: '#/components/schemas/PeriodDto'
         migrationId:
+          description: Required for TRANSFER phase
           type: string
           format: uuid
-          description: Required for TRANSFER phase
         logicalKey:
           type: string
         rejectsPayload:
-          type:
-            - array
-            - "null"
+          description: Required when cycleMode is REJECTS_ONLY; an array of strings
+          type: array
           items:
             type: string
-          description: Required when cycleMode is REJECTS_ONLY; an array of strings
     PeriodDto:
       type: object
       properties:
@@ -119,10 +115,10 @@ components:
           type: string
           format: date-time
         uploadIds:
+          description: Upload identifiers, populated only for TRANSFER migrations
           type: array
           items:
             type: string
-          description: Upload identifiers, populated only for TRANSFER migrations
     MigrationPhase:
       type: string
       enum:

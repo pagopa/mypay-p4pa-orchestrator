@@ -176,10 +176,9 @@ openApiGenerate {
   outputDir.set("$projectDir/build/generated")
   apiPackage.set("it.gov.pagopa.mypay2pu.orchestrator.controller.generated")
   modelPackage.set("it.gov.pagopa.mypay2pu.orchestrator.dto.generated")
-  typeMappings.set(mapOf("MigrationFileType" to "MigrationFileType"))
-  importMappings.set(
-    mapOf("MigrationFileType" to "it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType")
-  )
+  typeMappings.set(mapOf(
+    "MigrationFileType" to "it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType"
+  ))
   globalProperties.set(mapOf("apis" to "", "models" to "", "supportingFiles" to "ApiUtil.java"))
   configOptions.set(
     mapOf(

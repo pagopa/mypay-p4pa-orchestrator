@@ -4,7 +4,6 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationPhase;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
-import org.openapitools.jackson.nullable.JsonNullable;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
@@ -42,8 +41,8 @@ public class MigrationRequestValidator {
       throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "period is required when cycleMode is FULL");
     }
     if (request.getCycleMode() == CycleMode.REJECTS_ONLY) {
-      JsonNullable<List<String>> rejectsPayload = request.getRejectsPayload();
-      if (rejectsPayload == null || !rejectsPayload.isPresent() || rejectsPayload.get() == null) {
+      List<String> rejectsPayload = request.getRejectsPayload();
+      if (CollectionUtils.isEmpty(rejectsPayload)) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "rejectsPayload is required when cycleMode is REJECTS_ONLY");
       }
     }

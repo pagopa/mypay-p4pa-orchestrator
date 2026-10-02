@@ -187,7 +187,7 @@
             "type" : [ "string", "null" ]
           },
           "rejectsPayload" : {
-            "type" : [ "array", "null" ],
+            "type" : "array",
             "description" : "Required when cycleMode is REJECTS_ONLY; an array of strings",
             "items" : {
               "type" : "string"
