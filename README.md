@@ -122,6 +122,11 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | PU_MIGRATION_WAIT_TIME_MILLIS      | PU Migration retry waiting time (milliseconds) | 500                         |
 | PU_MIGRATION_PRINT_BODY_WHEN_ERROR | To print body when an error occurs             | true                        |
 
+#### 💼 Business logic
+| ENV                                | DESCRIPTION                                    | DEFAULT                     |
+|------------------------------------|------------------------------------------------|-----------------------------|
+|                                    |                                                |                             |
+
 #### ⚡ Async extraction
 
 | ENV                           | DESCRIPTION                                                | DEFAULT              |
