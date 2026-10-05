@@ -79,6 +79,8 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | LOG_LEVEL_PERFORMANCE_LOG_REST_INVOKE | Level applied to [REST invoke Performance Log](https://raw.githubusercontent.com/pagopa/p4pa-doc/refs/heads/main/reference/technical-docs/Logging.pdf) | INFO    |
 
 
+#### 🔁 Integrations
+
 #### 🗄️ Orchestrator database
 | ENV                      | DESCRIPTION                            | DEFAULT |
 |--------------------------|----------------------------------------|---------|
@@ -88,8 +90,6 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | ORCHESTRATOR_DB_NAME     | Database name (required)               |         |
 | ORCHESTRATOR_DB_USER     | Database username (required)           |         |
 | ORCHESTRATOR_DB_PASSWORD | Database password (required)           |         |
-
-#### 🔁 Integrations
 
 ##### 🔗 REST
 | ENV                                               | DESCRIPTION                               | DEFAULT |
@@ -122,7 +122,8 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | PU_MIGRATION_WAIT_TIME_MILLIS      | PU Migration retry waiting time (milliseconds) | 500                         |
 | PU_MIGRATION_PRINT_BODY_WHEN_ERROR | To print body when an error occurs             | true                        |
 
-#### 💼 Business logic
+#### ⚡ Async extraction
+
 | ENV                           | DESCRIPTION                                                | DEFAULT              |
 |-------------------------------|------------------------------------------------------------|----------------------|
 | ASYNC_CORE_POOL_SIZE          | Extraction coordinator core thread pool size              | 4                    |
