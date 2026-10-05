@@ -78,7 +78,18 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | LOG_LEVEL_PERFORMANCE_LOG_API_REQUEST | Level applied to [API Performance Log](https://raw.githubusercontent.com/pagopa/p4pa-doc/refs/heads/main/reference/technical-docs/Logging.pdf)         | INFO    |
 | LOG_LEVEL_PERFORMANCE_LOG_REST_INVOKE | Level applied to [REST invoke Performance Log](https://raw.githubusercontent.com/pagopa/p4pa-doc/refs/heads/main/reference/technical-docs/Logging.pdf) | INFO    |
 
+
 #### 🔁 Integrations
+
+#### 🗄️ Orchestrator database
+| ENV                      | DESCRIPTION                            | DEFAULT |
+|--------------------------|----------------------------------------|---------|
+| ORCHESTRATOR_DB_URL      | PostgreSQL JDBC URL                    | `jdbc:postgresql://${ORCHESTRATOR_DB_HOST:}:${ORCHESTRATOR_DB_PORT:5432}/${ORCHESTRATOR_DB_NAME:}?currentSchema=orchestrator` |
+| ORCHESTRATOR_DB_HOST     | PostgreSQL host (required)             |         |
+| ORCHESTRATOR_DB_PORT     | PostgreSQL port                        | 5432    |
+| ORCHESTRATOR_DB_NAME     | Database name (required)               |         |
+| ORCHESTRATOR_DB_USER     | Database username (required)           |         |
+| ORCHESTRATOR_DB_PASSWORD | Database password (required)           |         |
 
 ##### 🔗 REST
 | ENV                                               | DESCRIPTION                               | DEFAULT |
@@ -97,6 +108,7 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | EXTRACTOR_WAIT_TIME_MILLIS      | Extractor retry waiting time (milliseconds) | 500     |
 | EXTRACTOR_PRINT_BODY_WHEN_ERROR | To print body when an error occurs          | true    |
 
+
 ##### 🌍 External services
 | ENV                                | DESCRIPTION                                    | DEFAULT                     |
 |------------------------------------|------------------------------------------------|-----------------------------|
@@ -111,15 +123,38 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | PU_MIGRATION_PRINT_BODY_WHEN_ERROR | To print body when an error occurs             | true                        |
 
 #### 💼 Business logic
-| ENV | DESCRIPTION | DEFAULT |
-|-----|-------------|---------|
-|     |             |         |
+| ENV                                | DESCRIPTION                                    | DEFAULT                     |
+|------------------------------------|------------------------------------------------|-----------------------------|
+|                                    |                                                |                             |
+
+#### ⚡ Async extraction
+
+| ENV                           | DESCRIPTION                                                | DEFAULT              |
+|-------------------------------|------------------------------------------------------------|----------------------|
+| ASYNC_CORE_POOL_SIZE          | Extraction coordinator core thread pool size              | 4                    |
+| ASYNC_MAX_POOL_SIZE           | Extraction coordinator maximum thread pool size           | 8                    |
+| ASYNC_QUEUE_CAPACITY          | Extraction coordinator task queue capacity                | 100                  |
 
 #### 🔑 keys
 | ENV                   | DESCRIPTION                                                                         | DEFAULT |
 |-----------------------|-------------------------------------------------------------------------------------|---------|
-| PU_AUTH_CLIENT_ID     | client_id used on M2M authentication to get a technical access token towards PU     |         |
-| PU_AUTH_CLIENT_SECRET | client_secret used on M2M authentication to get a technical access token towards PU |         |
+| PU_AUTH_CLIENT_ID     | client_id used on M2M authentication to get a technical access token towards PU     | clientid     |
+| PU_AUTH_CLIENT_SECRET | client_secret used on M2M authentication to get a technical access token towards PU | clientsecret |
+
+
+#### 📦 Storage
+
+| ENV                          | DESCRIPTION                                             | DEFAULT |
+|------------------------------|---------------------------------------------------------|---------|
+| STORAGE_PATH_EXTRACTOR_OUTPUT | Local path to ZIP files produced by Extractor          | `/tmp`  |
+| TMP_FOLDER                   | Absolute path towards temporary folder on file system   | `/tmp`  |
+
+#### 🔐 File encryption
+
+| ENV                 | DESCRIPTION                         | DEFAULT          |
+|---------------------|-------------------------------------|------------------|
+| FILE_ENCRYPT_ENABLED | Enable file encryption              | false            |
+| FILE_ENCRYPT_PSW     | Password used for file encryption   | default_password |
 
 ## 🛠️ Getting Started
 
