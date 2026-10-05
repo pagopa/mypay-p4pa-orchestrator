@@ -67,6 +67,7 @@ dependencies {
   implementation("org.springframework.boot:spring-boot-starter-webmvc")
   implementation("org.springframework.boot:spring-boot-starter-opentelemetry")
   implementation("org.springframework.boot:spring-boot-starter-restclient")
+  implementation("org.springframework.boot:spring-boot-starter-data-jpa")
   implementation("org.springframework.data:spring-data-commons")
   implementation("org.springframework.boot:spring-boot-starter-validation")
   implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -82,6 +83,7 @@ dependencies {
     exclude(group = "org.lz4", module = "lz4-java")
   }
   implementation("at.yawk.lz4:lz4-java:$lz4JavaVersion")
+  runtimeOnly("org.postgresql:postgresql")
 
   // CVE Security dependencies
   implementation("org.apache.tomcat.embed:tomcat-embed-core:$tomcatEmbedCoreVersion")
@@ -97,6 +99,7 @@ dependencies {
   testImplementation("org.springframework.boot:spring-boot-starter-security-test")
   testImplementation("org.mockito:mockito-core")
   testImplementation("org.projectlombok:lombok")
+  testImplementation("com.h2database:h2")
 }
 
 tasks.withType<Test> {
