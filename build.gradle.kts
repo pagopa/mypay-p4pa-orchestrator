@@ -176,6 +176,9 @@ openApiGenerate {
   outputDir.set("$projectDir/build/generated")
   apiPackage.set("it.gov.pagopa.mypay2pu.orchestrator.controller.generated")
   modelPackage.set("it.gov.pagopa.mypay2pu.orchestrator.dto.generated")
+  typeMappings.set(mapOf(
+    "MigrationFileType" to "it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType"
+  ))
   configOptions.set(
     mapOf(
       "dateLibrary" to "java8",
@@ -220,7 +223,6 @@ tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("ope
       "serializableModel" to "true",
       "useSpringBoot4" to "true",
       "useJackson3" to "true",
-      "openApiNullable" to "false",
       "useJakartaEe" to "true",
       "useOneOfInterfaces" to "true",
       "useBeanValidation" to "true",
@@ -253,7 +255,6 @@ tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("ope
       "serializableModel" to "true",
       "useSpringBoot4" to "true",
       "useJackson3" to "true",
-      "openApiNullable" to "false",
       "useJakartaEe" to "true",
       "useOneOfInterfaces" to "true",
       "useBeanValidation" to "true",
@@ -274,7 +275,7 @@ tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("ope
   description = "description"
 
   generatorName.set("java")
-  remoteInputSpec.set("https://raw.githubusercontent.com/pagopa/mypay-p4pa-orchestrator/refs/heads/$targetEnv/openapi/mypay-p4pa-orchestrator.openapi.yaml")
+  remoteInputSpec.set("https://raw.githubusercontent.com/pagopa/mypay-p4pa-extractor/refs/heads/$targetEnv/openapi/mypay-p4pa-extractor.openapi.yaml")
   outputDir.set("$projectDir/build/generated")
   invokerPackage.set("it.gov.pagopa.mypay2pu.extractor.generated")
   apiPackage.set("it.gov.pagopa.mypay2pu.extractor.controller.generated")
@@ -287,7 +288,6 @@ tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("ope
       "serializableModel" to "true",
       "useSpringBoot4" to "true",
       "useJackson3" to "true",
-      "openApiNullable" to "false",
       "useJakartaEe" to "true",
       "useOneOfInterfaces" to "true",
       "useBeanValidation" to "true",
