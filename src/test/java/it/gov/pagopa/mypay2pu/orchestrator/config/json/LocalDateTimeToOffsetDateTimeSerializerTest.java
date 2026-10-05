@@ -2,6 +2,7 @@ package it.gov.pagopa.mypay2pu.orchestrator.config.json;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.SerializerProvider;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,6 +15,7 @@ import java.util.TimeZone;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class LocalDateTimeToOffsetDateTimeSerializerTest {
@@ -25,10 +27,18 @@ class LocalDateTimeToOffsetDateTimeSerializerTest {
   private SerializerProvider serializerProvider;
 
   private LocalDateTimeToOffsetDateTimeSerializer dateTimeSerializer;
+  private TimeZone previousTimeZone;
 
   @BeforeEach
   void setUp() {
+    previousTimeZone = TimeZone.getDefault();
     dateTimeSerializer = new LocalDateTimeToOffsetDateTimeSerializer();
+  }
+
+  @AfterEach
+  void restoreTimeZoneAndVerifyMocks() {
+    TimeZone.setDefault(previousTimeZone);
+    verifyNoMoreInteractions(jsonGenerator, serializerProvider);
   }
 
   @Test
