@@ -40,7 +40,7 @@ public class MigrationDagDependencyDao {
     List<String> fileTypeValues = fileTypesToInclude.stream()
       .map(Objects::requireNonNull)
       .map(MigrationFileType::getValue)
-      .collect(Collectors.toList());
+      .toList();
     MapSqlParameterSource parameters = new MapSqlParameterSource()
       .addValue("fileTypesToInclude", fileTypeValues);
 

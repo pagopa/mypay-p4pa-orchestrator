@@ -26,4 +26,4 @@ SELECT
     max_executions
 FROM tree
 WHERE file_type IN (:fileTypesToInclude)
-ORDER BY lvl, file_type;
+ORDER BY lvl ASC, file_type ASC;
