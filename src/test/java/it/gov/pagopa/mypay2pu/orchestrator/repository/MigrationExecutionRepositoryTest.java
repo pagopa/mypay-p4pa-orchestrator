@@ -6,7 +6,6 @@ import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Month;
-import java.util.TimeZone;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,16 +47,10 @@ class MigrationExecutionRepositoryTest {
         .fileTypes("FILE_TYPE_A,FILE_TYPE_B")
         .build();
 
-    TimeZone previousTimeZone = TimeZone.getDefault();
-    TimeZone.setDefault(TimeZone.getTimeZone("Europe/Rome"));
-    try {
-      MigrationExecution savedExecution = repository.saveAndFlush(execution);
+    MigrationExecution savedExecution = repository.saveAndFlush(execution);
 
-      MigrationExecution persistedExecution = repository.findById(savedExecution.getId()).orElseThrow();
-      assertEquals(savedExecution, persistedExecution);
-    } finally {
-      TimeZone.setDefault(previousTimeZone);
-    }
+    MigrationExecution persistedExecution = repository.findById(savedExecution.getId()).orElseThrow();
+    assertEquals(savedExecution, persistedExecution);
   }
 
 }
