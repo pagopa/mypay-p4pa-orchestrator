@@ -12,11 +12,11 @@ class SqlLoaderTest {
 
   @Test
   void loadsAndCachesSqlResource() {
-    String firstLoad = sqlLoader.load("migration-dag/find-dag.sql");
+    String firstLoad = sqlLoader.load("migration-dag-dependency/find-dag.sql");
 
     assertNotNull(firstLoad);
     assertTrue(firstLoad.contains("WITH RECURSIVE tree"));
-    assertSame(firstLoad, sqlLoader.load("migration-dag/find-dag.sql"));
+    assertSame(firstLoad, sqlLoader.load("migration-dag-dependency/find-dag.sql"));
   }
 
   @Test
@@ -31,7 +31,7 @@ class SqlLoaderTest {
   void reportsMissingResource() {
     IllegalStateException exception = assertThrows(
       IllegalStateException.class,
-      () -> sqlLoader.load("migration-dag/missing.sql")
+      () -> sqlLoader.load("migration-dag-dependency/missing.sql")
     );
 
     assertTrue(exception.getMessage().contains("db/migration-dag-dependency/missing.sql"));
