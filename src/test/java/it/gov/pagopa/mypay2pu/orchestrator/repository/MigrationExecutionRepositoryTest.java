@@ -20,8 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @SpringBootTest
 @TestPropertySource(properties = {
   "spring.datasource.driver-class-name=org.h2.Driver",
-  "spring.datasource.url=jdbc:h2:mem:migrationExecution;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS orchestrator",
-  "spring.jpa.properties.hibernate.jdbc.time_zone=Europe/Rome",
+  "spring.datasource.url=jdbc:h2:mem:migrationExecution;DB_CLOSE_DELAY=-1;TIME ZONE=Europe/Rome;INIT=CREATE SCHEMA IF NOT EXISTS orchestrator",
   "spring.datasource.username=sa",
   "spring.datasource.password=",
   "spring.jpa.hibernate.ddl-auto=create-drop"
