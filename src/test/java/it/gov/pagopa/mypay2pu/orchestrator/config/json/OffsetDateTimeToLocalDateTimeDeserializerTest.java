@@ -3,60 +3,72 @@ package it.gov.pagopa.mypay2pu.orchestrator.config.json;
 import com.fasterxml.jackson.core.JsonParser;
 import it.gov.pagopa.mypay2pu.orchestrator.utils.Constants;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.Month;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+
+@ExtendWith(MockitoExtension.class)
 class OffsetDateTimeToLocalDateTimeDeserializerTest {
 
   private final OffsetDateTimeToLocalDateTimeDeserializer deserializer = new OffsetDateTimeToLocalDateTimeDeserializer();
 
+  @Mock
+  private JsonParser parser;
+
+  @AfterEach
+  void verifyMocks() {
+    verifyNoMoreInteractions(parser);
+  }
+
   @Test
   void givenOffsetDateTimeWhenThenOk() throws IOException {
-    // Given
-    OffsetDateTime offsetDateTime = OffsetDateTime.now();
-    JsonParser parser = Mockito.mock(JsonParser.class);
+    OffsetDateTime offsetDateTime = OffsetDateTime.of(
+        LocalDateTime.of(2025, Month.JULY, 16, 9, 15, 20),
+        ZoneOffset.ofHours(2));
     Mockito.when(parser.getValueAsString())
       .thenReturn(offsetDateTime.toString());
 
-    // When
     LocalDateTime result = deserializer.deserialize(parser, null);
 
-    // Then
     Assertions.assertEquals(offsetDateTime.atZoneSameInstant(Constants.ZONEID).toLocalDateTime(), result);
+    verify(parser).getValueAsString();
   }
 
   @Test
   void givenUTCOffsetDateTimeWhenThenOk() throws IOException {
-    // Given
-    OffsetDateTime offsetDateTime = OffsetDateTime.now().withOffsetSameInstant(ZoneOffset.UTC);
-    JsonParser parser = Mockito.mock(JsonParser.class);
+    OffsetDateTime offsetDateTime = OffsetDateTime.of(
+        LocalDateTime.of(2025, Month.JULY, 16, 7, 15, 20),
+        ZoneOffset.UTC);
     Mockito.when(parser.getValueAsString())
       .thenReturn(offsetDateTime.toString());
 
-    // When
     LocalDateTime result = deserializer.deserialize(parser, null);
 
-    // Then
     Assertions.assertEquals(offsetDateTime.atZoneSameInstant(Constants.ZONEID).toLocalDateTime(), result);
+    verify(parser).getValueAsString();
   }
 
   @Test
   void givenLocalDateTimeWhenThenOk() throws IOException {
-    // Given
-    LocalDateTime localDateTime = LocalDateTime.now();
-    JsonParser parser = Mockito.mock(JsonParser.class);
+    LocalDateTime localDateTime = LocalDateTime.of(2025, Month.JULY, 16, 9, 15, 20);
     Mockito.when(parser.getValueAsString())
       .thenReturn(localDateTime.toString());
 
-    // When
     LocalDateTime result = deserializer.deserialize(parser, null);
 
-    // Then
     Assertions.assertEquals(localDateTime, result);
+    verify(parser).getValueAsString();
   }
 }

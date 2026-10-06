@@ -3,10 +3,14 @@ package it.gov.pagopa.mypay2pu.orchestrator.repository;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
+import it.gov.pagopa.mypay2pu.orchestrator.utils.TestUtils;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Month;
+import java.util.TimeZone;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,6 +27,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
   "spring.jpa.hibernate.ddl-auto=create-drop"
 })
 class MigrationExecutionRepositoryTest {
+
+  private static final TimeZone ORIGINAL_DEFAULT_TIMEZONE = TimeZone.getDefault();
+
+  @BeforeAll
+  static void setDefaultTimezone() {
+    TestUtils.clearDefaultTimezone();
+  }
+
+  @AfterAll
+  static void restoreDefaultTimezone() {
+    TimeZone.setDefault(ORIGINAL_DEFAULT_TIMEZONE);
+  }
 
   @Autowired
   private MigrationExecutionRepository repository;
