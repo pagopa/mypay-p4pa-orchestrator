@@ -47,7 +47,7 @@ class MigrationExecutionRepositoryTest {
         .brokerIpaCode("broker-ipa-code")
         .status(MigrationExecutionStatus.FAILED)
         .cycleNumber(7)
-        .ipacodes("ipa-code-1,ipa-code-2")
+        .ipacodes("[\"ipa-code-1\",\"ipa-code-2\"]")
         .cycleMode(CycleMode.REJECTS_ONLY)
         .parentExecutionId(UUID.fromString("781ff209-6d75-45a4-90ad-6f12c5fe6550"))
         .dateFrom(LocalDate.of(2025, Month.JANUARY, 3))
