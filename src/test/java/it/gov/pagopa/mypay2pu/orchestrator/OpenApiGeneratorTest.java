@@ -24,10 +24,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc(print = MockMvcPrint.NONE, addFilters = false)
 @TestPropertySource(properties = {
-  "datasource.orchestrator.driver-class-name=org.h2.Driver",
-  "datasource.orchestrator.jdbc-url=jdbc:h2:mem:db;DB_CLOSE_DELAY=-1",
-  "datasource.orchestrator.username=sa",
-  "datasource.orchestrator.password=sa",
+  "spring.datasource.driver-class-name=org.h2.Driver",
+  "spring.datasource.url=jdbc:h2:mem:db;DB_CLOSE_DELAY=-1",
+  "spring.datasource.username=sa",
+  "spring.datasource.password=sa",
 
   "logging.level.org.springdoc.core.utils.SpringDocAnnotationsUtils=OFF",
   "springdoc.api-docs.enabled=true",
