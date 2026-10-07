@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import it.gov.pagopa.mypay2pu.orchestrator.utils.Constants;
 import it.gov.pagopa.mypay2pu.orchestrator.utils.TestUtils;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -16,8 +17,9 @@ import tools.jackson.databind.exc.UnrecognizedPropertyException;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.LocalDateTime;
+import java.time.Month;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 class JsonConfigTest {
 
@@ -56,8 +58,8 @@ class JsonConfigTest {
   }
 
   @BeforeEach
-  void init(){
-      TestUtils.clearDefaultTimezone();
+  void init() {
+    TestUtils.clearDefaultTimezone();
   }
 
   @Test
@@ -66,8 +68,9 @@ class JsonConfigTest {
     SampleDTO dto = new SampleDTO();
     dto.setName("NAME");
     dto.setValue(42);
-    dto.setDateTime(LocalDateTime.now());
-    dto.setOffsetDateTime(OffsetDateTime.now());
+    LocalDateTime localDateTime = LocalDateTime.of(2025, Month.JULY, 16, 9, 15, 20);
+    dto.setDateTime(localDateTime);
+    dto.setOffsetDateTime(ZonedDateTime.of(localDateTime, Constants.ZONEID).toOffsetDateTime());
 
     // When
     String j2Serialized = j2ObjectMapper.writeValueAsString(dto);
@@ -100,8 +103,10 @@ class JsonConfigTest {
     SampleDTO expectedResult = new SampleDTO();
     expectedResult.setName("NAME");
     expectedResult.setValue(42);
-    expectedResult.setDateTime(LocalDateTime.of(2025, 12, 22, 18, 17, 39, 940891000));
-    expectedResult.setOffsetDateTime(OffsetDateTime.of(2025, 12, 22, 18, 17, 39, 941234000, ZoneOffset.of("+01:00")));
+    OffsetDateTime utcDateTime = OffsetDateTime.parse("2025-12-22T17:17:39.940891+00:00");
+    LocalDateTime localOffsetDateTime = LocalDateTime.of(2025, Month.DECEMBER, 22, 18, 17, 39, 941234000);
+    expectedResult.setDateTime(utcDateTime.atZoneSameInstant(Constants.ZONEID).toLocalDateTime());
+    expectedResult.setOffsetDateTime(ZonedDateTime.of(localOffsetDateTime, Constants.ZONEID).toOffsetDateTime());
     expectedResult.setImplicitField(expectedResult.getName());
 
     // When
