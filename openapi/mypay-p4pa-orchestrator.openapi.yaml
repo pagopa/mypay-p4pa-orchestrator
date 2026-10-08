@@ -142,6 +142,13 @@ components:
         - COMPLETED
         - PARTIAL
         - FAILED
+    UploadStatus:
+      type: string
+      enum:
+        - PENDING
+        - UPLOADING
+        - UPLOADED
+        - FAILED
     ErrorDTO:
       type: object
       required:
