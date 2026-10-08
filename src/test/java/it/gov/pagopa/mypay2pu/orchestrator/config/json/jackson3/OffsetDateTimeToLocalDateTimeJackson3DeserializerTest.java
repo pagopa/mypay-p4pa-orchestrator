@@ -9,6 +9,9 @@ import tools.jackson.core.JsonParser;
 
 import java.time.LocalDateTime;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 class OffsetDateTimeToLocalDateTimeJackson3DeserializerTest {
 
   private final OffsetDateTimeToLocalDateTimeJackson3Deserializer deserializer = new OffsetDateTimeToLocalDateTimeJackson3Deserializer();
@@ -17,11 +20,11 @@ class OffsetDateTimeToLocalDateTimeJackson3DeserializerTest {
   void whenDeserializeThenCallHandler(){
     try(MockedStatic<OffsetDateTimeToLocalDateTimeDeserializer> deserializerStatic = Mockito.mockStatic(OffsetDateTimeToLocalDateTimeDeserializer.class)){
       LocalDateTime expectedResult = LocalDateTime.now();
-      JsonParser jsonParser = Mockito.mock(JsonParser.class);
+      JsonParser jsonParser = mock(JsonParser.class);
 
       deserializerStatic.when(()-> OffsetDateTimeToLocalDateTimeDeserializer.parse("dateString"))
           .thenReturn(expectedResult);
-      Mockito.when(jsonParser.getValueAsString())
+      when(jsonParser.getValueAsString())
         .thenReturn("dateString");
 
       LocalDateTime result = deserializer.deserialize(jsonParser, null);

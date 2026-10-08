@@ -3,12 +3,12 @@ package it.gov.pagopa.mypay2pu.orchestrator.config.json;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
+import it.gov.pagopa.mypay2pu.orchestrator.utils.Constants;
 import org.springframework.context.annotation.Configuration;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 
 @Configuration
 public class LocalDateTimeToOffsetDateTimeSerializer extends JsonSerializer<LocalDateTime> {
@@ -22,7 +22,6 @@ public class LocalDateTimeToOffsetDateTimeSerializer extends JsonSerializer<Loca
   }
 
   public static OffsetDateTime convertToOffsetDateTime(LocalDateTime value) {
-    return value.atZone(ZoneId.systemDefault()).toOffsetDateTime();
+    return value.atZone(Constants.ZONEID).toOffsetDateTime();
   }
 }
-
