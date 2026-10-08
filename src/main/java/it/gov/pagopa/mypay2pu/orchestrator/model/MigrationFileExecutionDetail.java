@@ -10,6 +10,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
 
 @Entity
 @AllArgsConstructor
@@ -36,8 +38,9 @@ public class MigrationFileExecutionDetail {
   private String discardFileName;
   private Integer numTotalRows;
   private Integer numCorrectlyImportedRows;
-  @NotNull
-  private LocalDateTime createdAt;
-  @NotNull
-  private LocalDateTime updatedAt;
+  @Column(updatable = false)
+  @CreatedDate
+  private LocalDateTime creationDate;
+  @LastModifiedDate
+  private LocalDateTime updateDate;
 }
