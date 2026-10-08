@@ -2,6 +2,7 @@ package it.gov.pagopa.mypay2pu.orchestrator.repository;
 
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
 import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,7 +26,7 @@ class MigrationFileExecutionDetailRepositoryTest {
 
   @Test
   void persistsAndRetrievesAllExecutionDetailFields() {
-    LocalDateTime timestamp = LocalDateTime.of(2025, 5, 6, 7, 8);
+    LocalDateTime timestamp = LocalDateTime.of(2025, Month.MAY, 6, 7, 8);
     MigrationFileExecutionDetail executionDetail = MigrationFileExecutionDetail.builder()
         .migrationFileExecutionId(UUID.fromString("781ff209-6d75-45a4-90ad-6f12c5fe6550"))
         .status("COMPLETED")
