@@ -12,8 +12,6 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.LastModifiedDate;
 
 @Entity
 @AllArgsConstructor
@@ -21,7 +19,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 @Data
 @SuperBuilder
 @EqualsAndHashCode(callSuper = false)
-public class MigrationFileExecution {
+public class MigrationFileExecution extends BaseEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.UUID)
@@ -47,9 +45,4 @@ public class MigrationFileExecution {
   private LocalDateTime extractionCompletedAt;
   private LocalDateTime uploadStartedAt;
   private LocalDateTime uploadCompletedAt;
-  @Column(updatable = false)
-  @CreatedDate
-  private LocalDateTime createdAt;
-  @LastModifiedDate
-  private LocalDateTime updatedAt;
 }
