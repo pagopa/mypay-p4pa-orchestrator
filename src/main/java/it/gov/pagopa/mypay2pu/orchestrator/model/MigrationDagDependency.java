@@ -20,6 +20,6 @@ public class MigrationDagDependency {
   private String label;
   private Integer maxExecutions;
 
-  protected MigrationDagDependency() {
+  public MigrationDagDependency() {
   }
 }
