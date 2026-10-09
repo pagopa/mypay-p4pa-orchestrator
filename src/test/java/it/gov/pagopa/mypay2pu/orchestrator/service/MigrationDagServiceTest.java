@@ -1,80 +1,94 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
-import it.gov.pagopa.mypay2pu.orchestrator.dao.MigrationDagDependencyDao;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationDag;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationDagDependency;
+import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationDagNode;
+import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationDagDependencyRepository;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class MigrationDagServiceTest {
-  private final MigrationDagDependencyDao dao = mock(MigrationDagDependencyDao.class);
-  private final MigrationDagService service = new MigrationDagService(dao);
+  private final MigrationDagDependencyRepository repository = mock(MigrationDagDependencyRepository.class);
+  private final MigrationDagService service = new MigrationDagService(repository, new MigrationDagEngine());
 
   @Test
-  void exposesDatabaseHierarchyAndParallelSiblingsWithoutGlobalLevelBarriers() {
-    MigrationDagDependency types = dependency("DEBT_POSITIONS_TYPE", "ROOT", 1, 1);
-    MigrationDagDependency organizations = dependency("ORGANIZATIONS", "ROOT", 1, 1);
-    MigrationDagDependency typeOrg = dependency("DEBT_POSITIONS_TYPE_ORG", "ORGANIZATIONS", 2, 1);
-    MigrationDagDependency sil = dependency("ORG_SIL_SERVICES", "ORGANIZATIONS", 2, 1);
-    MigrationDagDependency debts = dependency("DEBT_POSITIONS", "DEBT_POSITIONS_TYPE_ORG", 3, null);
-    MigrationDagDependency paid = dependency("DEBT_POSITIONS_PAID", "DEBT_POSITIONS_TYPE_ORG", 3, null);
-    MigrationDagDependency assessments = dependency("ASSESSMENTS", "DEBT_POSITIONS_PAID", 4, null);
-    List<MigrationDagDependency> rows = List.of(types, organizations, typeOrg, sil, debts, paid, assessments);
-    List<MigrationFileType> includedTypes = rows.stream().map(MigrationDagDependency::fileType).toList();
-    when(dao.findDag(includedTypes)).thenReturn(rows);
+  void loadsAllRowsAndDelegatesTopologicalPruningToEngine() {
+    when(repository.findAll()).thenReturn(rows());
 
-    MigrationDag dag = service.findDag(includedTypes);
+    MigrationDag dag = service.findDag(List.of(
+      MigrationFileType.ASSESSMENTS,
+      MigrationFileType.DEBT_POSITIONS,
+      MigrationFileType.ORGANIZATIONS
+    ));
 
-    assertEquals(rows, dag.nodes());
-    assertEquals(List.of(types, organizations), dag.rootNodes());
-    assertEquals(List.of(typeOrg, sil), dag.childrenOf(organizations.fileType()));
-    assertEquals(List.of(debts, paid), dag.childrenOf(typeOrg.fileType()));
-    assertEquals(List.of(assessments), dag.childrenOf(paid.fileType()));
-    assertEquals(List.of(), dag.childrenOf(types.fileType()));
-    assertNull(paid.maxExecutions());
-    assertEquals(4, assessments.level());
-    assertThrows(UnsupportedOperationException.class, () -> dag.nodes().add(organizations));
-    assertThrows(UnsupportedOperationException.class, () -> dag.rootNodes().clear());
-    assertThrows(UnsupportedOperationException.class, () -> dag.childrenOf(typeOrg.fileType()).clear());
-    verify(dao).findDag(includedTypes);
+    assertEquals(List.of(
+      MigrationFileType.ORGANIZATIONS,
+      MigrationFileType.DEBT_POSITIONS,
+      MigrationFileType.ASSESSMENTS
+    ), dag.nodes().stream().map(MigrationDagNode::fileType).toList());
+    assertEquals(List.of("ROOT"), dag.nodes().getFirst().dependsOn());
+    assertEquals(List.of("DEBT_POSITIONS_TYPE_ORG"), dag.nodes().get(1).dependsOn());
+    assertEquals(List.of("DEBT_POSITIONS_PAID"), dag.nodes().getLast().dependsOn());
+    assertEquals(List.of(MigrationFileType.ORGANIZATIONS), dag.rootNodes().stream()
+      .map(MigrationDagNode::fileType)
+      .toList());
+    assertEquals(List.of(MigrationFileType.ASSESSMENTS), dag.childrenOf(MigrationFileType.DEBT_POSITIONS_PAID)
+      .stream().map(MigrationDagNode::fileType).toList());
+    verify(repository).findAll();
   }
 
   @Test
-  void preservesFilteredOutParentWithoutPromotingChildToRootOrAddingAncestors() {
-    MigrationDagDependency assessments = dependency("ASSESSMENTS", "DEBT_POSITIONS_PAID", 4, null);
-    List<MigrationFileType> includedTypes = List.of(assessments.fileType());
-    when(dao.findDag(includedTypes)).thenReturn(List.of(assessments));
+  void retainsNullMaximumAndDoesNotPromoteFilteredParentsToRoots() {
+    when(repository.findAll()).thenReturn(rows());
 
-    MigrationDag dag = service.findDag(includedTypes);
+    MigrationDag dag = service.findDag(List.of(MigrationFileType.ASSESSMENTS));
 
-    assertEquals(List.of(assessments), dag.nodes());
-    assertEquals(List.of(), dag.rootNodes());
-    assertEquals(List.of(assessments), dag.childrenOf(MigrationFileType.DEBT_POSITIONS_PAID));
-    assertEquals("DEBT_POSITIONS_PAID", dag.nodes().getFirst().dependsOn());
+    assertEquals(1, dag.nodes().size());
     assertEquals(4, dag.nodes().getFirst().level());
+    assertEquals(List.of("DEBT_POSITIONS_PAID"), dag.nodes().getFirst().dependsOn());
+    assertTrue(dag.rootNodes().isEmpty());
+    assertNull(dag.nodes().getFirst().maxExecutions());
   }
 
   @Test
-  void exposesEmptyHierarchyWhenNoRowsAreReturned() {
-    List<MigrationFileType> includedTypes = List.of(MigrationFileType.ORGANIZATIONS);
-    when(dao.findDag(includedTypes)).thenReturn(List.of());
-
-    MigrationDag dag = service.findDag(includedTypes);
-
-    assertEquals(List.of(), dag.nodes());
-    assertEquals(List.of(), dag.rootNodes());
-    assertEquals(List.of(), dag.childrenOf(MigrationFileType.ORGANIZATIONS));
+  void rejectsNullEmptyAndNullElementFiltersWithoutReadingDatabase() {
+    assertThrows(NullPointerException.class, () -> service.findDag(null));
+    assertThrows(IllegalArgumentException.class, () -> service.findDag(List.of()));
+    assertThrows(NullPointerException.class, () -> service.findDag(Arrays.asList(
+      MigrationFileType.ORGANIZATIONS, null
+    )));
+    verifyNoInteractions(repository);
   }
 
-  private MigrationDagDependency dependency(String fileType, String parent, int level, Integer maxExecutions) {
-    return new MigrationDagDependency(MigrationFileType.fromValue(fileType), parent, level, maxExecutions);
+  private List<MigrationDagDependency> rows() {
+    return List.of(
+      row(1, "ROOT", "ROOT", 0),
+      row(2, "ORGANIZATIONS", "ROOT", 1),
+      row(3, "DEBT_POSITIONS_TYPE", "ROOT", 1),
+      row(4, "DEBT_POSITIONS_TYPE_ORG", "ORGANIZATIONS", 1),
+      row(5, "DEBT_POSITIONS", "DEBT_POSITIONS_TYPE_ORG", null),
+      row(6, "DEBT_POSITIONS_PAID", "DEBT_POSITIONS_TYPE_ORG", null),
+      row(7, "ASSESSMENTS", "DEBT_POSITIONS_PAID", null)
+    );
+  }
+
+  private MigrationDagDependency row(Integer id, String fileType, String parent, Integer maxExecutions) {
+    MigrationDagDependency row = mock(MigrationDagDependency.class);
+    org.mockito.Mockito.when(row.getId()).thenReturn(id);
+    org.mockito.Mockito.when(row.getFileType()).thenReturn(fileType);
+    org.mockito.Mockito.when(row.getDependsOn()).thenReturn(parent);
+    org.mockito.Mockito.when(row.getMaxExecutions()).thenReturn(maxExecutions);
+    return row;
   }
 }
