@@ -27,4 +27,5 @@ public abstract class BaseEntity implements Serializable {
   private LocalDateTime creationDate;
   @LastModifiedDate
   private LocalDateTime updateDate;
+  private String updateTraceId;
 }

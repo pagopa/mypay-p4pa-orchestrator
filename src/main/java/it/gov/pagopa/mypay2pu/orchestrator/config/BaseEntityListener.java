@@ -1,7 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.config;
 
-import it.gov.pagopa.pu.migration.model.BaseEntity;
-import it.gov.pagopa.pu.migration.utils.Utilities;
+import it.gov.pagopa.mypay2pu.orchestrator.model.BaseEntity;
+import it.gov.pagopa.mypay2pu.orchestrator.utils.Utilities;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 
