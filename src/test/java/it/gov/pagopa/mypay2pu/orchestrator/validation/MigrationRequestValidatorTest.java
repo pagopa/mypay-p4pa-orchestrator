@@ -36,6 +36,20 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
+  void exportAndAllPhasesRequireFileTypes() {
+    for (MigrationPhase phase : List.of(MigrationPhase.EXPORT, MigrationPhase.ALL)) {
+      MigrationRequestDto request = new MigrationRequestDto();
+      request.setPhase(phase);
+      request.setCycleMode(CycleMode.DELTA);
+      request.setIpaCodes(List.of("80000000000"));
+      request.setFileTypesToInclude(null);
+
+      InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
+      assertEquals("fileTypesToInclude are required and must not be empty", exception.getMessage());
+    }
+  }
+
+  @Test
   void transferRequiresMigrationIdButNoExportFields() {
     MigrationRequestDto request = new MigrationRequestDto();
     request.setPhase(MigrationPhase.TRANSFER);

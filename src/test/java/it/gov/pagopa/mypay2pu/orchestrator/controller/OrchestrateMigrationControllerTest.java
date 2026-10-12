@@ -1,6 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.controller;
 
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.*;
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.service.OrchestrateMigrationService;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationRequestValidator;
 import org.junit.jupiter.api.AfterEach;
@@ -12,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,6 +45,22 @@ class OrchestrateMigrationControllerTest {
     request.setPhase(MigrationPhase.TRANSFER);
     request.setMigrationId(UUID.randomUUID());
     request.setCycleMode(CycleMode.DELTA);
+    MigrationResponseDto response = new MigrationResponseDto();
+    when(orchestrateMigrationServiceMock.startMigration(request)).thenReturn(response);
+
+    ResponseEntity<MigrationResponseDto> result = controller.orchestrateMigration(request);
+
+    assertEquals(HttpStatus.ACCEPTED, result.getStatusCode());
+    assertSame(response, result.getBody());
+  }
+
+  @Test
+  void acceptsAllPhaseWithExportRequest() {
+    MigrationRequestDto request = new MigrationRequestDto();
+    request.setPhase(MigrationPhase.ALL);
+    request.setCycleMode(CycleMode.DELTA);
+    request.setIpaCodes(List.of("80000000000"));
+    request.setFileTypesToInclude(List.of(MigrationFileType.ORGANIZATIONS));
     MigrationResponseDto response = new MigrationResponseDto();
     when(orchestrateMigrationServiceMock.startMigration(request)).thenReturn(response);
 

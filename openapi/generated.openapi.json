@@ -83,7 +83,7 @@
       },
       "MigrationExecutionStatus" : {
         "type" : [ "string", "null" ],
-        "enum" : [ "PENDING", "EXTRACTING", "EXTRACTED", "UPLOADING", "WAITING_PU", "COMPLETED", "PARTIAL", "FAILED" ]
+        "enum" : [ "RUNNING", "COMPLETED", "FAILED", "WARNING" ]
       },
       "MigrationPhase" : {
         "type" : [ "string", "null" ],

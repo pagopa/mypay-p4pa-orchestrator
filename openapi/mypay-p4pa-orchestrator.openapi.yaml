@@ -134,14 +134,10 @@ components:
     MigrationExecutionStatus:
       type: string
       enum:
-        - PENDING
-        - EXTRACTING
-        - EXTRACTED
-        - UPLOADING
-        - WAITING_PU
+        - RUNNING
         - COMPLETED
-        - PARTIAL
         - FAILED
+        - WARNING
     ErrorDTO:
       type: object
       required:
