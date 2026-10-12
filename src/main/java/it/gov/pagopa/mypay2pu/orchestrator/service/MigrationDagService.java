@@ -2,7 +2,7 @@ package it.gov.pagopa.mypay2pu.orchestrator.service;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationDag;
-import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationDagDependencyRepository;
+
 import java.util.Collection;
 import java.util.Objects;
 import org.springframework.stereotype.Service;
@@ -10,11 +10,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class MigrationDagService {
-  private final MigrationDagDependencyRepository repository;
+  private final MigrationDagDependencyRetrieveService migrationDagDependencyRetrieveService;
   private final MigrationDagEngine dagEngine;
 
-  public MigrationDagService(MigrationDagDependencyRepository repository, MigrationDagEngine dagEngine) {
-    this.repository = repository;
+  public MigrationDagService(MigrationDagDependencyRetrieveService migrationDagDependencyRetrieveService,
+                             MigrationDagEngine dagEngine) {
+    this.migrationDagDependencyRetrieveService = migrationDagDependencyRetrieveService;
     this.dagEngine = dagEngine;
   }
 
@@ -27,6 +28,6 @@ public class MigrationDagService {
     fileTypesToInclude.forEach(fileType ->
       Objects.requireNonNull(fileType, "fileTypesToInclude must not contain null")
     );
-    return dagEngine.build(repository.findAll(), fileTypesToInclude);
+    return dagEngine.build(migrationDagDependencyRetrieveService.retrieve(), fileTypesToInclude);
   }
 }
