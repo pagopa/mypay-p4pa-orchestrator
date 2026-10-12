@@ -3,11 +3,13 @@ package it.gov.pagopa.mypay2pu.orchestrator.model;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Immutable;
 
 @Entity
 @Immutable
 @Getter
+@NoArgsConstructor
 public class MigrationDagDependency {
   @Id
   private Integer id;
@@ -19,7 +21,4 @@ public class MigrationDagDependency {
   private String dependsOn;
   private String label;
   private Integer maxExecutions;
-
-  public MigrationDagDependency() {
-  }
 }
