@@ -3,8 +3,6 @@ package it.gov.pagopa.mypay2pu.orchestrator.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -47,6 +45,6 @@ class MigrationDagDependencyRetrieveServiceTest {
 
     assertSame(firstResult, secondResult);
     assertEquals(dependencies, firstResult);
-    assertThrows(UnsupportedOperationException.class, () -> firstResult.clear());
+    assertThrows(UnsupportedOperationException.class, firstResult::clear);
   }
 }
