@@ -8,6 +8,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationResponseDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.AllMigrationPhaseCoordinator;
+import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.TransferPhaseCoordinator;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -23,23 +24,29 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class OrchestrateMigrationServiceImplTest {
 
   @Mock
-  private AllMigrationPhaseCoordinator allMigrationPhaseCoordinator;
+  private TransferPhaseCoordinator transferPhaseCoordinatorMock;
+  @Mock
+  private AllMigrationPhaseCoordinator allMigrationPhaseCoordinatorMock;
 
   private OrchestrateMigrationServiceImpl service;
 
   @BeforeEach
   void setUp() {
-    service = new OrchestrateMigrationServiceImpl(allMigrationPhaseCoordinator);
+    service = new OrchestrateMigrationServiceImpl(
+      transferPhaseCoordinatorMock,
+      allMigrationPhaseCoordinatorMock
+    );
   }
 
   @AfterEach
   void verifyMocks() {
-    verifyNoMoreInteractions(allMigrationPhaseCoordinator);
+    verifyNoMoreInteractions(transferPhaseCoordinatorMock, allMigrationPhaseCoordinatorMock);
   }
 
   @Test
@@ -49,8 +56,11 @@ class OrchestrateMigrationServiceImplTest {
     request.setPhase(MigrationPhase.TRANSFER);
     request.setMigrationId(migrationId);
     request.setCycleMode(CycleMode.DELTA);
+    when(transferPhaseCoordinatorMock.start(migrationId)).thenReturn(MigrationExecutionStatus.RUNNING);
+
     MigrationResponseDto response = service.startMigration(request);
 
+    verify(transferPhaseCoordinatorMock).start(migrationId);
     assertEquals(migrationId, response.getMigrationId());
     assertEquals(MigrationPhase.TRANSFER, response.getPhase());
     assertEquals(MigrationExecutionStatus.RUNNING, response.getStatus());
@@ -66,7 +76,7 @@ class OrchestrateMigrationServiceImplTest {
     MigrationResponseDto response = service.startMigration(request);
 
     ArgumentCaptor<UUID> migrationIdCaptor = ArgumentCaptor.forClass(UUID.class);
-    verify(allMigrationPhaseCoordinator).start(migrationIdCaptor.capture());
+    verify(allMigrationPhaseCoordinatorMock).start(migrationIdCaptor.capture());
     assertEquals(migrationIdCaptor.getValue(), response.getMigrationId());
     assertEquals(MigrationPhase.ALL, response.getPhase());
     assertEquals(MigrationExecutionStatus.RUNNING, response.getStatus());

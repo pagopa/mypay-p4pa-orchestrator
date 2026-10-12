@@ -8,26 +8,27 @@ import org.springframework.stereotype.Component;
 /**
  * Coordinates the transfer phase of a migration.
  *
- * <p>When implemented, this coordinator will wait for extracted files to become available, transfer
- * them in dependency order, and submit them to the migration service using the action selected by
- * the migration cycle mode. It will persist the returned workflow identifiers and hand off status
- * polling and outcome collection to the evidence-collection flow. Transfer should proceed as soon
- * as the next file is ready, without waiting for unrelated extractions to finish.
+ * <p>It transfers extracted files in dependency order, submitting each file to the migration
+ * service with the action selected by the cycle mode: CREATE for FULL and UPDATE for DELTA or
+ * REJECTS_ONLY. It persists the returned workflow identifiers and delegates status polling and
+ * outcome collection to the evidence-collection flow.
  *
- * <p>Extraction and evidence collection are owned by their respective flows; this coordinator
- * orchestrates transfer and its dependencies only.
+ * <p>Transfer proceeds as soon as the next dependency-ready file is available, without waiting for
+ * unrelated extractions to finish. Extraction and evidence collection remain the responsibility
+ * of their respective flows.
  */
 @Component
 @Slf4j
 public class TransferPhaseCoordinator {
 
   /**
-   * Starts transfer orchestration for an existing migration.
+   * Starts transfer coordination for an existing migration.
    *
    * @param migrationId identifier of the migration whose extracted files should be transferred
-   * @return the current migration execution status
+   * @return {@link MigrationExecutionStatus#RUNNING} while the transfer is in progress
    */
   public MigrationExecutionStatus start(UUID migrationId) {
+    // TODO: Implement transfer orchestration and workflow tracking.
     log.info("TRANSFER coordinator stub invoked for migration {}", migrationId);
     return MigrationExecutionStatus.RUNNING;
   }
