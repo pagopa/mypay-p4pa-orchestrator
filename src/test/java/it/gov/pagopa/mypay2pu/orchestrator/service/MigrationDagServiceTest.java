@@ -4,6 +4,7 @@ import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationDag;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationDagDependency;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationDagNode;
+import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationDagValidator;
 
 import java.util.Arrays;
 import java.util.List;
@@ -20,7 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,22 +31,30 @@ class MigrationDagServiceTest {
   @Mock
   private MigrationDagDependencyRetrieveService migrationDagDependencyRetrieveServiceMock;
 
+  @Mock
+  private MigrationDagValidator migrationDagValidatorMock;
+
   private MigrationDagService service;
 
   @BeforeEach
   void setUp() {
-    service = new MigrationDagService(migrationDagDependencyRetrieveServiceMock, new MigrationDagEngine());
+    service = new MigrationDagService(
+      migrationDagDependencyRetrieveServiceMock,
+      new MigrationDagEngine(),
+      migrationDagValidatorMock
+    );
   }
 
   @AfterEach
   void tearDown() {
-    verifyNoInteractions(migrationDagDependencyRetrieveServiceMock);
+    verifyNoMoreInteractions(migrationDagDependencyRetrieveServiceMock, migrationDagValidatorMock);
   }
 
   @Test
   void loadsAllRowsAndDelegatesTopologicalPruningToEngine() {
     List<MigrationDagDependency> rows = rows();
-    when(migrationDagDependencyRetrieveServiceMock.retrieve()).thenReturn(rows);
+    MigrationDag completeDag = new MigrationDagEngine().buildHierarchyTree(rows);
+    when(migrationDagDependencyRetrieveServiceMock.retrieve()).thenReturn(completeDag);
 
     MigrationDag dag = service.findDag(List.of(
       MigrationFileType.ASSESSMENTS,
@@ -65,12 +75,14 @@ class MigrationDagServiceTest {
       .toList());
     assertEquals(List.of(MigrationFileType.ASSESSMENTS), dag.childrenOf(MigrationFileType.DEBT_POSITIONS_PAID)
       .stream().map(MigrationDagNode::fileType).toList());
+    verify(migrationDagDependencyRetrieveServiceMock).retrieve();
   }
 
   @Test
   void retainsNullMaximumAndDoesNotPromoteFilteredParentsToRoots() {
     List<MigrationDagDependency> rows = rows();
-    when(migrationDagDependencyRetrieveServiceMock.retrieve()).thenReturn(rows);
+    MigrationDag completeDag = new MigrationDagEngine().buildHierarchyTree(rows);
+    when(migrationDagDependencyRetrieveServiceMock.retrieve()).thenReturn(completeDag);
 
     MigrationDag dag = service.findDag(List.of(MigrationFileType.ASSESSMENTS));
 
@@ -79,15 +91,35 @@ class MigrationDagServiceTest {
     assertEquals(List.of("DEBT_POSITIONS_PAID"), dag.nodes().getFirst().dependsOn());
     assertTrue(dag.rootNodes().isEmpty());
     assertNull(dag.nodes().getFirst().maxExecutions());
+    verify(migrationDagDependencyRetrieveServiceMock).retrieve();
+  }
+
+  @Test
+  void validatesInitialDependenciesOnlyThroughExplicitInitialOperation() {
+    List<MigrationDagDependency> rows = rows();
+    MigrationDag completeDag = new MigrationDagEngine().buildHierarchyTree(rows);
+    when(migrationDagDependencyRetrieveServiceMock.retrieve()).thenReturn(completeDag);
+
+    MigrationDag dag = service.findInitialDag(List.of(
+      MigrationFileType.ORGANIZATIONS,
+      MigrationFileType.ASSESSMENTS
+    ));
+
+    assertEquals(2, dag.nodes().size());
+    verify(migrationDagValidatorMock)
+      .validateInitialCycleDependencies(dag, List.of(
+        MigrationFileType.ORGANIZATIONS,
+        MigrationFileType.ASSESSMENTS
+      ));
+    verify(migrationDagDependencyRetrieveServiceMock).retrieve();
   }
 
   @Test
   void rejectsNullEmptyAndNullElementFiltersWithoutReadingDatabase() {
+    List<MigrationFileType> nullElementFilter = Arrays.asList(MigrationFileType.ORGANIZATIONS, null);
     assertThrows(NullPointerException.class, () -> service.findDag(null));
     assertThrows(IllegalArgumentException.class, () -> service.findDag(List.of()));
-    assertThrows(NullPointerException.class, () -> service.findDag(Arrays.asList(
-      MigrationFileType.ORGANIZATIONS, null
-    )));
+    assertThrows(NullPointerException.class, () -> service.findDag(nullElementFilter));
   }
 
   private List<MigrationDagDependency> rows() {

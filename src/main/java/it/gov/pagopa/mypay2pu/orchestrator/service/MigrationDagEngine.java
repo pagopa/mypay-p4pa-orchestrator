@@ -26,48 +26,38 @@ public class MigrationDagEngine {
   private static final String ROOT = "ROOT";
 
   /**
-   * Reconstructs the hierarchy reachable from ROOT, topologically orders it, and
-   * returns only requested file types while preserving each node's persisted parents.
+   * Reconstructs the complete functional DAG reachable from ROOT.
    *
    * @param dependencies all dependency rows returned by the repository
-   * @param fileTypesToInclude the functional file types to keep in the resulting DAG
+   * @return the immutable, topologically ordered DAG
    */
-  public MigrationDag build(
-    Collection<MigrationDagDependency> dependencies,
-    Collection<MigrationFileType> fileTypesToInclude
-  ) {
+  public MigrationDag buildHierarchyTree(Collection<MigrationDagDependency> dependencies) {
     Objects.requireNonNull(dependencies, "dependencies must not be null");
-    Objects.requireNonNull(fileTypesToInclude, "fileTypesToInclude must not be null");
-    if (fileTypesToInclude.isEmpty()) {
-      throw new IllegalArgumentException("fileTypesToInclude must not be empty");
+
+    DependencyIndex dependencyIndex = indexDependencies(dependencies);
+    if (!dependencyIndex.hasRootRow()) {
+      return new MigrationDag(List.of());
     }
 
-    Map<String, MigrationFileType> requestedTypesByValue = new HashMap<>();
-    for (MigrationFileType fileType : fileTypesToInclude) {
-      MigrationFileType requestedType = Objects.requireNonNull(
-        fileType,
-        "fileTypesToInclude must not contain null"
-      );
-      requestedTypesByValue.put(requestedType.getValue(), requestedType);
-    }
+    ReachableGraph reachableGraph = collectReachableGraph(dependencyIndex.rowsByParent());
+    return topologicallyOrder(reachableGraph.nodes(), reachableGraph.childrenByParent());
+  }
 
+  private DependencyIndex indexDependencies(Collection<MigrationDagDependency> dependencies) {
     Map<String, List<MigrationDagDependency>> rowsByParent = new HashMap<>();
     boolean hasRootRow = false;
     for (MigrationDagDependency dependency : dependencies) {
       Objects.requireNonNull(dependency, "dependencies must not contain null");
       String parent = dependency.getDependsOn();
-      if (ROOT.equals(dependency.getFileType()) && ROOT.equals(parent)) {
-        hasRootRow = true;
-      }
+      hasRootRow |= ROOT.equals(dependency.getFileType()) && ROOT.equals(parent);
       if (parent != null) {
         rowsByParent.computeIfAbsent(parent, ignored -> new ArrayList<>()).add(dependency);
       }
     }
+    return new DependencyIndex(rowsByParent, hasRootRow);
+  }
 
-    if (!hasRootRow) {
-      return new MigrationDag(List.of());
-    }
-
+  private ReachableGraph collectReachableGraph(Map<String, List<MigrationDagDependency>> rowsByParent) {
     Map<String, MutableNode> reachableNodes = new HashMap<>();
     Map<String, Set<String>> childrenByParent = new HashMap<>();
     Set<String> visitedParents = new HashSet<>();
@@ -79,27 +69,57 @@ public class MigrationDagEngine {
       if (!visitedParents.add(parent)) {
         continue;
       }
-      for (MigrationDagDependency dependency : rowsByParent.getOrDefault(parent, List.of())) {
-        String fileType = dependency.getFileType();
-        if (fileType == null || fileType.isBlank()) {
-          throw new IllegalStateException("DAG dependency has a blank file_type");
-        }
-        if (ROOT.equals(fileType) && ROOT.equals(parent)) {
-          continue;
-        }
-        if (ROOT.equals(fileType)) {
-          throw new IllegalStateException("ROOT cannot depend on a functional file type");
-        }
-
-        MutableNode node = reachableNodes.computeIfAbsent(fileType, ignored -> new MutableNode(fileType));
-        node.addParent(parent, dependency.getMaxExecutions());
-        if (!ROOT.equals(parent)) {
-          childrenByParent.computeIfAbsent(parent, ignored -> new TreeSet<>()).add(fileType);
-        }
-        pendingParents.addLast(fileType);
-      }
+      processDependencies(
+        parent,
+        rowsByParent.getOrDefault(parent, List.of()),
+        reachableNodes,
+        childrenByParent,
+        pendingParents
+      );
     }
+    return new ReachableGraph(reachableNodes, childrenByParent);
+  }
 
+  private void processDependencies(String parent,
+                                   List<MigrationDagDependency> dependencies,
+                                   Map<String, MutableNode> reachableNodes,
+                                   Map<String, Set<String>> childrenByParent,
+                                   ArrayDeque<String> pendingParents) {
+    for (MigrationDagDependency dependency : dependencies) {
+      String fileType = dependency.getFileType();
+      validateDependency(parent, fileType);
+      if (ROOT.equals(fileType)) {
+        continue;
+      }
+      MutableNode node = reachableNodes.computeIfAbsent(fileType, ignored -> new MutableNode(fileType));
+      node.addParent(parent, dependency.getMaxExecutions());
+      addChild(childrenByParent, parent, fileType);
+      pendingParents.addLast(fileType);
+    }
+  }
+
+  private void validateDependency(String parent, String fileType) {
+    if (fileType == null || fileType.isBlank()) {
+      throw new IllegalStateException("DAG dependency has a blank File Type");
+    }
+    if (ROOT.equals(fileType) && ROOT.equals(parent)) {
+      return;
+    }
+    if (ROOT.equals(fileType)) {
+      throw new IllegalStateException("ROOT cannot depend on a functional File Type");
+    }
+  }
+
+  private void addChild(Map<String, Set<String>> childrenByParent, String parent, String child) {
+    if (!ROOT.equals(parent)) {
+      childrenByParent.computeIfAbsent(parent, ignored -> new TreeSet<>()).add(child);
+    }
+  }
+
+  private MigrationDag topologicallyOrder(
+    Map<String, MutableNode> reachableNodes,
+    Map<String, Set<String>> childrenByParent
+  ) {
     Map<String, Integer> inDegree = new HashMap<>();
     Map<String, Integer> levels = new HashMap<>();
     for (MutableNode node : reachableNodes.values()) {
@@ -109,12 +129,9 @@ public class MigrationDagEngine {
     }
 
     PriorityQueue<String> ready = new PriorityQueue<>();
-    inDegree.forEach((fileType, degree) -> {
-      if (degree == 0) {
-        ready.add(fileType);
-      }
-    });
+    addReadyNodes(inDegree, ready);
 
+    Map<String, MigrationFileType> functionalTypesByValue = functionalTypesByValue();
     List<MigrationDagNode> topologicalNodes = new ArrayList<>(reachableNodes.size());
     int processedNodes = 0;
     while (!ready.isEmpty()) {
@@ -122,36 +139,102 @@ public class MigrationDagEngine {
       MutableNode node = reachableNodes.get(fileType);
       int level = levels.get(fileType);
       processedNodes++;
-      if (level < 1) {
-        throw new IllegalStateException("DAG node is not reachable from ROOT: " + fileType);
-      }
-      MigrationFileType requestedType = requestedTypesByValue.get(fileType);
-      if (requestedType != null) {
-        topologicalNodes.add(new MigrationDagNode(
-          requestedType,
-          node.parents.stream().toList(),
-          level,
-          node.maxExecutions
-        ));
-      }
-
-      for (String child : childrenByParent.getOrDefault(fileType, Set.of())) {
-        levels.merge(child, level + 1, Math::max);
-        int remainingParents = inDegree.compute(child, (ignored, degree) -> degree - 1);
-        if (remainingParents == 0) {
-          ready.add(child);
-        }
-      }
+      addNode(topologicalNodes, functionalTypesByValue, node, level);
+      processChildren(
+        level,
+        childrenByParent.getOrDefault(fileType, Set.of()),
+        levels,
+        inDegree,
+        ready
+      );
     }
 
-    if (processedNodes != reachableNodes.size()) {
-      throw new IllegalStateException("Cycle detected in the migration DAG reachable from ROOT");
-    }
+    ensureAllNodesProcessed(processedNodes, reachableNodes.size());
 
     topologicalNodes.sort(Comparator
       .comparingInt(MigrationDagNode::level)
       .thenComparing(node -> node.fileType().getValue()));
     return new MigrationDag(topologicalNodes);
+  }
+
+  private void addReadyNodes(Map<String, Integer> inDegree, PriorityQueue<String> ready) {
+    inDegree.forEach((fileType, degree) -> {
+      if (degree == 0) {
+        ready.add(fileType);
+      }
+    });
+  }
+
+  private void addNode(List<MigrationDagNode> topologicalNodes,
+                       Map<String, MigrationFileType> functionalTypesByValue,
+                       MutableNode node,
+                       int level) {
+    if (level < 1) {
+      throw new IllegalStateException("DAG node is not reachable from ROOT: " + node.fileType);
+    }
+    MigrationFileType functionalType = functionalTypesByValue.get(node.fileType);
+    if (functionalType != null) {
+      topologicalNodes.add(new MigrationDagNode(
+        functionalType,
+        node.parents.stream().toList(),
+        level,
+        node.maxExecutions
+      ));
+    }
+  }
+
+  private void processChildren(int level,
+                               Set<String> children,
+                               Map<String, Integer> levels,
+                               Map<String, Integer> inDegree,
+                               PriorityQueue<String> ready) {
+    for (String child : children) {
+      levels.merge(child, level + 1, Math::max);
+      int remainingParents = inDegree.compute(child, (ignored, degree) -> degree - 1);
+      if (remainingParents == 0) {
+        ready.add(child);
+      }
+    }
+  }
+
+  private void ensureAllNodesProcessed(int processedNodes, int totalNodes) {
+    if (processedNodes != totalNodes) {
+      throw new IllegalStateException("Cycle detected in the migration DAG reachable from ROOT");
+    }
+  }
+
+  /**
+   * Filters an already built DAG without rebuilding or rereading its source rows.
+   *
+   * @param dag complete functional DAG
+   * @param fileTypesToInclude the functional file types to keep in the resulting DAG
+   */
+  public MigrationDag filterTree(MigrationDag dag, Collection<MigrationFileType> fileTypesToInclude) {
+    Objects.requireNonNull(dag, "dag must not be null");
+    Objects.requireNonNull(fileTypesToInclude, "fileTypesToInclude must not be null");
+    if (fileTypesToInclude.isEmpty()) {
+      throw new IllegalArgumentException("fileTypesToInclude must not be empty");
+    }
+
+    Set<String> requestedValues = new HashSet<>();
+    for (MigrationFileType fileType : fileTypesToInclude) {
+      requestedValues.add(Objects.requireNonNull(
+        fileType,
+        "fileTypesToInclude must not contain null"
+      ).getValue());
+    }
+
+    return new MigrationDag(dag.nodes().stream()
+      .filter(node -> requestedValues.contains(node.fileType().getValue()))
+      .toList());
+  }
+
+  private Map<String, MigrationFileType> functionalTypesByValue() {
+    Map<String, MigrationFileType> functionalTypesByValue = new HashMap<>();
+    for (MigrationFileType fileType : MigrationFileType.values()) {
+      functionalTypesByValue.put(fileType.getValue(), fileType);
+    }
+    return functionalTypesByValue;
   }
 
   private static final class MutableNode {
@@ -170,8 +253,12 @@ public class MigrationDagEngine {
         maxExecutions = rowMaxExecutions;
         maxExecutionsInitialized = true;
       } else if (!Objects.equals(maxExecutions, rowMaxExecutions)) {
-        throw new IllegalStateException("Inconsistent max_executions values for file_type " + fileType);
+        throw new IllegalStateException("Inconsistent max_executions values for File Type " + fileType);
       }
     }
   }
+
+  private record DependencyIndex(Map<String, List<MigrationDagDependency>> rowsByParent, boolean hasRootRow) {}
+
+  private record ReachableGraph(Map<String, MutableNode> nodes, Map<String, Set<String>> childrenByParent) {}
 }

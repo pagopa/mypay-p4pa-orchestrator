@@ -18,7 +18,7 @@ class MigrationDagEngineTest {
 
   @Test
   void topologicallyOrdersMultipleParentsAndPrunesWithoutAddingAncestors() {
-    MigrationDag dag = engine.build(
+    MigrationDag dag = engine.filterTree(engine.buildHierarchyTree(
       List.of(
         row("DEBT_POSITIONS_PAID", "DEBT_POSITIONS_TYPE_ORG", null),
         row("ROOT", "ROOT", 0),
@@ -26,7 +26,7 @@ class MigrationDagEngineTest {
         row("ORGANIZATIONS", "ROOT", 1),
         row("DEBT_POSITIONS_TYPE", "ROOT", 1),
         row("DEBT_POSITIONS_PAID", "ORGANIZATIONS", null)
-      ),
+      )),
       List.of(MigrationFileType.DEBT_POSITIONS_PAID)
     );
 
@@ -40,11 +40,11 @@ class MigrationDagEngineTest {
 
   @Test
   void doesNotReturnTypesNotReachableFromTheTechnicalRoot() {
-    MigrationDag dag = engine.build(
+    MigrationDag dag = engine.filterTree(engine.buildHierarchyTree(
       List.of(
         row("ROOT", "ROOT", 0),
         row("DEBT_POSITIONS", "MISSING_PARENT", null)
-      ),
+      )),
       List.of(MigrationFileType.DEBT_POSITIONS)
     );
 
@@ -53,12 +53,12 @@ class MigrationDagEngineTest {
 
   @Test
   void traversesUnrequestedIntermediateRowsBeforePruning() {
-    MigrationDag dag = engine.build(
+    MigrationDag dag = engine.filterTree(engine.buildHierarchyTree(
       List.of(
         row("ROOT", "ROOT", 0),
         row("LEGACY_INTERMEDIATE", "ROOT", 1),
         row("DEBT_POSITIONS", "LEGACY_INTERMEDIATE", null)
-      ),
+      )),
       List.of(MigrationFileType.DEBT_POSITIONS)
     );
 
@@ -69,14 +69,15 @@ class MigrationDagEngineTest {
 
   @Test
   void detectsCyclesReachableFromTheTechnicalRoot() {
-    assertThrows(IllegalStateException.class, () -> engine.build(
-      List.of(
-        row("ROOT", "ROOT", 0),
-        row("ORGANIZATIONS", "ROOT", 1),
-        row("DEBT_POSITIONS_TYPE", "ORGANIZATIONS", 1),
-        row("ORGANIZATIONS", "DEBT_POSITIONS_TYPE", 1)
-      ),
-      List.of(MigrationFileType.ORGANIZATIONS)
+    List<MigrationDagDependency> dependencies = List.of(
+      row("ROOT", "ROOT", 0),
+      row("ORGANIZATIONS", "ROOT", 1),
+      row("DEBT_POSITIONS_TYPE", "ORGANIZATIONS", 1),
+      row("ORGANIZATIONS", "DEBT_POSITIONS_TYPE", 1)
+    );
+
+    assertThrows(IllegalStateException.class, () -> engine.buildHierarchyTree(
+      dependencies
     ));
   }
 
