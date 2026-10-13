@@ -46,5 +46,8 @@ public class MigrationDagService {
     if (fileTypesToInclude.isEmpty()) {
       throw new IllegalArgumentException("fileTypesToInclude must not be empty");
     }
+    fileTypesToInclude.forEach(fileType ->
+      Objects.requireNonNull(fileType, "fileTypesToInclude must not contain null")
+    );
   }
 }

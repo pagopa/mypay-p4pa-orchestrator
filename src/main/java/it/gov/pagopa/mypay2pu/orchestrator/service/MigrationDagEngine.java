@@ -192,7 +192,12 @@ public class MigrationDagEngine {
                                PriorityQueue<String> ready) {
     for (String child : children) {
       levels.merge(child, level + 1, Math::max);
-      int remainingParents = inDegree.compute(child, (ignored, degree) -> degree - 1);
+      Integer currentDegree = inDegree.get(child);
+      if (currentDegree == null) {
+        throw new IllegalStateException("DAG child has no in-degree: " + child);
+      }
+      int remainingParents = currentDegree - 1;
+      inDegree.put(child, remainingParents);
       if (remainingParents == 0) {
         ready.add(child);
       }
