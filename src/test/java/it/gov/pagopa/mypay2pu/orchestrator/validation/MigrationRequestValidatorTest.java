@@ -23,8 +23,8 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void exportAndAllPhasesRequireIpaCodes() {
-    for (MigrationPhase phase : List.of(MigrationPhase.EXPORT, MigrationPhase.ALL)) {
+  void exportAndCompletePhasesRequireIpaCodes() {
+    for (MigrationPhase phase : List.of(MigrationPhase.EXPORT, MigrationPhase.COMPLETE)) {
       MigrationRequestDto request = new MigrationRequestDto();
       request.setPhase(phase);
       request.setCycleMode(CycleMode.DELTA);
@@ -36,8 +36,8 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void exportAndAllPhasesRequireFileTypes() {
-    for (MigrationPhase phase : List.of(MigrationPhase.EXPORT, MigrationPhase.ALL)) {
+  void exportAndCompletePhasesRequireFileTypes() {
+    for (MigrationPhase phase : List.of(MigrationPhase.EXPORT, MigrationPhase.COMPLETE)) {
       MigrationRequestDto request = new MigrationRequestDto();
       request.setPhase(phase);
       request.setCycleMode(CycleMode.DELTA);

@@ -22,7 +22,7 @@ public class MigrationRequestValidator {
 
   protected void validatePhase(MigrationRequestDto request) {
     MigrationPhase phase = request.getPhase();
-    if (phase == MigrationPhase.EXPORT || phase == MigrationPhase.ALL) {
+    if (phase == MigrationPhase.EXPORT || phase == MigrationPhase.COMPLETE) {
       if (CollectionUtils.isEmpty(request.getIpaCodes())) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "ipaCodes are required and must not be empty");
       }

@@ -6,10 +6,10 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Slf4j
-public class AllMigrationPhaseCoordinator {
+public class CompleteMigrationPhaseCoordinator {
 
   public void start(UUID migrationId) {
-    log.info("ALL coordinator stub invoked for migration {}", migrationId);
+    log.info("COMPLETE coordinator stub invoked for migration {}", migrationId);
     // TODO Connect the export coordinator from the parallel implementation before starting transfer.
   }
 }

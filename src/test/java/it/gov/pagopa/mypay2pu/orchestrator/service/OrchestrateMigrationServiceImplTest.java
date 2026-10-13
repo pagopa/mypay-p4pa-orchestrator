@@ -7,10 +7,11 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationPhase;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationResponseDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
-import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.AllMigrationPhaseCoordinator;
+import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.CompleteMigrationPhaseCoordinator;
 import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.TransferPhaseCoordinator;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,7 +33,7 @@ class OrchestrateMigrationServiceImplTest {
   @Mock
   private TransferPhaseCoordinator transferPhaseCoordinatorMock;
   @Mock
-  private AllMigrationPhaseCoordinator allMigrationPhaseCoordinatorMock;
+  private CompleteMigrationPhaseCoordinator completeMigrationPhaseCoordinatorMock;
 
   private OrchestrateMigrationServiceImpl service;
 
@@ -40,13 +41,13 @@ class OrchestrateMigrationServiceImplTest {
   void setUp() {
     service = new OrchestrateMigrationServiceImpl(
       transferPhaseCoordinatorMock,
-      allMigrationPhaseCoordinatorMock
+      completeMigrationPhaseCoordinatorMock
     );
   }
 
   @AfterEach
   void verifyMocks() {
-    verifyNoMoreInteractions(transferPhaseCoordinatorMock, allMigrationPhaseCoordinatorMock);
+    verifyNoMoreInteractions(transferPhaseCoordinatorMock, completeMigrationPhaseCoordinatorMock);
   }
 
   @Test
@@ -56,7 +57,7 @@ class OrchestrateMigrationServiceImplTest {
     request.setPhase(MigrationPhase.TRANSFER);
     request.setMigrationId(migrationId);
     request.setCycleMode(CycleMode.DELTA);
-    when(transferPhaseCoordinatorMock.start(migrationId)).thenReturn(MigrationExecutionStatus.RUNNING);
+    when(transferPhaseCoordinatorMock.start(migrationId)).thenReturn(CompletableFuture.completedFuture(null));
 
     MigrationResponseDto response = service.startMigration(request);
 
@@ -70,15 +71,15 @@ class OrchestrateMigrationServiceImplTest {
   }
 
   @Test
-  void allDelegatesGeneratedMigrationIdAndReturnsInitialResponse() {
-    MigrationRequestDto request = allRequest();
+  void completeDelegatesGeneratedMigrationIdAndReturnsInitialResponse() {
+    MigrationRequestDto request = completeRequest();
 
     MigrationResponseDto response = service.startMigration(request);
 
     ArgumentCaptor<UUID> migrationIdCaptor = ArgumentCaptor.forClass(UUID.class);
-    verify(allMigrationPhaseCoordinatorMock).start(migrationIdCaptor.capture());
+    verify(completeMigrationPhaseCoordinatorMock).start(migrationIdCaptor.capture());
     assertEquals(migrationIdCaptor.getValue(), response.getMigrationId());
-    assertEquals(MigrationPhase.ALL, response.getPhase());
+    assertEquals(MigrationPhase.COMPLETE, response.getPhase());
     assertEquals(MigrationExecutionStatus.RUNNING, response.getStatus());
     assertEquals(CycleMode.DELTA, response.getCycleMode());
     assertEquals(List.of("80000000000"), response.getIpaCodes());
@@ -113,9 +114,9 @@ class OrchestrateMigrationServiceImplTest {
     assertThrows(UnsupportedOperationException.class, () -> service.startMigration(request));
   }
 
-  private MigrationRequestDto allRequest() {
+  private MigrationRequestDto completeRequest() {
     MigrationRequestDto request = new MigrationRequestDto();
-    request.setPhase(MigrationPhase.ALL);
+    request.setPhase(MigrationPhase.COMPLETE);
     request.setCycleMode(CycleMode.DELTA);
     request.setIpaCodes(List.of("80000000000"));
     request.setFileTypesToInclude(List.of(MigrationFileType.ORGANIZATIONS));

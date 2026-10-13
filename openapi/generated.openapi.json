@@ -18,7 +18,7 @@
       "post" : {
         "tags" : [ "OrchestrateMigration" ],
         "summary" : "Start a migration orchestration",
-        "description" : "Start an EXPORT, TRANSFER or ALL migration flow. EXPORT and ALL requests require non-empty ipaCodes and fileTypesToInclude, and a cycleMode. TRANSFER requests require migrationId. FULL cycle mode requires period; REJECTS_ONLY cycle mode requires rejectsPayload.",
+        "description" : "Start an EXPORT, TRANSFER or COMPLETE migration flow. EXPORT and COMPLETE requests require non-empty ipaCodes and fileTypesToInclude, and a cycleMode. TRANSFER requests require migrationId. FULL cycle mode requires period; REJECTS_ONLY cycle mode requires rejectsPayload.",
         "operationId" : "orchestrateMigration",
         "requestBody" : {
           "content" : {
@@ -87,7 +87,7 @@
       },
       "MigrationPhase" : {
         "type" : [ "string", "null" ],
-        "enum" : [ "EXPORT", "TRANSFER", "ALL" ]
+        "enum" : [ "EXPORT", "TRANSFER", "COMPLETE" ]
       },
       "MigrationResponseDto" : {
         "type" : "object",
@@ -158,7 +158,7 @@
           },
           "ipaCodes" : {
             "type" : "array",
-            "description" : "Required and non-empty for EXPORT and ALL phases",
+            "description" : "Required and non-empty for EXPORT and COMPLETE phases",
             "items" : {
               "type" : "string"
             }
@@ -169,7 +169,7 @@
           },
           "fileTypesToInclude" : {
             "type" : "array",
-            "description" : "Required and non-empty for EXPORT and ALL phases",
+            "description" : "Required and non-empty for EXPORT and COMPLETE phases",
             "items" : {
               "$ref" : "#/components/schemas/MigrationFileType"
             }

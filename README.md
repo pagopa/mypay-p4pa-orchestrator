@@ -18,7 +18,7 @@ See [OpenAPI](openapi/generated.openapi.json), exposed through the following pat
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/orchestrate/migrate` | Start an `EXPORT`, `TRANSFER` or `ALL` migration |
+| `POST` | `/orchestrate/migrate` | Start an `EXPORT`, `TRANSFER` or `COMPLETE` migration |
 
 ### 📌 Common HTTP status returned:
 * `202`: Migration orchestration accepted

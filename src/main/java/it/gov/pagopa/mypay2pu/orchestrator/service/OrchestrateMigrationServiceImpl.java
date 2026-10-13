@@ -5,25 +5,27 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationPhase;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationResponseDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
-import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.AllMigrationPhaseCoordinator;
+import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.CompleteMigrationPhaseCoordinator;
 import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.TransferPhaseCoordinator;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
 public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationService {
 
   private final TransferPhaseCoordinator transferPhaseCoordinator;
-  private final AllMigrationPhaseCoordinator allMigrationPhaseCoordinator;
+  private final CompleteMigrationPhaseCoordinator completeMigrationPhaseCoordinator;
 
   public OrchestrateMigrationServiceImpl(
     TransferPhaseCoordinator transferPhaseCoordinator,
-    AllMigrationPhaseCoordinator allMigrationPhaseCoordinator
+    CompleteMigrationPhaseCoordinator completeMigrationPhaseCoordinator
   ) {
     this.transferPhaseCoordinator = transferPhaseCoordinator;
-    this.allMigrationPhaseCoordinator = allMigrationPhaseCoordinator;
+    this.completeMigrationPhaseCoordinator = completeMigrationPhaseCoordinator;
   }
 
   @Override
@@ -41,11 +43,18 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
         if (migrationId == null) {
           throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "migrationId is required for TRANSFER");
         }
-        status = transferPhaseCoordinator.start(migrationId);
+        transferPhaseCoordinator.start(migrationId)
+          .whenComplete((ignored, error) -> {
+            if (error != null) {
+              // TODO: Persist asynchronous coordinator failures in the migration status.
+              log.error("Failed to start TRANSFER coordinator for migration {}", migrationId, error);
+            }
+          });
+        status = MigrationExecutionStatus.RUNNING;
       }
-      case ALL -> {
+      case COMPLETE -> {
         migrationId = UUID.randomUUID();
-        allMigrationPhaseCoordinator.start(migrationId);
+        completeMigrationPhaseCoordinator.start(migrationId);
         status = MigrationExecutionStatus.RUNNING;
       }
       case EXPORT -> throw new UnsupportedOperationException("EXPORT orchestration is not implemented yet");

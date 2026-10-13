@@ -55,9 +55,9 @@ class OrchestrateMigrationControllerTest {
   }
 
   @Test
-  void acceptsAllPhaseWithExportRequest() {
+  void acceptsCompletePhaseWithExportRequest() {
     MigrationRequestDto request = new MigrationRequestDto();
-    request.setPhase(MigrationPhase.ALL);
+    request.setPhase(MigrationPhase.COMPLETE);
     request.setCycleMode(CycleMode.DELTA);
     request.setIpaCodes(List.of("80000000000"));
     request.setFileTypesToInclude(List.of(MigrationFileType.ORGANIZATIONS));

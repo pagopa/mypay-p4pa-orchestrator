@@ -14,8 +14,8 @@ paths:
       operationId: orchestrateMigration
       summary: Start a migration orchestration
       description: |-
-        Start an EXPORT, TRANSFER or ALL migration flow.
-        EXPORT and ALL requests require non-empty ipaCodes and fileTypesToInclude, and a cycleMode.
+        Start an EXPORT, TRANSFER or COMPLETE migration flow.
+        EXPORT and COMPLETE requests require non-empty ipaCodes and fileTypesToInclude, and a cycleMode.
         TRANSFER requests require migrationId.
         FULL cycle mode requires period; REJECTS_ONLY cycle mode requires rejectsPayload.
       requestBody:
@@ -60,7 +60,7 @@ components:
         phase:
           $ref: '#/components/schemas/MigrationPhase'
         ipaCodes:
-          description: Required and non-empty for EXPORT and ALL phases
+          description: Required and non-empty for EXPORT and COMPLETE phases
           type: array
           items:
             type: string
@@ -68,7 +68,7 @@ components:
           description: Required for all migration phases
           $ref: '#/components/schemas/CycleMode'
         fileTypesToInclude:
-          description: Required and non-empty for EXPORT and ALL phases
+          description: Required and non-empty for EXPORT and COMPLETE phases
           type: array
           items:
             type: 'MigrationFileType'
@@ -124,7 +124,7 @@ components:
       enum:
         - EXPORT
         - TRANSFER
-        - ALL
+        - COMPLETE
     CycleMode:
       type: string
       enum:
