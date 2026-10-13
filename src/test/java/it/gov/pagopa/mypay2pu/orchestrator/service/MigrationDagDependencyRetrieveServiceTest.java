@@ -28,7 +28,10 @@ class MigrationDagDependencyRetrieveServiceTest {
 
   @BeforeEach
   void setUp() {
-    service = new MigrationDagDependencyRetrieveService(repository, new MigrationDagEngine());
+    service = new MigrationDagDependencyRetrieveService(
+      repository,
+      new MigrationDagEngine(new KahnDagPlanner(), new ParallelLevelExecutor())
+    );
   }
 
   @AfterEach

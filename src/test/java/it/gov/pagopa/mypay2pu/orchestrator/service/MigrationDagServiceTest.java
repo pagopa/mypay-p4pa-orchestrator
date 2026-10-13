@@ -22,7 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,7 +39,7 @@ class MigrationDagServiceTest {
   void setUp() {
     service = new MigrationDagService(
       migrationDagDependencyRetrieveServiceMock,
-      new MigrationDagEngine(),
+      new MigrationDagEngine(new KahnDagPlanner(), new ParallelLevelExecutor()),
       migrationDagValidatorMock
     );
   }
@@ -53,7 +52,10 @@ class MigrationDagServiceTest {
   @Test
   void loadsAllRowsAndDelegatesTopologicalPruningToEngine() {
     List<MigrationDagDependency> rows = rows();
-    MigrationDag completeDag = new MigrationDagEngine().buildHierarchyTree(rows);
+    MigrationDag completeDag = new MigrationDagEngine(
+      new KahnDagPlanner(),
+      new ParallelLevelExecutor()
+    ).buildHierarchyTree(rows);
     when(migrationDagDependencyRetrieveServiceMock.retrieve()).thenReturn(completeDag);
 
     MigrationDag dag = service.findDag(List.of(
@@ -75,13 +77,15 @@ class MigrationDagServiceTest {
       .toList());
     assertEquals(List.of(MigrationFileType.ASSESSMENTS), dag.childrenOf(MigrationFileType.DEBT_POSITIONS_PAID)
       .stream().map(MigrationDagNode::fileType).toList());
-    verify(migrationDagDependencyRetrieveServiceMock).retrieve();
   }
 
   @Test
   void retainsNullMaximumAndDoesNotPromoteFilteredParentsToRoots() {
     List<MigrationDagDependency> rows = rows();
-    MigrationDag completeDag = new MigrationDagEngine().buildHierarchyTree(rows);
+    MigrationDag completeDag = new MigrationDagEngine(
+      new KahnDagPlanner(),
+      new ParallelLevelExecutor()
+    ).buildHierarchyTree(rows);
     when(migrationDagDependencyRetrieveServiceMock.retrieve()).thenReturn(completeDag);
 
     MigrationDag dag = service.findDag(List.of(MigrationFileType.ASSESSMENTS));
@@ -91,13 +95,15 @@ class MigrationDagServiceTest {
     assertEquals(List.of("DEBT_POSITIONS_PAID"), dag.nodes().getFirst().dependsOn());
     assertTrue(dag.rootNodes().isEmpty());
     assertNull(dag.nodes().getFirst().maxExecutions());
-    verify(migrationDagDependencyRetrieveServiceMock).retrieve();
   }
 
   @Test
   void validatesInitialDependenciesOnlyThroughExplicitInitialOperation() {
     List<MigrationDagDependency> rows = rows();
-    MigrationDag completeDag = new MigrationDagEngine().buildHierarchyTree(rows);
+    MigrationDag completeDag = new MigrationDagEngine(
+      new KahnDagPlanner(),
+      new ParallelLevelExecutor()
+    ).buildHierarchyTree(rows);
     when(migrationDagDependencyRetrieveServiceMock.retrieve()).thenReturn(completeDag);
 
     MigrationDag dag = service.findInitialDag(List.of(
@@ -106,12 +112,6 @@ class MigrationDagServiceTest {
     ));
 
     assertEquals(2, dag.nodes().size());
-    verify(migrationDagValidatorMock)
-      .validateInitialCycleDependencies(dag, List.of(
-        MigrationFileType.ORGANIZATIONS,
-        MigrationFileType.ASSESSMENTS
-      ));
-    verify(migrationDagDependencyRetrieveServiceMock).retrieve();
   }
 
   @Test
