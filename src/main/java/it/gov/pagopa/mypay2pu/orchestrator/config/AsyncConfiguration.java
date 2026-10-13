@@ -13,7 +13,7 @@ public class AsyncConfiguration {
 
   @Bean("orchestratorTaskExecutor")
   public Executor orchestratorTaskExecutor(
-    @Value("${orchestrator..core-pool-size}") int corePoolSize,
+    @Value("${orchestrator.async.core-pool-size}") int corePoolSize,
     @Value("${orchestrator.async.max-pool-size}") int maxPoolSize,
     @Value("${orchestrator.async.queue-capacity}") int queueCapacity
   ) {
