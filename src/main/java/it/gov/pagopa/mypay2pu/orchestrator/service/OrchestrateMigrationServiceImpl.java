@@ -11,9 +11,10 @@ import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.TransferPhaseCoor
 import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationExecutionMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationResponseMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationRequestValidator;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -28,7 +29,6 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
   private final MigrationExecutionRepository migrationExecutionRepository;
   private final MigrationExecutionMapper migrationExecutionMapper;
   private final MigrationResponseMapper migrationResponseMapper;
-  private final String brokerIpaCode;
 
   public OrchestrateMigrationServiceImpl(
     TransferPhaseCoordinator transferPhaseCoordinator,
@@ -36,8 +36,7 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
     MigrationRequestValidator migrationRequestValidator,
     MigrationExecutionRepository migrationExecutionRepository,
     MigrationExecutionMapper migrationExecutionMapper,
-    MigrationResponseMapper migrationResponseMapper,
-    @Value("${orchestrator.transfer.broker-ipa-code}") String brokerIpaCode
+    MigrationResponseMapper migrationResponseMapper
   ) {
     this.transferPhaseCoordinator = transferPhaseCoordinator;
     this.completeMigrationPhaseCoordinator = completeMigrationPhaseCoordinator;
@@ -45,7 +44,6 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
     this.migrationExecutionRepository = migrationExecutionRepository;
     this.migrationExecutionMapper = migrationExecutionMapper;
     this.migrationResponseMapper = migrationResponseMapper;
-    this.brokerIpaCode = brokerIpaCode;
   }
 
   @Override
@@ -53,20 +51,7 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
     migrationRequestValidator.validate(request);
     MigrationPhase phase = request.getPhase();
 
-    MigrationExecution execution = switch (phase) {
-      case TRANSFER -> {
-        MigrationExecution existingExecution = migrationRequestValidator.requireTransferExecution(request);
-        existingExecution.setCycleMode(request.getCycleMode());
-        yield existingExecution;
-      }
-      case COMPLETE -> {
-        MigrationExecution newExecution = migrationExecutionMapper.toMigrationExecution(request, brokerIpaCode);
-        newExecution.setCycleNumber(INITIAL_CYCLE_NUMBER);
-        yield newExecution;
-      }
-      case EXPORT -> throw new UnsupportedOperationException("EXPORT orchestration is not implemented yet");
-      default -> throw new UnsupportedOperationException("Unsupported migration phase");
-    };
+    MigrationExecution execution = phaseRequest2MigrationExecution(request);
     execution.setStatus(MigrationExecutionStatus.RUNNING);
     MigrationExecution savedExecution = migrationExecutionRepository.save(execution);
 
@@ -86,5 +71,23 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
     }
 
     return migrationResponseMapper.toMigrationResponseDto(savedExecution, phase);
+  }
+
+  private MigrationExecution phaseRequest2MigrationExecution(MigrationRequestDto request) {
+    return switch (request.getPhase()) {
+      case TRANSFER -> {
+        MigrationExecution existingExecution = migrationRequestValidator.requireTransferExecution(request);
+        existingExecution.setCycleMode(request.getCycleMode());
+        yield existingExecution;
+      }
+      case COMPLETE -> {
+        MigrationExecution newExecution = migrationExecutionMapper.toMigrationExecution(request);
+        newExecution.setCycleNumber(INITIAL_CYCLE_NUMBER);
+        newExecution.setCreationDate(LocalDateTime.now(ZoneOffset.UTC));
+        yield newExecution;
+      }
+      case EXPORT -> throw new UnsupportedOperationException("EXPORT orchestration is not implemented yet");
+      default -> throw new UnsupportedOperationException("Unsupported migration phase");
+    };
   }
 }

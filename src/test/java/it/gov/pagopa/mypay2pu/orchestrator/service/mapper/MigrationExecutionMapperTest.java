@@ -1,6 +1,5 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service.mapper;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationPhase;
@@ -11,13 +10,14 @@ import java.time.LocalDate;
 import java.time.Month;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class MigrationExecutionMapperTest {
 
-  private final MigrationExecutionMapper mapper = new MigrationExecutionMapper(new ObjectMapper());
+  private final MigrationExecutionMapper mapper = new MigrationExecutionMapper(JsonMapper.builder().build(), "BROKER-IPA");
 
   @Test
   void mapsRequestFieldsToMigrationExecution() {
@@ -32,7 +32,7 @@ class MigrationExecutionMapperTest {
     ));
     request.setLogicalKey("organization");
 
-    MigrationExecution result = mapper.toMigrationExecution(request, "BROKER-IPA");
+    MigrationExecution result = mapper.toMigrationExecution(request);
 
     checkNotNullFields(result);
     assertEquals("BROKER-IPA", result.getBrokerIpaCode());

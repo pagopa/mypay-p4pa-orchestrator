@@ -1,6 +1,5 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
@@ -15,6 +14,8 @@ import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.TransferPhaseCoor
 import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationExecutionMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationResponseMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationRequestValidator;
+import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,14 +24,17 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import tools.jackson.databind.json.JsonMapper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.refEq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -47,18 +51,18 @@ class OrchestrateMigrationServiceImplTest {
 
   private OrchestrateMigrationServiceImpl service;
   private static final String BROKER_IPA_CODE = "IPA_DEFAULT";
+  private static final LocalDateTime CREATION_DATE = LocalDateTime.of(2026, Month.JANUARY, 1, 12, 30);
 
   @BeforeEach
   void setUp() {
-    ObjectMapper objectMapper = new ObjectMapper();
+    JsonMapper jsonMapper = JsonMapper.builder().build();
     service = new OrchestrateMigrationServiceImpl(
       transferPhaseCoordinatorMock,
       completeMigrationPhaseCoordinatorMock,
       new MigrationRequestValidator(migrationExecutionRepositoryMock),
       migrationExecutionRepositoryMock,
-      new MigrationExecutionMapper(objectMapper),
-      new MigrationResponseMapper(objectMapper),
-      BROKER_IPA_CODE
+      new MigrationExecutionMapper(jsonMapper, BROKER_IPA_CODE),
+      new MigrationResponseMapper(jsonMapper)
     );
   }
 
@@ -105,12 +109,15 @@ class OrchestrateMigrationServiceImplTest {
     UUID migrationId = UUID.randomUUID();
     MigrationExecution savedExecution = expectedCompleteExecution();
     savedExecution.setId(migrationId);
-    when(migrationExecutionRepositoryMock.save(expectedExecution)).thenReturn(savedExecution);
+    savedExecution.setCreationDate(CREATION_DATE);
+    when(migrationExecutionRepositoryMock.save(refEq(expectedExecution, "creationDate"))).thenReturn(savedExecution);
 
     MigrationResponseDto response = service.startMigration(request);
 
     InOrder inOrder = inOrder(migrationExecutionRepositoryMock, completeMigrationPhaseCoordinatorMock);
-    inOrder.verify(migrationExecutionRepositoryMock).save(expectedExecution);
+    ArgumentCaptor<MigrationExecution> executionCaptor = ArgumentCaptor.forClass(MigrationExecution.class);
+    inOrder.verify(migrationExecutionRepositoryMock).save(executionCaptor.capture());
+    assertNotNull(executionCaptor.getValue().getCreationDate());
     inOrder.verify(completeMigrationPhaseCoordinatorMock).start(savedExecution);
     assertEquals(migrationId, response.getMigrationId());
     assertEquals(MigrationPhase.COMPLETE, response.getPhase());
@@ -195,6 +202,7 @@ class OrchestrateMigrationServiceImplTest {
       .ipacodes("[\"80000000000\"]")
       .cycleMode(CycleMode.DELTA)
       .fileTypes("[\"ORGANIZATIONS\"]")
+      .creationDate(CREATION_DATE)
       .build();
   }
 }
