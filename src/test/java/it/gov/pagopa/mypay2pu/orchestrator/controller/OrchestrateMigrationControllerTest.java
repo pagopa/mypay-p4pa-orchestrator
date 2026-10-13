@@ -3,7 +3,6 @@ package it.gov.pagopa.mypay2pu.orchestrator.controller;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.*;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.service.OrchestrateMigrationService;
-import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationRequestValidator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,9 +28,7 @@ class OrchestrateMigrationControllerTest {
 
   @BeforeEach
   void init() {
-    controller  = new OrchestrateMigrationController(
-      orchestrateMigrationServiceMock,
-      new MigrationRequestValidator());
+    controller  = new OrchestrateMigrationController(orchestrateMigrationServiceMock);
   }
 
   @AfterEach

@@ -123,9 +123,9 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | PU_MIGRATION_PRINT_BODY_WHEN_ERROR | To print body when an error occurs             | true                        |
 
 #### 💼 Business logic
-| ENV                                | DESCRIPTION                                    | DEFAULT                     |
-|------------------------------------|------------------------------------------------|-----------------------------|
-|                                    |                                                |                             |
+| ENV            | DESCRIPTION                                   | DEFAULT                                               |
+|-----------------|------------------------------------------------|---------------------------------------------------------|
+| BROKER_IPA_CODE | Broker IPA code stored with each new migration | `IPA_DEFAULT` (fallback: `PA_COD_IPA_ENTE_PREDEFINITO`) |
 
 #### ⚡ Async extraction
 

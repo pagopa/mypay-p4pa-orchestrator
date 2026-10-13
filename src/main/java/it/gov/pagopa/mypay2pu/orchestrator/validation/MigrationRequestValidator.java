@@ -9,13 +9,17 @@ import org.springframework.util.CollectionUtils;
 
 import java.util.List;
 
-/**
- * Validates migration requests before they are delegated to the application service.
- */
+/** Validates migration request business rules at the application-service boundary. */
 @Component
 public class MigrationRequestValidator {
 
   public void validate(MigrationRequestDto request) {
+    if (request.getPhase() == null) {
+      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "phase is required");
+    }
+    if (request.getCycleMode() == null) {
+      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "cycleMode is required");
+    }
     validatePhase(request);
     validateCycleMode(request);
   }

@@ -18,8 +18,25 @@ class MigrationRequestValidatorTest {
   private final MigrationRequestValidator validator = new MigrationRequestValidator();
 
   @Test
-  void requestWithoutPhaseDoesNotRequireTransferOrExportFields() {
-    assertDoesNotThrow(() -> validator.validate(new MigrationRequestDto()));
+  void requestWithoutPhaseIsRejected() {
+    MigrationRequestDto request = new MigrationRequestDto();
+
+    InvalidValueException exception = assertThrows(
+      InvalidValueException.class,
+      () -> validator.validate(request)
+    );
+
+    assertEquals("phase is required", exception.getMessage());
+  }
+
+  @Test
+  void requestWithoutCycleModeIsRejected() {
+    MigrationRequestDto request = new MigrationRequestDto();
+    request.setPhase(MigrationPhase.TRANSFER);
+
+    InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
+
+    assertEquals("cycleMode is required", exception.getMessage());
   }
 
   @Test
