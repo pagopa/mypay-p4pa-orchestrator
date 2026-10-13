@@ -16,6 +16,8 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
+
 import org.springframework.stereotype.Component;
 
 /**
@@ -216,13 +218,9 @@ public class MigrationDagEngine {
       throw new IllegalArgumentException("fileTypesToInclude must not be empty");
     }
 
-    Set<String> requestedValues = new HashSet<>();
-    for (MigrationFileType fileType : fileTypesToInclude) {
-      requestedValues.add(Objects.requireNonNull(
-        fileType,
-        "fileTypesToInclude must not contain null"
-      ).getValue());
-    }
+    Set<String> requestedValues = fileTypesToInclude.stream()
+      .map(MigrationFileType::getValue)
+      .collect(Collectors.toSet());
 
     return new MigrationDag(dag.nodes().stream()
       .filter(node -> requestedValues.contains(node.fileType().getValue()))
