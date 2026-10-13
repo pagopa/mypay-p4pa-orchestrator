@@ -4,14 +4,23 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationPhase;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
+import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
+import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
 import java.util.List;
+import java.util.UUID;
 
-/** Validates migration request business rules at the application-service boundary. */
+/** Validates migration requests and resolves referenced migration executions. */
 @Component
 public class MigrationRequestValidator {
+
+  private final MigrationExecutionRepository migrationExecutionRepository;
+
+  public MigrationRequestValidator(MigrationExecutionRepository migrationExecutionRepository) {
+    this.migrationExecutionRepository = migrationExecutionRepository;
+  }
 
   public void validate(MigrationRequestDto request) {
     if (request.getPhase() == null) {
@@ -24,6 +33,18 @@ public class MigrationRequestValidator {
     validateCycleMode(request);
   }
 
+  public MigrationExecution requireTransferExecution(MigrationRequestDto request) {
+    UUID migrationId = request.getMigrationId();
+    if (migrationId == null) {
+      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "migrationId is required for TRANSFER");
+    }
+    return migrationExecutionRepository.findById(migrationId)
+      .orElseThrow(() -> new InvalidValueException(
+        "INVALID_MIGRATION_REQUEST",
+        "migrationId does not identify an existing migration"
+      ));
+  }
+
   protected void validatePhase(MigrationRequestDto request) {
     MigrationPhase phase = request.getPhase();
     if (phase == MigrationPhase.EXPORT || phase == MigrationPhase.COMPLETE) {
@@ -33,8 +54,6 @@ public class MigrationRequestValidator {
       if (CollectionUtils.isEmpty(request.getFileTypesToInclude())) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "fileTypesToInclude are required and must not be empty");
       }
-    } else if (phase == MigrationPhase.TRANSFER && request.getMigrationId() == null) {
-      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "migrationId is required for TRANSFER");
     }
   }
 

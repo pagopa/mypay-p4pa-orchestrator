@@ -1,21 +1,16 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationPhase;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationResponseDto;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.CompleteMigrationPhaseCoordinator;
 import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.TransferPhaseCoordinator;
+import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationExecutionMapper;
+import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationResponseMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationRequestValidator;
-import java.time.LocalDate;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,7 +26,8 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
   private final CompleteMigrationPhaseCoordinator completeMigrationPhaseCoordinator;
   private final MigrationRequestValidator migrationRequestValidator;
   private final MigrationExecutionRepository migrationExecutionRepository;
-  private final ObjectMapper objectMapper;
+  private final MigrationExecutionMapper migrationExecutionMapper;
+  private final MigrationResponseMapper migrationResponseMapper;
   private final String brokerIpaCode;
 
   public OrchestrateMigrationServiceImpl(
@@ -39,14 +35,16 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
     CompleteMigrationPhaseCoordinator completeMigrationPhaseCoordinator,
     MigrationRequestValidator migrationRequestValidator,
     MigrationExecutionRepository migrationExecutionRepository,
-    ObjectMapper objectMapper,
+    MigrationExecutionMapper migrationExecutionMapper,
+    MigrationResponseMapper migrationResponseMapper,
     @Value("${orchestrator.transfer.broker-ipa-code}") String brokerIpaCode
   ) {
     this.transferPhaseCoordinator = transferPhaseCoordinator;
     this.completeMigrationPhaseCoordinator = completeMigrationPhaseCoordinator;
     this.migrationRequestValidator = migrationRequestValidator;
     this.migrationExecutionRepository = migrationExecutionRepository;
-    this.objectMapper = objectMapper;
+    this.migrationExecutionMapper = migrationExecutionMapper;
+    this.migrationResponseMapper = migrationResponseMapper;
     this.brokerIpaCode = brokerIpaCode;
   }
 
@@ -55,77 +53,38 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
     migrationRequestValidator.validate(request);
     MigrationPhase phase = request.getPhase();
 
-    UUID migrationId;
-    switch (phase) {
+    MigrationExecution execution = switch (phase) {
       case TRANSFER -> {
-        migrationId = request.getMigrationId();
-        if (migrationId == null) {
-          throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "migrationId is required for TRANSFER");
-        }
-        MigrationExecution execution = migrationExecutionRepository.findById(migrationId)
-          .orElseThrow(() -> new InvalidValueException(
-            "INVALID_MIGRATION_REQUEST",
-            "migrationId does not identify an existing migration"
-          ));
-        execution.setCycleMode(request.getCycleMode());
-        execution.setStatus(MigrationExecutionStatus.RUNNING);
-        migrationExecutionRepository.save(execution);
-        transferPhaseCoordinator.start(migrationId)
-          .whenComplete((ignored, error) -> {
-            if (error != null) {
-              // TODO: Persist asynchronous coordinator failures in the migration status.
-              log.error("Failed to start TRANSFER coordinator for migration {}", migrationId, error);
-            }
-          });
+        MigrationExecution existingExecution = migrationRequestValidator.requireTransferExecution(request);
+        existingExecution.setCycleMode(request.getCycleMode());
+        yield existingExecution;
       }
       case COMPLETE -> {
-        MigrationExecution execution = migrationExecutionRepository.save(toMigrationExecution(request));
-        migrationId = execution.getId();
-        if (migrationId == null) {
-          throw new IllegalStateException("Saved migration execution has no id");
-        }
-        completeMigrationPhaseCoordinator.start(migrationId);
+        MigrationExecution newExecution = migrationExecutionMapper.toMigrationExecution(request, brokerIpaCode);
+        newExecution.setCycleNumber(INITIAL_CYCLE_NUMBER);
+        yield newExecution;
       }
+      case EXPORT -> throw new UnsupportedOperationException("EXPORT orchestration is not implemented yet");
+      default -> throw new UnsupportedOperationException("Unsupported migration phase");
+    };
+    execution.setStatus(MigrationExecutionStatus.RUNNING);
+    MigrationExecution savedExecution = migrationExecutionRepository.save(execution);
+
+    UUID migrationId = savedExecution.getId();
+
+    switch (phase) {
+      case TRANSFER -> transferPhaseCoordinator.start(savedExecution)
+        .whenComplete((ignored, error) -> {
+          if (error != null) {
+            // TODO: Persist asynchronous coordinator failures in the migration status.
+            log.error("Failed to start TRANSFER coordinator for migration {}", migrationId, error);
+          }
+        });
+      case COMPLETE -> completeMigrationPhaseCoordinator.start(savedExecution);
       case EXPORT -> throw new UnsupportedOperationException("EXPORT orchestration is not implemented yet");
       default -> throw new UnsupportedOperationException("Unsupported migration phase");
     }
 
-    return new MigrationResponseDto()
-      .migrationId(migrationId)
-      .phase(phase)
-      .status(MigrationExecutionStatus.RUNNING)
-      .cycleMode(request.getCycleMode())
-      .ipaCodes(phase == MigrationPhase.TRANSFER ? null : request.getIpaCodes())
-      .createdAt(OffsetDateTime.now(ZoneOffset.UTC));
-  }
-
-  private MigrationExecution toMigrationExecution(MigrationRequestDto request) {
-    PeriodDto period = request.getPeriod();
-    LocalDate dateFrom = null;
-    LocalDate dateTo = null;
-    if (period != null) {
-      dateFrom = period.getFromDate();
-      dateTo = period.getToDate();
-    }
-
-    return MigrationExecution.builder()
-      .brokerIpaCode(brokerIpaCode)
-      .status(MigrationExecutionStatus.RUNNING)
-      .cycleNumber(INITIAL_CYCLE_NUMBER)
-      .ipacodes(serialize(request.getIpaCodes()))
-      .cycleMode(request.getCycleMode())
-      .dateFrom(dateFrom)
-      .dateTo(dateTo)
-      .logicalKeys(request.getLogicalKey())
-      .fileTypes(serialize(request.getFileTypesToInclude()))
-      .build();
-  }
-
-  private String serialize(Object value) {
-    try {
-      return objectMapper.writeValueAsString(value);
-    } catch (JsonProcessingException e) {
-      throw new IllegalStateException("Unable to serialize migration request for persistence", e);
-    }
+    return migrationResponseMapper.toMigrationResponseDto(savedExecution, phase);
   }
 }

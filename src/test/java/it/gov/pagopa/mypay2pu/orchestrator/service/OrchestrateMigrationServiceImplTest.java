@@ -12,6 +12,8 @@ import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.CompleteMigrationPhaseCoordinator;
 import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.TransferPhaseCoordinator;
+import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationExecutionMapper;
+import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationResponseMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationRequestValidator;
 import java.util.List;
 import java.util.Optional;
@@ -48,12 +50,14 @@ class OrchestrateMigrationServiceImplTest {
 
   @BeforeEach
   void setUp() {
+    ObjectMapper objectMapper = new ObjectMapper();
     service = new OrchestrateMigrationServiceImpl(
       transferPhaseCoordinatorMock,
       completeMigrationPhaseCoordinatorMock,
-      new MigrationRequestValidator(),
+      new MigrationRequestValidator(migrationExecutionRepositoryMock),
       migrationExecutionRepositoryMock,
-      new ObjectMapper(),
+      new MigrationExecutionMapper(objectMapper),
+      new MigrationResponseMapper(objectMapper),
       BROKER_IPA_CODE
     );
   }
@@ -68,7 +72,7 @@ class OrchestrateMigrationServiceImplTest {
   }
 
   @Test
-  void transferDelegatesMigrationIdAndReturnsInitialResponse() {
+  void transferDelegatesPersistedExecutionAndReturnsInitialResponse() {
     UUID migrationId = UUID.randomUUID();
     MigrationRequestDto request = new MigrationRequestDto();
     request.setPhase(MigrationPhase.TRANSFER);
@@ -77,14 +81,14 @@ class OrchestrateMigrationServiceImplTest {
     MigrationExecution execution = existingExecution(migrationId, MigrationExecutionStatus.COMPLETED);
     when(migrationExecutionRepositoryMock.findById(migrationId)).thenReturn(Optional.of(execution));
     when(migrationExecutionRepositoryMock.save(execution)).thenReturn(execution);
-    when(transferPhaseCoordinatorMock.start(migrationId)).thenReturn(CompletableFuture.completedFuture(null));
+    when(transferPhaseCoordinatorMock.start(execution)).thenReturn(CompletableFuture.completedFuture(null));
 
     MigrationResponseDto response = service.startMigration(request);
 
     InOrder inOrder = inOrder(migrationExecutionRepositoryMock, transferPhaseCoordinatorMock);
     inOrder.verify(migrationExecutionRepositoryMock).findById(migrationId);
     inOrder.verify(migrationExecutionRepositoryMock).save(execution);
-    inOrder.verify(transferPhaseCoordinatorMock).start(migrationId);
+    inOrder.verify(transferPhaseCoordinatorMock).start(execution);
     assertEquals(MigrationExecutionStatus.RUNNING, execution.getStatus());
     assertEquals(migrationId, response.getMigrationId());
     assertEquals(MigrationPhase.TRANSFER, response.getPhase());
@@ -95,7 +99,7 @@ class OrchestrateMigrationServiceImplTest {
   }
 
   @Test
-  void completeDelegatesGeneratedMigrationIdAndReturnsInitialResponse() {
+  void completeDelegatesSavedExecutionAndReturnsInitialResponse() {
     MigrationRequestDto request = completeRequest();
     MigrationExecution expectedExecution = expectedCompleteExecution();
     UUID migrationId = UUID.randomUUID();
@@ -107,7 +111,7 @@ class OrchestrateMigrationServiceImplTest {
 
     InOrder inOrder = inOrder(migrationExecutionRepositoryMock, completeMigrationPhaseCoordinatorMock);
     inOrder.verify(migrationExecutionRepositoryMock).save(expectedExecution);
-    inOrder.verify(completeMigrationPhaseCoordinatorMock).start(migrationId);
+    inOrder.verify(completeMigrationPhaseCoordinatorMock).start(savedExecution);
     assertEquals(migrationId, response.getMigrationId());
     assertEquals(MigrationPhase.COMPLETE, response.getPhase());
     assertEquals(MigrationExecutionStatus.RUNNING, response.getStatus());

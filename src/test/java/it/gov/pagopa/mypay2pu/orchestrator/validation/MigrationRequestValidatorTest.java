@@ -5,17 +5,43 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationPhase;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
+import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
+import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
+import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 class MigrationRequestValidatorTest {
-  private final MigrationRequestValidator validator = new MigrationRequestValidator();
+  @Mock
+  private MigrationExecutionRepository migrationExecutionRepositoryMock;
+
+  private MigrationRequestValidator validator;
+
+  @BeforeEach
+  void setUp() {
+    validator = new MigrationRequestValidator(migrationExecutionRepositoryMock);
+  }
+
+  @AfterEach
+  void verifyMocks() {
+    verifyNoMoreInteractions(migrationExecutionRepositoryMock);
+  }
 
   @Test
   void requestWithoutPhaseIsRejected() {
@@ -71,10 +97,18 @@ class MigrationRequestValidatorTest {
     MigrationRequestDto request = new MigrationRequestDto();
     request.setPhase(MigrationPhase.TRANSFER);
     request.setCycleMode(CycleMode.DELTA);
-    InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
+    InvalidValueException exception = assertThrows(
+      InvalidValueException.class,
+      () -> validator.requireTransferExecution(request)
+    );
     assertEquals("migrationId is required for TRANSFER", exception.getMessage());
 
-    request.setMigrationId(UUID.randomUUID());
+    UUID migrationId = UUID.randomUUID();
+    request.setMigrationId(migrationId);
+    MigrationExecution execution = MigrationExecution.builder().id(migrationId).build();
+    when(migrationExecutionRepositoryMock.findById(migrationId)).thenReturn(Optional.of(execution));
+    assertSame(execution, validator.requireTransferExecution(request));
+    verify(migrationExecutionRepositoryMock).findById(migrationId);
     assertDoesNotThrow(() -> validator.validate(request));
   }
 

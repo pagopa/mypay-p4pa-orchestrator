@@ -1,6 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service.coordinator;
 
 import it.gov.pagopa.mypay2pu.orchestrator.config.AsyncConfiguration;
+import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -48,7 +49,10 @@ class TransferPhaseCoordinatorAsyncTest {
     try {
       assertTrue(executorTaskStarted.await(5, TimeUnit.SECONDS));
 
-      CompletableFuture<Void> start = transferPhaseCoordinator.start(UUID.randomUUID());
+      MigrationExecution execution = MigrationExecution.builder()
+        .id(UUID.randomUUID())
+        .build();
+      CompletableFuture<Void> start = transferPhaseCoordinator.start(execution);
 
       assertFalse(start.isDone());
       releaseExecutorTask.countDown();

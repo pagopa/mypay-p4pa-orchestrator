@@ -1,7 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service.coordinator;
 
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
-import java.util.UUID;
+import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -29,14 +28,14 @@ public class TransferPhaseCoordinator {
    * <p>The start routine runs on the orchestrator executor. The returned future tracks its
    * completion, not the completion of the migration itself.
    *
-   * @param migrationId identifier of the migration whose extracted files should be transferred
+   * @param execution persisted migration whose extracted files should be transferred
    * @return a future completed when the transfer startup routine finishes
    */
   @Async("orchestratorTaskExecutor")
-  public CompletableFuture<Void> start(UUID migrationId) {
+  public CompletableFuture<Void> start(MigrationExecution execution) {
     // TODO: Submit dependency-ready files, persist workflow IDs, and connect workflow outcome
     // collection to migration status updates.
-    log.info("TRANSFER coordinator stub invoked for migration {}", migrationId);
+    log.info("TRANSFER coordinator stub invoked for migration {}", execution.getId());
     return CompletableFuture.completedFuture(null);
   }
 }

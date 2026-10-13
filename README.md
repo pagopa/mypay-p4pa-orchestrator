@@ -125,7 +125,7 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 #### 💼 Business logic
 | ENV            | DESCRIPTION                                   | DEFAULT                                               |
 |-----------------|------------------------------------------------|---------------------------------------------------------|
-| BROKER_IPA_CODE | Broker IPA code stored with each new migration | `IPA_DEFAULT` (fallback: `PA_COD_IPA_ENTE_PREDEFINITO`) |
+| BROKER_IPA_CODE | Broker IPA code stored with each new migration | `${PA_COD_IPA_ENTE_PREDEFINITO:IPA_DEFAULT}`) |
 
 #### ⚡ Async extraction
 
