@@ -20,7 +20,7 @@ import java.util.UUID;
 @Data
 @SuperBuilder
 @EqualsAndHashCode(callSuper = false)
-public class MigrationExecution {
+public class MigrationExecution extends BaseEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.UUID)
