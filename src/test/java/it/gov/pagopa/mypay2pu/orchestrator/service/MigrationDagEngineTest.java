@@ -118,7 +118,7 @@ class MigrationDagEngineTest {
   void delegatesExecutionPlanBuildingToDagPlanner() {
     MigrationDagEngine customEngine = new MigrationDagEngine(dagPlannerMock, levelExecutorMock);
 
-    List<MigrationDagDependency> rows = List.of(row("ROOT", "ROOT", 0));
+    List<MigrationDagDependency> rows = List.of(mock(MigrationDagDependency.class));
     delegatedRows = rows;
     ExecutionPlan expectedPlan = new ExecutionPlan(List.of());
     when(dagPlannerMock.buildExecutionPlan(rows)).thenReturn(expectedPlan);
@@ -151,7 +151,9 @@ class MigrationDagEngineTest {
     MigrationDagDependency row = mock(MigrationDagDependency.class);
     when(row.getFileType()).thenReturn(fileType);
     when(row.getDependsOn()).thenReturn(parent);
-    when(row.getMaxExecutions()).thenReturn(maxExecutions);
+    if (maxExecutions != null && !"ROOT".equals(fileType)) {
+      when(row.getMaxExecutions()).thenReturn(maxExecutions);
+    }
     return row;
   }
 }

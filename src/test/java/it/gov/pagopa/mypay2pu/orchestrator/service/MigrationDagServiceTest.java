@@ -13,6 +13,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -21,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -34,6 +36,8 @@ class MigrationDagServiceTest {
   private MigrationDagValidator migrationDagValidatorMock;
 
   private MigrationDagService service;
+  private boolean retrieveExpected;
+  private boolean initialValidationExpected;
 
   @BeforeEach
   void setUp() {
@@ -46,11 +50,21 @@ class MigrationDagServiceTest {
 
   @AfterEach
   void tearDown() {
+    if (retrieveExpected) {
+      verify(migrationDagDependencyRetrieveServiceMock).retrieve();
+    }
+    if (initialValidationExpected) {
+      verify(migrationDagValidatorMock).validateInitialCycleDependencies(
+        ArgumentMatchers.any(),
+        ArgumentMatchers.any()
+      );
+    }
     verifyNoMoreInteractions(migrationDagDependencyRetrieveServiceMock, migrationDagValidatorMock);
   }
 
   @Test
   void loadsAllRowsAndDelegatesTopologicalPruningToEngine() {
+    retrieveExpected = true;
     List<MigrationDagDependency> rows = rows();
     MigrationDag completeDag = new MigrationDagEngine(
       new KahnDagPlanner(),
@@ -81,6 +95,7 @@ class MigrationDagServiceTest {
 
   @Test
   void retainsNullMaximumAndDoesNotPromoteFilteredParentsToRoots() {
+    retrieveExpected = true;
     List<MigrationDagDependency> rows = rows();
     MigrationDag completeDag = new MigrationDagEngine(
       new KahnDagPlanner(),
@@ -99,6 +114,8 @@ class MigrationDagServiceTest {
 
   @Test
   void validatesInitialDependenciesOnlyThroughExplicitInitialOperation() {
+    retrieveExpected = true;
+    initialValidationExpected = true;
     List<MigrationDagDependency> rows = rows();
     MigrationDag completeDag = new MigrationDagEngine(
       new KahnDagPlanner(),
