@@ -5,6 +5,9 @@ import it.gov.pagopa.mypay2pu.orchestrator.utils.Utilities;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+
 public class BaseEntityListener {
 
   @PrePersist
@@ -18,6 +21,7 @@ public class BaseEntityListener {
   }
 
   private void onSave(BaseEntity entity) {
+    entity.setUpdateDate(LocalDateTime.now(ZoneOffset.UTC));
     entity.setUpdateTraceId(Utilities.getTraceId());
   }
 }

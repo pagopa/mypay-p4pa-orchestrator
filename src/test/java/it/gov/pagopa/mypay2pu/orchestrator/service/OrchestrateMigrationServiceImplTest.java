@@ -187,7 +187,7 @@ class OrchestrateMigrationServiceImplTest {
       .brokerIpaCode(BROKER_IPA_CODE)
       .status(MigrationExecutionStatus.RUNNING)
       .cycleNumber(1)
-      .ipacodes("[\"80000000000\"]")
+      .ipacodes("[80000000000]")
       .cycleMode(CycleMode.DELTA)
       .action(MigrationPhase.COMPLETE)
       .fileTypes("[ORGANIZATIONS]")

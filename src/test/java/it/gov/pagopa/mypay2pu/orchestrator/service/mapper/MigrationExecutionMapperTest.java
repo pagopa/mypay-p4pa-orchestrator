@@ -6,18 +6,18 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationPhase;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
+import org.junit.jupiter.api.Test;
+
 import java.time.LocalDate;
 import java.time.Month;
 import java.util.List;
-import org.junit.jupiter.api.Test;
-import tools.jackson.databind.json.JsonMapper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class MigrationExecutionMapperTest {
 
-  private final MigrationExecutionMapper mapper = new MigrationExecutionMapper(JsonMapper.builder().build(), "BROKER-IPA");
+  private final MigrationExecutionMapper mapper = new MigrationExecutionMapper("BROKER-IPA");
 
   @Test
   void mapsRequestFieldsToMigrationExecution() {
@@ -36,7 +36,7 @@ class MigrationExecutionMapperTest {
 
     checkNotNullFields(result);
     assertEquals("BROKER-IPA", result.getBrokerIpaCode());
-    assertEquals("[\"80000000000\"]", result.getIpacodes());
+    assertEquals("[80000000000]", result.getIpacodes());
     assertEquals(CycleMode.FULL, result.getCycleMode());
     assertEquals(MigrationPhase.COMPLETE, result.getAction());
     assertEquals(LocalDate.of(2026, Month.JANUARY, 1), result.getDateFrom());
