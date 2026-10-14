@@ -61,7 +61,7 @@ class OrchestrateMigrationServiceImplTest {
       completeMigrationPhaseCoordinatorMock,
       new MigrationRequestValidator(migrationExecutionRepositoryMock),
       migrationExecutionRepositoryMock,
-      new MigrationExecutionMapper(jsonMapper, BROKER_IPA_CODE),
+      new MigrationExecutionMapper(BROKER_IPA_CODE),
       new MigrationResponseMapper(jsonMapper)
     );
   }
