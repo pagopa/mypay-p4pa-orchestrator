@@ -14,10 +14,10 @@ paths:
       operationId: orchestrateMigration
       summary: Start a migration orchestration
       description: |-
-        Start an EXPORT, TRANSFER or COMPLETE migration flow.
-        EXPORT and COMPLETE requests require non-empty ipaCodes and fileTypesToInclude, and a cycleMode.
-        TRANSFER requests require migrationId.
-        FULL cycle mode requires period; REJECTS_ONLY cycle mode requires rejectsPayload.
+        Start an EXPORT, TRANSFER or COMPLETE migration action.
+        EXPORT and COMPLETE actions require non-empty ipaCodes and fileTypesToInclude; all actions require orchestationMode.
+        TRANSFER actions require migrationId.
+        FULL orchestrator mode requires period; REJECTS_ONLY orchestrator mode requires rejectsPayload.
       requestBody:
         required: true
         content:
@@ -54,35 +54,35 @@ components:
     MigrationRequestDto:
       type: object
       required:
-        - phase
-        - cycleMode
+        - action
+        - orchestationMode
       properties:
-        phase:
+        action:
           $ref: '#/components/schemas/MigrationPhase'
         ipaCodes:
-          description: Required and non-empty for EXPORT and COMPLETE phases
+          description: Required and non-empty for EXPORT and COMPLETE actions
           type: array
           items:
             type: string
-        cycleMode:
-          description: Required for all migration phases
+        orchestationMode:
+          description: Required for all migration actions
           $ref: '#/components/schemas/CycleMode'
         fileTypesToInclude:
-          description: Required and non-empty for EXPORT and COMPLETE phases
+          description: Required and non-empty for EXPORT and COMPLETE actions
           type: array
           items:
             type: 'MigrationFileType'
         period:
-          description: Required when cycleMode is FULL
+          description: Required when orchestationMode is FULL
           $ref: '#/components/schemas/PeriodDto'
         migrationId:
-          description: Required for TRANSFER phase
+          description: Required for TRANSFER action
           type: string
           format: uuid
         logicalKey:
           type: string
         rejectsPayload:
-          description: Required when cycleMode is REJECTS_ONLY; an array of strings
+          description: Required when orchestationMode is REJECTS_ONLY; an array of strings
           type: array
           items:
             type: string
@@ -101,11 +101,11 @@ components:
         migrationId:
           type: string
           format: uuid
-        phase:
+        action:
           $ref: '#/components/schemas/MigrationPhase'
         status:
           $ref: '#/components/schemas/MigrationExecutionStatus'
-        cycleMode:
+        orchestationMode:
           $ref: '#/components/schemas/CycleMode'
         ipaCodes:
           type: array
@@ -115,7 +115,7 @@ components:
           type: string
           format: date-time
         uploadIds:
-          description: Upload identifiers, populated only for TRANSFER migrations
+          description: Upload identifiers, populated only for TRANSFER actions
           type: array
           items:
             type: string

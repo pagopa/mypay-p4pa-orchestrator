@@ -22,12 +22,12 @@ public class MigrationResponseMapper {
     this.jsonMapper = jsonMapper;
   }
 
-  public MigrationResponseDto toMigrationResponseDto(MigrationExecution execution, MigrationPhase phase) {
+  public MigrationResponseDto toMigrationResponseDto(MigrationExecution execution) {
     List<String> ipaCodes = null;
     OffsetDateTime createdAt = execution.getCreationDate() == null
       ? null
       : execution.getCreationDate().atOffset(ZoneOffset.UTC);
-    if (phase != MigrationPhase.TRANSFER) {
+    if (execution.getAction() != MigrationPhase.TRANSFER) {
       try {
         ipaCodes = jsonMapper.readValue(execution.getIpacodes(), IPA_CODES_TYPE);
       } catch (JacksonException e) {
@@ -37,9 +37,9 @@ public class MigrationResponseMapper {
 
     return new MigrationResponseDto()
       .migrationId(execution.getId())
-      .phase(phase)
+      .action(execution.getAction())
       .status(execution.getStatus())
-      .cycleMode(execution.getCycleMode())
+      .orchestationMode(execution.getCycleMode())
       .ipaCodes(ipaCodes)
       .createdAt(createdAt);
   }

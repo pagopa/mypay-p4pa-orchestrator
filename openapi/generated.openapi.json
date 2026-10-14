@@ -18,7 +18,7 @@
       "post" : {
         "tags" : [ "OrchestrateMigration" ],
         "summary" : "Start a migration orchestration",
-        "description" : "Start an EXPORT, TRANSFER or COMPLETE migration flow. EXPORT and COMPLETE requests require non-empty ipaCodes and fileTypesToInclude, and a cycleMode. TRANSFER requests require migrationId. FULL cycle mode requires period; REJECTS_ONLY cycle mode requires rejectsPayload.",
+        "description" : "Start an EXPORT, TRANSFER or COMPLETE migration action. EXPORT and COMPLETE actions require non-empty ipaCodes and fileTypesToInclude; all actions require orchestationMode. TRANSFER actions require migrationId. FULL orchestrator mode requires period; REJECTS_ONLY orchestrator mode requires rejectsPayload.",
         "operationId" : "orchestrateMigration",
         "requestBody" : {
           "content" : {
@@ -96,13 +96,13 @@
             "type" : [ "string", "null" ],
             "format" : "uuid"
           },
-          "phase" : {
+          "action" : {
             "$ref" : "#/components/schemas/MigrationPhase"
           },
           "status" : {
             "$ref" : "#/components/schemas/MigrationExecutionStatus"
           },
-          "cycleMode" : {
+          "orchestationMode" : {
             "$ref" : "#/components/schemas/CycleMode"
           },
           "ipaCodes" : {
@@ -153,48 +153,48 @@
       "MigrationRequestDto" : {
         "type" : "object",
         "properties" : {
-          "phase" : {
+          "action" : {
             "$ref" : "#/components/schemas/MigrationPhase"
           },
           "ipaCodes" : {
             "type" : "array",
-            "description" : "Required and non-empty for EXPORT and COMPLETE phases",
+            "description" : "Required and non-empty for EXPORT and COMPLETE actions",
             "items" : {
               "type" : "string"
             }
           },
-          "cycleMode" : {
+          "orchestationMode" : {
             "$ref" : "#/components/schemas/CycleMode",
-            "description" : "Required for all migration phases"
+            "description" : "Required for all migration actions"
           },
           "fileTypesToInclude" : {
             "type" : "array",
-            "description" : "Required and non-empty for EXPORT and COMPLETE phases",
+            "description" : "Required and non-empty for EXPORT and COMPLETE actions",
             "items" : {
               "$ref" : "#/components/schemas/MigrationFileType"
             }
           },
           "period" : {
             "$ref" : "#/components/schemas/PeriodDto",
-            "description" : "Required when cycleMode is FULL"
+            "description" : "Required when orchestationMode is FULL"
           },
           "migrationId" : {
             "type" : [ "string", "null" ],
             "format" : "uuid",
-            "description" : "Required for TRANSFER phase"
+            "description" : "Required for TRANSFER action"
           },
           "logicalKey" : {
             "type" : [ "string", "null" ]
           },
           "rejectsPayload" : {
             "type" : "array",
-            "description" : "Required when cycleMode is REJECTS_ONLY; an array of strings",
+            "description" : "Required when orchestationMode is REJECTS_ONLY; an array of strings",
             "items" : {
               "type" : "string"
             }
           }
         },
-        "required" : [ "cycleMode", "phase" ]
+        "required" : [ "action", "orchestationMode" ]
       },
       "PeriodDto" : {
         "type" : "object",

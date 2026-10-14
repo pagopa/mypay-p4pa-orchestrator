@@ -2,6 +2,7 @@ package it.gov.pagopa.mypay2pu.orchestrator.model;
 
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationPhase;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -37,6 +38,8 @@ public class MigrationExecution extends BaseEntity {
   @Enumerated(EnumType.STRING)
   @NotNull
   private CycleMode cycleMode;
+  @Enumerated(EnumType.STRING)
+  private MigrationPhase action;
   private UUID parentExecutionId;
   private LocalDate dateFrom;
   private LocalDate dateTo;

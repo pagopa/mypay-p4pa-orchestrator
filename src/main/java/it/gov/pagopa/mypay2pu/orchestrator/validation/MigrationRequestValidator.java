@@ -23,11 +23,11 @@ public class MigrationRequestValidator {
   }
 
   public void validate(MigrationRequestDto request) {
-    if (request.getPhase() == null) {
-      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "phase is required");
+    if (request.getAction() == null) {
+      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "action is required");
     }
-    if (request.getCycleMode() == null) {
-      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "cycleMode is required");
+    if (request.getOrchestationMode() == null) {
+      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "orchestationMode is required");
     }
     validatePhase(request);
     validateCycleMode(request);
@@ -46,7 +46,7 @@ public class MigrationRequestValidator {
   }
 
   protected void validatePhase(MigrationRequestDto request) {
-    MigrationPhase phase = request.getPhase();
+    MigrationPhase phase = request.getAction();
     if (phase == MigrationPhase.EXPORT || phase == MigrationPhase.COMPLETE) {
       if (CollectionUtils.isEmpty(request.getIpaCodes())) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "ipaCodes are required and must not be empty");
@@ -58,13 +58,13 @@ public class MigrationRequestValidator {
   }
 
   protected void validateCycleMode(MigrationRequestDto request) {
-    if (request.getCycleMode() == CycleMode.FULL && request.getPeriod() == null) {
-      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "period is required when cycleMode is FULL");
+    if (request.getOrchestationMode() == CycleMode.FULL && request.getPeriod() == null) {
+      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "period is required when orchestationMode is FULL");
     }
-    if (request.getCycleMode() == CycleMode.REJECTS_ONLY) {
+    if (request.getOrchestationMode() == CycleMode.REJECTS_ONLY) {
       List<String> rejectsPayload = request.getRejectsPayload();
       if (CollectionUtils.isEmpty(rejectsPayload)) {
-        throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "rejectsPayload is required when cycleMode is REJECTS_ONLY");
+        throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "rejectsPayload is required when orchestationMode is REJECTS_ONLY");
       }
     }
   }

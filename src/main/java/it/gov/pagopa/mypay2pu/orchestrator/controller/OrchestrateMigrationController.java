@@ -20,9 +20,9 @@ public class OrchestrateMigrationController implements OrchestrateMigrationApi {
 
   @Override
   public ResponseEntity<MigrationResponseDto> orchestrateMigration(@Valid MigrationRequestDto request) {
-    log.info("orchestrateMigration: phase={}, ipaCodes={}", request.getPhase(), request.getIpaCodes());
+    log.info("orchestrateMigration: action={}, ipaCodes={}", request.getAction(), request.getIpaCodes());
     MigrationResponseDto response = orchestrateMigrationService.startMigration(request);
-    log.info("Accepted migration {} for phase {} and ipaCodes {}", response.getMigrationId(), request.getPhase(), request.getIpaCodes());
+    log.info("Accepted migration {} for action {} and ipaCodes {}", response.getMigrationId(), request.getAction(), request.getIpaCodes());
     return ResponseEntity.accepted().body(response);
   }
 }

@@ -39,9 +39,9 @@ class OrchestrateMigrationControllerTest {
   @Test
   void returnsAcceptedAfterDelegatingRequestToService() {
     MigrationRequestDto request = new MigrationRequestDto();
-    request.setPhase(MigrationPhase.TRANSFER);
+    request.setAction(MigrationPhase.TRANSFER);
     request.setMigrationId(UUID.randomUUID());
-    request.setCycleMode(CycleMode.DELTA);
+    request.setOrchestationMode(CycleMode.DELTA);
     MigrationResponseDto response = new MigrationResponseDto();
     when(orchestrateMigrationServiceMock.startMigration(request)).thenReturn(response);
 
@@ -54,8 +54,8 @@ class OrchestrateMigrationControllerTest {
   @Test
   void acceptsCompletePhaseWithExportRequest() {
     MigrationRequestDto request = new MigrationRequestDto();
-    request.setPhase(MigrationPhase.COMPLETE);
-    request.setCycleMode(CycleMode.DELTA);
+    request.setAction(MigrationPhase.COMPLETE);
+    request.setOrchestationMode(CycleMode.DELTA);
     request.setIpaCodes(List.of("80000000000"));
     request.setFileTypesToInclude(List.of(MigrationFileType.ORGANIZATIONS));
     MigrationResponseDto response = new MigrationResponseDto();

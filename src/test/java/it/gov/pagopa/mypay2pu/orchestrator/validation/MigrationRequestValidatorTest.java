@@ -44,7 +44,7 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void requestWithoutPhaseIsRejected() {
+  void requestWithoutActionIsRejected() {
     MigrationRequestDto request = new MigrationRequestDto();
 
     InvalidValueException exception = assertThrows(
@@ -52,25 +52,25 @@ class MigrationRequestValidatorTest {
       () -> validator.validate(request)
     );
 
-    assertEquals("phase is required", exception.getMessage());
+    assertEquals("action is required", exception.getMessage());
   }
 
   @Test
-  void requestWithoutCycleModeIsRejected() {
+  void requestWithoutOrchestratorModeIsRejected() {
     MigrationRequestDto request = new MigrationRequestDto();
-    request.setPhase(MigrationPhase.TRANSFER);
+    request.setAction(MigrationPhase.TRANSFER);
 
     InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
 
-    assertEquals("cycleMode is required", exception.getMessage());
+    assertEquals("orchestationMode is required", exception.getMessage());
   }
 
   @Test
   void exportAndCompletePhasesRequireIpaCodes() {
     for (MigrationPhase phase : List.of(MigrationPhase.EXPORT, MigrationPhase.COMPLETE)) {
       MigrationRequestDto request = new MigrationRequestDto();
-      request.setPhase(phase);
-      request.setCycleMode(CycleMode.DELTA);
+      request.setAction(phase);
+      request.setOrchestationMode(CycleMode.DELTA);
       request.setIpaCodes(null);
 
       InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
@@ -82,8 +82,8 @@ class MigrationRequestValidatorTest {
   void exportAndCompletePhasesRequireFileTypes() {
     for (MigrationPhase phase : List.of(MigrationPhase.EXPORT, MigrationPhase.COMPLETE)) {
       MigrationRequestDto request = new MigrationRequestDto();
-      request.setPhase(phase);
-      request.setCycleMode(CycleMode.DELTA);
+      request.setAction(phase);
+      request.setOrchestationMode(CycleMode.DELTA);
       request.setIpaCodes(List.of("80000000000"));
       request.setFileTypesToInclude(null);
 
@@ -95,8 +95,8 @@ class MigrationRequestValidatorTest {
   @Test
   void transferRequiresMigrationIdButNoExportFields() {
     MigrationRequestDto request = new MigrationRequestDto();
-    request.setPhase(MigrationPhase.TRANSFER);
-    request.setCycleMode(CycleMode.DELTA);
+    request.setAction(MigrationPhase.TRANSFER);
+    request.setOrchestationMode(CycleMode.DELTA);
     InvalidValueException exception = assertThrows(
       InvalidValueException.class,
       () -> validator.requireTransferExecution(request)
@@ -115,11 +115,11 @@ class MigrationRequestValidatorTest {
   @Test
   void fullCycleRequiresPeriod() {
     MigrationRequestDto request = transferRequest();
-    request.setCycleMode(CycleMode.FULL);
+    request.setOrchestationMode(CycleMode.FULL);
 
     InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
 
-    assertEquals("period is required when cycleMode is FULL", exception.getMessage());
+    assertEquals("period is required when orchestationMode is FULL", exception.getMessage());
 
     request.setPeriod(new PeriodDto());
     assertDoesNotThrow(() -> validator.validate(request));
@@ -128,7 +128,7 @@ class MigrationRequestValidatorTest {
   @Test
   void deltaCycleDoesNotRequirePeriod() {
     MigrationRequestDto request = transferRequest();
-    request.setCycleMode(CycleMode.DELTA);
+    request.setOrchestationMode(CycleMode.DELTA);
 
     assertDoesNotThrow(() -> validator.validate(request));
   }
@@ -136,11 +136,11 @@ class MigrationRequestValidatorTest {
   @Test
   void rejectsOnlyCycleRequiresRejectsPayload() {
     MigrationRequestDto request = transferRequest();
-    request.setCycleMode(CycleMode.REJECTS_ONLY);
+    request.setOrchestationMode(CycleMode.REJECTS_ONLY);
 
     InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
 
-    assertEquals("rejectsPayload is required when cycleMode is REJECTS_ONLY", exception.getMessage());
+    assertEquals("rejectsPayload is required when orchestationMode is REJECTS_ONLY", exception.getMessage());
 
     request.setRejectsPayload(List.of("rejected-item"));
     assertDoesNotThrow(() -> validator.validate(request));
@@ -148,7 +148,7 @@ class MigrationRequestValidatorTest {
 
   private MigrationRequestDto transferRequest() {
     MigrationRequestDto request = new MigrationRequestDto();
-    request.setPhase(MigrationPhase.TRANSFER);
+    request.setAction(MigrationPhase.TRANSFER);
     request.setMigrationId(UUID.randomUUID());
     return request;
   }

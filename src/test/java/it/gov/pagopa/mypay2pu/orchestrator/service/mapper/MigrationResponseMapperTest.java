@@ -29,17 +29,18 @@ class MigrationResponseMapperTest {
       .id(migrationId)
       .status(MigrationExecutionStatus.RUNNING)
       .cycleMode(CycleMode.FULL)
+      .action(MigrationPhase.COMPLETE)
       .ipacodes("[\"80000000000\"]")
       .creationDate(CREATION_DATE)
       .build();
 
-    MigrationResponseDto result = mapper.toMigrationResponseDto(execution, MigrationPhase.COMPLETE);
+    MigrationResponseDto result = mapper.toMigrationResponseDto(execution);
 
     checkNotNullFields(result);
     assertEquals(migrationId, result.getMigrationId());
-    assertEquals(MigrationPhase.COMPLETE, result.getPhase());
+    assertEquals(MigrationPhase.COMPLETE, result.getAction());
     assertEquals(MigrationExecutionStatus.RUNNING, result.getStatus());
-    assertEquals(CycleMode.FULL, result.getCycleMode());
+    assertEquals(CycleMode.FULL, result.getOrchestationMode());
     assertEquals(List.of("80000000000"), result.getIpaCodes());
     assertEquals(List.of(), result.getUploadIds());
     assertEquals(CREATION_DATE.atOffset(ZoneOffset.UTC), result.getCreatedAt());
@@ -51,22 +52,23 @@ class MigrationResponseMapperTest {
       .id(UUID.randomUUID())
       .status(MigrationExecutionStatus.RUNNING)
       .cycleMode(CycleMode.DELTA)
+      .action(MigrationPhase.TRANSFER)
       .ipacodes("[\"80000000000\"]")
       .creationDate(CREATION_DATE)
       .build();
 
-    MigrationResponseDto result = mapper.toMigrationResponseDto(execution, MigrationPhase.TRANSFER);
+    MigrationResponseDto result = mapper.toMigrationResponseDto(execution);
 
-    assertEquals(MigrationPhase.TRANSFER, result.getPhase());
+    assertEquals(MigrationPhase.TRANSFER, result.getAction());
     assertNull(result.getIpaCodes());
     assertEquals(CREATION_DATE.atOffset(ZoneOffset.UTC), result.getCreatedAt());
   }
 
   private void checkNotNullFields(MigrationResponseDto response) {
     assertNotNull(response.getMigrationId());
-    assertNotNull(response.getPhase());
+    assertNotNull(response.getAction());
     assertNotNull(response.getStatus());
-    assertNotNull(response.getCycleMode());
+    assertNotNull(response.getOrchestationMode());
     assertNotNull(response.getIpaCodes());
     assertNotNull(response.getCreatedAt());
     assertNotNull(response.getUploadIds());

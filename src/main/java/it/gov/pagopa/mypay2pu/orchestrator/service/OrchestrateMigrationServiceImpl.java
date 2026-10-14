@@ -49,15 +49,15 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
   @Override
   public MigrationResponseDto startMigration(MigrationRequestDto request) {
     migrationRequestValidator.validate(request);
-    MigrationPhase phase = request.getPhase();
+    MigrationPhase action = request.getAction();
 
-    MigrationExecution execution = phaseRequest2MigrationExecution(request);
+    MigrationExecution execution = actionRequest2MigrationExecution(request);
     execution.setStatus(MigrationExecutionStatus.RUNNING);
     MigrationExecution savedExecution = migrationExecutionRepository.save(execution);
 
     UUID migrationId = savedExecution.getId();
 
-    switch (phase) {
+    switch (action) {
       case TRANSFER -> transferPhaseCoordinator.start(savedExecution)
         .whenComplete((ignored, error) -> {
           if (error != null) {
@@ -70,14 +70,15 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
       default -> throw new UnsupportedOperationException("Unsupported migration phase");
     }
 
-    return migrationResponseMapper.toMigrationResponseDto(savedExecution, phase);
+    return migrationResponseMapper.toMigrationResponseDto(savedExecution);
   }
 
-  private MigrationExecution phaseRequest2MigrationExecution(MigrationRequestDto request) {
-    return switch (request.getPhase()) {
+  private MigrationExecution actionRequest2MigrationExecution(MigrationRequestDto request) {
+    return switch (request.getAction()) {
       case TRANSFER -> {
         MigrationExecution existingExecution = migrationRequestValidator.requireTransferExecution(request);
-        existingExecution.setCycleMode(request.getCycleMode());
+        existingExecution.setCycleMode(request.getOrchestationMode());
+        existingExecution.setAction(request.getAction());
         yield existingExecution;
       }
       case COMPLETE -> {
