@@ -46,7 +46,7 @@ public class MigrationFacade {
     Map<MigrationFileType, MigrationOperation> migrationOperations = switch (request.getPhase()) {
       case EXPORT -> migrationExportOperations;
       case TRANSFER -> migrationTransferOperations;
-      default -> migrationCompleteOperations;
+      case ALL -> migrationCompleteOperations;
     };
 
     orchestrator.execute(request, migrationOperations);
