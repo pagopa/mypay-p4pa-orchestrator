@@ -118,6 +118,8 @@ orchestrator:
   storage:
     extractor-output-path: "\${STORAGE_PATH_EXTRACTOR_OUTPUT:\${orchestrator.storage.temp-base-dir}}"
     temp-base-dir: "\${TMP_FOLDER:\${java.io.tmpdir}}"
+  transfer:
+    broker-ipa-code: "\${BROKER_IPA_CODE:\${PA_COD_IPA_ENTE_PREDEFINITO:IPA_DEFAULT}}"
 
 cipher:
   file-encrypt-enabled: "\${FILE_ENCRYPT_ENABLED:false}"

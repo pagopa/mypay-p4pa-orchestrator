@@ -18,7 +18,7 @@ See [OpenAPI](openapi/generated.openapi.json), exposed through the following pat
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/orchestrate/migrate` | Start an `EXPORT`, `TRANSFER` or `ALL` migration |
+| `POST` | `/orchestrate/migrate` | Start an `EXPORT`, `TRANSFER` or `COMPLETE` migration |
 
 ### 📌 Common HTTP status returned:
 * `202`: Migration orchestration accepted
@@ -123,9 +123,9 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | PU_MIGRATION_PRINT_BODY_WHEN_ERROR | To print body when an error occurs             | true                        |
 
 #### 💼 Business logic
-| ENV                                | DESCRIPTION                                    | DEFAULT                     |
-|------------------------------------|------------------------------------------------|-----------------------------|
-|                                    |                                                |                             |
+| ENV            | DESCRIPTION                                   | DEFAULT                                               |
+|-----------------|------------------------------------------------|---------------------------------------------------------|
+| BROKER_IPA_CODE | Broker IPA code stored with each new migration | `${PA_COD_IPA_ENTE_PREDEFINITO:IPA_DEFAULT}`) |
 
 #### ⚡ Async extraction
 

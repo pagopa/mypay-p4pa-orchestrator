@@ -10,6 +10,8 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import static org.mockito.Mockito.verify;
+
 @ExtendWith(MockitoExtension.class)
 class BaseEntityListenerTest {
 
@@ -35,13 +37,13 @@ class BaseEntityListenerTest {
   void testOnPrePersist(){
     listener.onPrePersist(baseEntityMock);
 
-    Mockito.verify(baseEntityMock).setUpdateTraceId(traceId);
+    verify(baseEntityMock).setUpdateTraceId(traceId);
   }
 
   @Test
   void testOnPreUpdate(){
     listener.onPreUpdate(baseEntityMock);
 
-    Mockito.verify(baseEntityMock).setUpdateTraceId(traceId);
+    verify(baseEntityMock).setUpdateTraceId(traceId);
   }
 }
