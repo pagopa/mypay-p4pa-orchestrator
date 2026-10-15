@@ -1,19 +1,20 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service.mapper;
 
+import it.gov.pagopa.mypay2pu.orchestrator.config.json.LocalDateTimeToOffsetDateTimeSerializer;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationResponseDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
-import it.gov.pagopa.mypay2pu.orchestrator.utils.Utilities;
+import org.springframework.stereotype.Component;
+
 import java.time.OffsetDateTime;
 import java.util.List;
-import org.springframework.stereotype.Component;
 
 @Component
 public class MigrationResponseMapper {
 
   public MigrationResponseDto toMigrationResponseDto(MigrationExecution execution) {
     List<String> ipaCodes = null;
-    OffsetDateTime createdAt = Utilities.toUtcOffsetDateTime(execution.getCreationDate());
+    OffsetDateTime createdAt = LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(execution.getCreationDate());
     if (execution.getAction() != MigrationAction.TRANSFER) {
       ipaCodes = execution.getIpacodes();
     }

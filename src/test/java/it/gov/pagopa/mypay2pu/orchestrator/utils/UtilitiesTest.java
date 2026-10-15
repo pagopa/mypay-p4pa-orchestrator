@@ -6,10 +6,6 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 
 import java.net.URI;
-import java.time.LocalDateTime;
-import java.time.Month;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 
 public class UtilitiesTest {
 
@@ -43,14 +39,5 @@ public class UtilitiesTest {
   @Test
   void givenNullUriWhenRemovePiiFromURIThenOk(){
     Assertions.assertNull(Utilities.removePiiFromURI(null));
-  }
-
-  @Test
-  void givenLocalDateTimeWhenConvertToUtcOffsetDateTimeThenOk() {
-    LocalDateTime dateTime = LocalDateTime.of(2026, Month.JANUARY, 1, 12, 30);
-
-    OffsetDateTime result = Utilities.toUtcOffsetDateTime(dateTime);
-
-    Assertions.assertEquals(OffsetDateTime.of(dateTime, ZoneOffset.UTC), result);
   }
 }

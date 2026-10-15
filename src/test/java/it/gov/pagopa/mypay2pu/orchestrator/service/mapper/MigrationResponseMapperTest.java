@@ -5,9 +5,9 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatu
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationResponseDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
+import it.gov.pagopa.mypay2pu.orchestrator.utils.Constants;
 import java.time.LocalDateTime;
 import java.time.Month;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -42,7 +42,7 @@ class MigrationResponseMapperTest {
     assertEquals(CycleMode.FULL, result.getOrchestationMode());
     assertEquals(List.of("80000000000", "80000000001"), result.getIpaCodes());
     assertEquals(List.of(), result.getUploadIds());
-    assertEquals(CREATION_DATE.atOffset(ZoneOffset.UTC), result.getCreatedAt());
+    assertEquals(CREATION_DATE.atZone(Constants.ZONEID).toOffsetDateTime(), result.getCreatedAt());
   }
 
   @Test
@@ -60,7 +60,7 @@ class MigrationResponseMapperTest {
 
     assertEquals(MigrationAction.TRANSFER, result.getAction());
     assertNull(result.getIpaCodes());
-    assertEquals(CREATION_DATE.atOffset(ZoneOffset.UTC), result.getCreatedAt());
+    assertEquals(CREATION_DATE.atZone(Constants.ZONEID).toOffsetDateTime(), result.getCreatedAt());
   }
 
   private void checkNotNullFields(MigrationResponseDto response) {

@@ -2,9 +2,10 @@ package it.gov.pagopa.mypay2pu.orchestrator.model;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -28,14 +29,14 @@ public class MigrationExecution extends BaseEntity {
   @Id
   @GeneratedValue(strategy = GenerationType.UUID)
   private UUID id;
-  @NotNull
+  @NotEmpty
   private String brokerIpaCode;
   @Enumerated(EnumType.STRING)
   @NotNull
   private MigrationExecutionStatus status;
   @NotNull
   private Integer cycleNumber;
-  @NotNull
+  @NotEmpty
   private List<String> ipacodes;
   @Enumerated(EnumType.STRING)
   @NotNull
@@ -52,6 +53,6 @@ public class MigrationExecution extends BaseEntity {
   private String errorMsg;
   private String logicalKeys;
   @Enumerated(EnumType.STRING)
-  @NotNull
+  @NotEmpty
   private List<MigrationFileType> fileTypes;
 }
