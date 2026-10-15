@@ -2,7 +2,7 @@ package it.gov.pagopa.mypay2pu.orchestrator.model;
 
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationPhase;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -13,6 +13,7 @@ import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -34,12 +35,12 @@ public class MigrationExecution extends BaseEntity {
   @NotNull
   private Integer cycleNumber;
   @NotNull
-  private String ipacodes;
+  private List<String> ipacodes;
   @Enumerated(EnumType.STRING)
   @NotNull
   private CycleMode cycleMode;
   @Enumerated(EnumType.STRING)
-  private MigrationPhase action;
+  private MigrationAction action;
   private UUID parentExecutionId;
   private LocalDate dateFrom;
   private LocalDate dateTo;
@@ -49,5 +50,5 @@ public class MigrationExecution extends BaseEntity {
   private String errorMsg;
   private String logicalKeys;
   @NotNull
-  private String fileTypes;
+  private List<String> fileTypes;
 }

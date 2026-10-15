@@ -1,7 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.validation;
 
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationPhase;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
@@ -46,8 +46,8 @@ public class MigrationRequestValidator {
   }
 
   protected void validatePhase(MigrationRequestDto request) {
-    MigrationPhase phase = request.getAction();
-    if (phase == MigrationPhase.EXPORT || phase == MigrationPhase.COMPLETE) {
+    MigrationAction phase = request.getAction();
+    if (phase == MigrationAction.EXPORT || phase == MigrationAction.COMPLETE) {
       if (CollectionUtils.isEmpty(request.getIpaCodes())) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "ipaCodes are required and must not be empty");
       }

@@ -1,7 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.validation;
 
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationPhase;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
@@ -58,7 +58,7 @@ class MigrationRequestValidatorTest {
   @Test
   void requestWithoutOrchestratorModeIsRejected() {
     MigrationRequestDto request = new MigrationRequestDto();
-    request.setAction(MigrationPhase.TRANSFER);
+    request.setAction(MigrationAction.TRANSFER);
 
     InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
 
@@ -67,7 +67,7 @@ class MigrationRequestValidatorTest {
 
   @Test
   void exportAndCompletePhasesRequireIpaCodes() {
-    for (MigrationPhase phase : List.of(MigrationPhase.EXPORT, MigrationPhase.COMPLETE)) {
+    for (MigrationAction phase : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
       MigrationRequestDto request = new MigrationRequestDto();
       request.setAction(phase);
       request.setOrchestationMode(CycleMode.DELTA);
@@ -80,7 +80,7 @@ class MigrationRequestValidatorTest {
 
   @Test
   void exportAndCompletePhasesRequireFileTypes() {
-    for (MigrationPhase phase : List.of(MigrationPhase.EXPORT, MigrationPhase.COMPLETE)) {
+    for (MigrationAction phase : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
       MigrationRequestDto request = new MigrationRequestDto();
       request.setAction(phase);
       request.setOrchestationMode(CycleMode.DELTA);
@@ -95,7 +95,7 @@ class MigrationRequestValidatorTest {
   @Test
   void transferRequiresMigrationIdButNoExportFields() {
     MigrationRequestDto request = new MigrationRequestDto();
-    request.setAction(MigrationPhase.TRANSFER);
+    request.setAction(MigrationAction.TRANSFER);
     request.setOrchestationMode(CycleMode.DELTA);
     InvalidValueException exception = assertThrows(
       InvalidValueException.class,
@@ -148,7 +148,7 @@ class MigrationRequestValidatorTest {
 
   private MigrationRequestDto transferRequest() {
     MigrationRequestDto request = new MigrationRequestDto();
-    request.setAction(MigrationPhase.TRANSFER);
+    request.setAction(MigrationAction.TRANSFER);
     request.setMigrationId(UUID.randomUUID());
     return request;
   }

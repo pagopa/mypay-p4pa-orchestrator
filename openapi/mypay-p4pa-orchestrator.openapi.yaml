@@ -58,7 +58,7 @@ components:
         - orchestationMode
       properties:
         action:
-          $ref: '#/components/schemas/MigrationPhase'
+          $ref: '#/components/schemas/MigrationAction'
         ipaCodes:
           description: Required and non-empty for EXPORT and COMPLETE actions
           type: array
@@ -102,7 +102,7 @@ components:
           type: string
           format: uuid
         action:
-          $ref: '#/components/schemas/MigrationPhase'
+          $ref: '#/components/schemas/MigrationAction'
         status:
           $ref: '#/components/schemas/MigrationExecutionStatus'
         orchestationMode:
@@ -119,7 +119,7 @@ components:
           type: array
           items:
             type: string
-    MigrationPhase:
+    MigrationAction:
       type: string
       enum:
         - EXPORT

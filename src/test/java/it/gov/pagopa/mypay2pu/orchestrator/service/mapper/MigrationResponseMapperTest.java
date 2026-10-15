@@ -2,7 +2,7 @@ package it.gov.pagopa.mypay2pu.orchestrator.service.mapper;
 
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationPhase;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationResponseDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import java.time.LocalDateTime;
@@ -11,7 +11,6 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import tools.jackson.databind.json.JsonMapper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -19,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 class MigrationResponseMapperTest {
 
-  private final MigrationResponseMapper mapper = new MigrationResponseMapper(JsonMapper.builder().build());
+  private final MigrationResponseMapper mapper = new MigrationResponseMapper();
   private static final LocalDateTime CREATION_DATE = LocalDateTime.of(2026, Month.JANUARY, 1, 12, 30);
 
   @Test
@@ -29,8 +28,8 @@ class MigrationResponseMapperTest {
       .id(migrationId)
       .status(MigrationExecutionStatus.RUNNING)
       .cycleMode(CycleMode.FULL)
-      .action(MigrationPhase.COMPLETE)
-      .ipacodes("[\"80000000000\"]")
+      .action(MigrationAction.COMPLETE)
+      .ipacodes(List.of("80000000000", "80000000001"))
       .creationDate(CREATION_DATE)
       .build();
 
@@ -38,10 +37,10 @@ class MigrationResponseMapperTest {
 
     checkNotNullFields(result);
     assertEquals(migrationId, result.getMigrationId());
-    assertEquals(MigrationPhase.COMPLETE, result.getAction());
+    assertEquals(MigrationAction.COMPLETE, result.getAction());
     assertEquals(MigrationExecutionStatus.RUNNING, result.getStatus());
     assertEquals(CycleMode.FULL, result.getOrchestationMode());
-    assertEquals(List.of("80000000000"), result.getIpaCodes());
+    assertEquals(List.of("80000000000", "80000000001"), result.getIpaCodes());
     assertEquals(List.of(), result.getUploadIds());
     assertEquals(CREATION_DATE.atOffset(ZoneOffset.UTC), result.getCreatedAt());
   }
@@ -52,14 +51,14 @@ class MigrationResponseMapperTest {
       .id(UUID.randomUUID())
       .status(MigrationExecutionStatus.RUNNING)
       .cycleMode(CycleMode.DELTA)
-      .action(MigrationPhase.TRANSFER)
-      .ipacodes("[\"80000000000\"]")
+      .action(MigrationAction.TRANSFER)
+      .ipacodes(List.of("80000000000"))
       .creationDate(CREATION_DATE)
       .build();
 
     MigrationResponseDto result = mapper.toMigrationResponseDto(execution);
 
-    assertEquals(MigrationPhase.TRANSFER, result.getAction());
+    assertEquals(MigrationAction.TRANSFER, result.getAction());
     assertNull(result.getIpaCodes());
     assertEquals(CREATION_DATE.atOffset(ZoneOffset.UTC), result.getCreatedAt());
   }

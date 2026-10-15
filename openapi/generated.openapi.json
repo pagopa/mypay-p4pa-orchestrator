@@ -85,7 +85,7 @@
         "type" : [ "string", "null" ],
         "enum" : [ "RUNNING", "COMPLETED", "FAILED", "WARNING" ]
       },
-      "MigrationPhase" : {
+      "MigrationAction" : {
         "type" : [ "string", "null" ],
         "enum" : [ "EXPORT", "TRANSFER", "COMPLETE" ]
       },
@@ -97,7 +97,7 @@
             "format" : "uuid"
           },
           "action" : {
-            "$ref" : "#/components/schemas/MigrationPhase"
+            "$ref" : "#/components/schemas/MigrationAction"
           },
           "status" : {
             "$ref" : "#/components/schemas/MigrationExecutionStatus"
@@ -154,7 +154,7 @@
         "type" : "object",
         "properties" : {
           "action" : {
-            "$ref" : "#/components/schemas/MigrationPhase"
+            "$ref" : "#/components/schemas/MigrationAction"
           },
           "ipaCodes" : {
             "type" : "array",

@@ -1,7 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationPhase;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationResponseDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
@@ -49,7 +49,7 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
   @Override
   public MigrationResponseDto startMigration(MigrationRequestDto request) {
     migrationRequestValidator.validate(request);
-    MigrationPhase action = request.getAction();
+    MigrationAction action = request.getAction();
 
     MigrationExecution execution = actionRequest2MigrationExecution(request);
     execution.setStatus(MigrationExecutionStatus.RUNNING);
