@@ -1,5 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator;
 
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +16,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -32,6 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
   "springdoc.swagger-ui.enabled=false",
   "springdoc.writer-with-default-pretty-printer=true"
 })
+@Slf4j
 class OpenApiGeneratorTest {
 
   @Autowired
@@ -52,7 +55,26 @@ class OpenApiGeneratorTest {
     Assertions.assertTrue(openApiResult.startsWith("{\n  \"openapi\" : \"3."));
 
     Path openApiGeneratedPath = Path.of("openapi/generated.openapi.json");
-    String storedOpenApi = Files.readString(openApiGeneratedPath);
-    JsonAssert.comparator(JsonCompareMode.STRICT).assertIsMatch(storedOpenApi, openApiResult);
+    boolean toStore=true;
+    if(Files.exists(openApiGeneratedPath)){
+      String storedOpenApi = Files.readString(openApiGeneratedPath);
+      try {
+        JsonAssert.comparator(JsonCompareMode.STRICT).assertIsMatch(storedOpenApi, openApiResult);
+        toStore=false;
+      } catch (Throwable e){
+        log.info("Observed the following changes: {}", e.getMessage());
+      }
+    }
+    if(toStore){
+      Files.writeString(openApiGeneratedPath, openApiResult, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+    }
+
+    String gitStatus = execCmd("git", "status");
+    Assertions.assertFalse(gitStatus.contains("openapi/generated.openapi.json"), "Generated OpenApi not committed");
+  }
+
+  public static String execCmd(String... cmd) throws java.io.IOException {
+    java.util.Scanner s = new java.util.Scanner(Runtime.getRuntime().exec(cmd).getInputStream()).useDelimiter("\\A");
+    return s.hasNext() ? s.next() : "";
   }
 }
