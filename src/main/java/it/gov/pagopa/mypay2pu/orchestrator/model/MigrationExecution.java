@@ -1,5 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.model;
 
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
@@ -40,6 +41,7 @@ public class MigrationExecution extends BaseEntity {
   @NotNull
   private CycleMode cycleMode;
   @Enumerated(EnumType.STRING)
+  @NotNull
   private MigrationAction action;
   private UUID parentExecutionId;
   private LocalDate dateFrom;
@@ -49,6 +51,7 @@ public class MigrationExecution extends BaseEntity {
   private String errorCode;
   private String errorMsg;
   private String logicalKeys;
+  @Enumerated(EnumType.STRING)
   @NotNull
-  private List<String> fileTypes;
+  private List<MigrationFileType> fileTypes;
 }

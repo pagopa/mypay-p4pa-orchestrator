@@ -66,10 +66,10 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void exportAndCompletePhasesRequireIpaCodes() {
-    for (MigrationAction phase : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
+  void exportAndCompleteActionsRequireIpaCodes() {
+    for (MigrationAction action : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
       MigrationRequestDto request = new MigrationRequestDto();
-      request.setAction(phase);
+      request.setAction(action);
       request.setOrchestationMode(CycleMode.DELTA);
       request.setIpaCodes(null);
 
@@ -79,10 +79,10 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void exportAndCompletePhasesRequireFileTypes() {
-    for (MigrationAction phase : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
+  void exportAndCompleteActionsRequireFileTypes() {
+    for (MigrationAction action : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
       MigrationRequestDto request = new MigrationRequestDto();
-      request.setAction(phase);
+      request.setAction(action);
       request.setOrchestationMode(CycleMode.DELTA);
       request.setIpaCodes(List.of("80000000000"));
       request.setFileTypesToInclude(null);

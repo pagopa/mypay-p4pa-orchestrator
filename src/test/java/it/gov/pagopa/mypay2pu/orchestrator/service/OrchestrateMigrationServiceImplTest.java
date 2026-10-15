@@ -188,7 +188,7 @@ class OrchestrateMigrationServiceImplTest {
       .ipacodes(List.of("80000000000"))
       .cycleMode(CycleMode.DELTA)
       .action(MigrationAction.COMPLETE)
-      .fileTypes(List.of(MigrationFileType.ORGANIZATIONS.name()))
+      .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))
       .build();
   }
 
@@ -200,7 +200,7 @@ class OrchestrateMigrationServiceImplTest {
       .cycleNumber(1)
       .ipacodes(List.of("80000000000"))
       .cycleMode(CycleMode.DELTA)
-      .fileTypes(List.of(MigrationFileType.ORGANIZATIONS.name()))
+      .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))
       .creationDate(CREATION_DATE)
       .build();
   }

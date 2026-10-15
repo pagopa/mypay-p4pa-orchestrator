@@ -1,6 +1,5 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service.mapper;
 
-import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
@@ -29,7 +28,7 @@ public class MigrationExecutionMapper {
       .dateFrom(period == null ? null : period.getFromDate())
       .dateTo(period == null ? null : period.getToDate())
       .logicalKeys(request.getLogicalKey())
-      .fileTypes(request.getFileTypesToInclude().stream().map(MigrationFileType::name).toList())
+      .fileTypes(request.getFileTypesToInclude())
       .build();
   }
 }

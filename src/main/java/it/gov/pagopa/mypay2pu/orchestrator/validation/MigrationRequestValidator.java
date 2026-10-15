@@ -29,7 +29,7 @@ public class MigrationRequestValidator {
     if (request.getOrchestationMode() == null) {
       throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "orchestationMode is required");
     }
-    validatePhase(request);
+    validateAction(request);
     validateCycleMode(request);
   }
 
@@ -45,9 +45,9 @@ public class MigrationRequestValidator {
       ));
   }
 
-  protected void validatePhase(MigrationRequestDto request) {
-    MigrationAction phase = request.getAction();
-    if (phase == MigrationAction.EXPORT || phase == MigrationAction.COMPLETE) {
+  protected void validateAction(MigrationRequestDto request) {
+    MigrationAction action = request.getAction();
+    if (action == MigrationAction.EXPORT || action == MigrationAction.COMPLETE) {
       if (CollectionUtils.isEmpty(request.getIpaCodes())) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "ipaCodes are required and must not be empty");
       }

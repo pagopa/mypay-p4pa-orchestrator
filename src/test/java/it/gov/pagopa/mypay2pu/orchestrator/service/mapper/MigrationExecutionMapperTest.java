@@ -45,7 +45,7 @@ class MigrationExecutionMapperTest {
     assertEquals(LocalDate.of(2026, Month.JANUARY, 1), result.getDateFrom());
     assertEquals(LocalDate.of(2026, Month.DECEMBER, 31), result.getDateTo());
     assertEquals("organization", result.getLogicalKeys());
-    assertEquals(List.of("ORGANIZATIONS", "DEBT_POSITIONS"), result.getFileTypes());
+    assertEquals(List.of(MigrationFileType.ORGANIZATIONS, MigrationFileType.DEBT_POSITIONS), result.getFileTypes());
   }
 
   private void checkNotNullFields(MigrationExecution execution) {
