@@ -14,7 +14,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 class MigrationResponseMapperTest {
 
@@ -46,7 +45,7 @@ class MigrationResponseMapperTest {
   }
 
   @Test
-  void omitsIpaCodesForTransferResponse() {
+  void mapsTransferExecutionIpaCodesToResponse() {
     MigrationExecution execution = MigrationExecution.builder()
       .id(UUID.randomUUID())
       .status(MigrationExecutionStatus.RUNNING)
@@ -58,8 +57,9 @@ class MigrationResponseMapperTest {
 
     MigrationResponseDto result = mapper.toMigrationResponseDto(execution);
 
+    checkNotNullFields(result);
     assertEquals(MigrationAction.TRANSFER, result.getAction());
-    assertNull(result.getIpaCodes());
+    assertEquals(List.of("80000000000"), result.getIpaCodes());
     assertEquals(CREATION_DATE.atZone(Constants.ZONEID).toOffsetDateTime(), result.getCreatedAt());
   }
 
