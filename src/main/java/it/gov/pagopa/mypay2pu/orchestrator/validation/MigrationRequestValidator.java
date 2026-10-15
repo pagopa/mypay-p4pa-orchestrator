@@ -46,18 +46,27 @@ public class MigrationRequestValidator {
   }
 
   protected void validateAction(MigrationRequestDto request) {
-    MigrationAction action = request.getAction();
-    if (action == MigrationAction.EXPORT || action == MigrationAction.COMPLETE) {
-      if (CollectionUtils.isEmpty(request.getIpaCodes())) {
-        throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "ipaCodes are required and must not be empty");
+    switch (request.getAction()) {
+      case EXPORT, COMPLETE -> {
+        if (CollectionUtils.isEmpty(request.getIpaCodes())) {
+          throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "ipaCodes are required and must not be empty");
+        }
+        if (CollectionUtils.isEmpty(request.getFileTypesToInclude())) {
+          throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "fileTypesToInclude are required and must not be empty");
+        }
       }
-      if (CollectionUtils.isEmpty(request.getFileTypesToInclude())) {
-        throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "fileTypesToInclude are required and must not be empty");
+      case TRANSFER -> {
+        if (request.getMigrationId() == null) {
+          throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "migrationId is required for TRANSFER");
+        }
       }
     }
   }
 
   protected void validateCycleMode(MigrationRequestDto request) {
+    if (request.getAction() == MigrationAction.TRANSFER) {
+      return;
+    }
     if (request.getOrchestationMode() == CycleMode.FULL && request.getPeriod() == null) {
       throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "period is required when orchestationMode is FULL");
     }

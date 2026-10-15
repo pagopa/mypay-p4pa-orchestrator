@@ -1,5 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.validation;
 
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
@@ -7,16 +8,15 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.List;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -96,10 +96,10 @@ class MigrationRequestValidatorTest {
   void transferRequiresMigrationIdButNoExportFields() {
     MigrationRequestDto request = new MigrationRequestDto();
     request.setAction(MigrationAction.TRANSFER);
-    request.setOrchestationMode(CycleMode.DELTA);
+    request.setOrchestationMode(CycleMode.FULL);
     InvalidValueException exception = assertThrows(
       InvalidValueException.class,
-      () -> validator.requireTransferExecution(request)
+      () -> validator.validate(request)
     );
     assertEquals("migrationId is required for TRANSFER", exception.getMessage());
 
@@ -107,49 +107,54 @@ class MigrationRequestValidatorTest {
     request.setMigrationId(migrationId);
     MigrationExecution execution = MigrationExecution.builder().id(migrationId).build();
     when(migrationExecutionRepositoryMock.findById(migrationId)).thenReturn(Optional.of(execution));
+    assertDoesNotThrow(() -> validator.validate(request));
+    request.setOrchestationMode(CycleMode.REJECTS_ONLY);
+    assertDoesNotThrow(() -> validator.validate(request));
     assertSame(execution, validator.requireTransferExecution(request));
     verify(migrationExecutionRepositoryMock).findById(migrationId);
-    assertDoesNotThrow(() -> validator.validate(request));
   }
 
   @Test
   void fullCycleRequiresPeriod() {
-    MigrationRequestDto request = transferRequest();
-    request.setOrchestationMode(CycleMode.FULL);
+    for (MigrationAction action : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
+      MigrationRequestDto request = request(action, CycleMode.FULL);
 
-    InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
+      InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
 
-    assertEquals("period is required when orchestationMode is FULL", exception.getMessage());
+      assertEquals("period is required when orchestationMode is FULL", exception.getMessage());
 
-    request.setPeriod(new PeriodDto());
-    assertDoesNotThrow(() -> validator.validate(request));
+      request.setPeriod(new PeriodDto());
+      assertDoesNotThrow(() -> validator.validate(request));
+    }
   }
 
   @Test
   void deltaCycleDoesNotRequirePeriod() {
-    MigrationRequestDto request = transferRequest();
-    request.setOrchestationMode(CycleMode.DELTA);
-
-    assertDoesNotThrow(() -> validator.validate(request));
+    for (MigrationAction action : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
+      assertDoesNotThrow(() -> validator.validate(request(action, CycleMode.DELTA)));
+    }
   }
 
   @Test
   void rejectsOnlyCycleRequiresRejectsPayload() {
-    MigrationRequestDto request = transferRequest();
-    request.setOrchestationMode(CycleMode.REJECTS_ONLY);
+    for (MigrationAction action : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
+      MigrationRequestDto request = request(action, CycleMode.REJECTS_ONLY);
 
-    InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
+      InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
 
-    assertEquals("rejectsPayload is required when orchestationMode is REJECTS_ONLY", exception.getMessage());
+      assertEquals("rejectsPayload is required when orchestationMode is REJECTS_ONLY", exception.getMessage());
 
-    request.setRejectsPayload(List.of("rejected-item"));
-    assertDoesNotThrow(() -> validator.validate(request));
+      request.setRejectsPayload(List.of("rejected-item"));
+      assertDoesNotThrow(() -> validator.validate(request));
+    }
   }
 
-  private MigrationRequestDto transferRequest() {
+  private MigrationRequestDto request(MigrationAction action, CycleMode cycleMode) {
     MigrationRequestDto request = new MigrationRequestDto();
-    request.setAction(MigrationAction.TRANSFER);
-    request.setMigrationId(UUID.randomUUID());
+    request.setAction(action);
+    request.setOrchestationMode(cycleMode);
+    request.setIpaCodes(List.of("80000000000"));
+    request.setFileTypesToInclude(List.of(MigrationFileType.ORGANIZATIONS));
     return request;
   }
 }
