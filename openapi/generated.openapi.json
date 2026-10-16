@@ -18,7 +18,7 @@
       "post" : {
         "tags" : [ "OrchestrateMigration" ],
         "summary" : "Start a migration orchestration",
-        "description" : "Start an EXPORT, TRANSFER or COMPLETE migration action. EXPORT and COMPLETE actions require non-empty ipaCodes and fileTypesToInclude; all actions require orchestationMode. TRANSFER actions require migrationId. FULL orchestrator mode requires period; REJECTS_ONLY orchestrator mode requires rejectsPayload.",
+        "description" : "Start an EXPORT, TRANSFER or COMPLETE migration action. EXPORT and COMPLETE actions require non-empty ipaCodes and fileTypesToInclude; all actions require orchestationMode. TRANSFER actions require migrationId and do not support REJECTS_ONLY mode. For REJECTS_ONLY EXPORT and COMPLETE actions, migrationId identifies the previous migration; rejected records are assembled by the orchestrator. FULL mode requires period for EXPORT and COMPLETE actions.",
         "operationId" : "orchestrateMigration",
         "requestBody" : {
           "content" : {
@@ -165,7 +165,7 @@
           },
           "orchestationMode" : {
             "$ref" : "#/components/schemas/CycleMode",
-            "description" : "Required for all migration actions"
+            "description" : "Required for all migration actions; REJECTS_ONLY is not supported for TRANSFER"
           },
           "fileTypesToInclude" : {
             "type" : "array",
@@ -176,22 +176,15 @@
           },
           "period" : {
             "$ref" : "#/components/schemas/PeriodDto",
-            "description" : "Required when orchestationMode is FULL"
+            "description" : "Required when orchestationMode is FULL for EXPORT and COMPLETE actions"
           },
           "migrationId" : {
             "type" : [ "string", "null" ],
             "format" : "uuid",
-            "description" : "Required for TRANSFER action"
+            "description" : "Required for TRANSFER; for REJECTS_ONLY EXPORT and COMPLETE, identifies the previous migration"
           },
           "logicalKey" : {
             "type" : [ "string", "null" ]
-          },
-          "rejectsPayload" : {
-            "type" : "array",
-            "description" : "Required when orchestationMode is REJECTS_ONLY; an array of strings",
-            "items" : {
-              "type" : "string"
-            }
           }
         },
         "required" : [ "action", "orchestationMode" ]

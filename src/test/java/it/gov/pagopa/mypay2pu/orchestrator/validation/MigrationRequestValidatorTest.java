@@ -108,10 +108,20 @@ class MigrationRequestValidatorTest {
     MigrationExecution execution = MigrationExecution.builder().id(migrationId).build();
     when(migrationExecutionRepositoryMock.findById(migrationId)).thenReturn(Optional.of(execution));
     assertDoesNotThrow(() -> validator.validate(request));
-    request.setOrchestationMode(CycleMode.REJECTS_ONLY);
-    assertDoesNotThrow(() -> validator.validate(request));
     assertSame(execution, validator.requireTransferExecution(request));
     verify(migrationExecutionRepositoryMock).findById(migrationId);
+  }
+
+  @Test
+  void transferRejectsRejectsOnlyMode() {
+    MigrationRequestDto request = new MigrationRequestDto();
+    request.setAction(MigrationAction.TRANSFER);
+    request.setMigrationId(UUID.randomUUID());
+    request.setOrchestationMode(CycleMode.REJECTS_ONLY);
+
+    InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
+
+    assertEquals("orchestationMode REJECTS_ONLY is not supported for TRANSFER", exception.getMessage());
   }
 
   @Test
@@ -136,17 +146,30 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void rejectsOnlyCycleRequiresRejectsPayload() {
+  void rejectsOnlyCycleRequiresPreviousMigrationId() {
     for (MigrationAction action : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
       MigrationRequestDto request = request(action, CycleMode.REJECTS_ONLY);
 
       InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
 
-      assertEquals("rejectsPayload is required when orchestationMode is REJECTS_ONLY", exception.getMessage());
+      assertEquals("migrationId is required when orchestationMode is REJECTS_ONLY", exception.getMessage());
 
-      request.setRejectsPayload(List.of("rejected-item"));
+      request.setMigrationId(UUID.randomUUID());
       assertDoesNotThrow(() -> validator.validate(request));
     }
+  }
+
+  @Test
+  void rejectsOnlyCanResolvePreviousMigration() {
+    UUID migrationId = UUID.randomUUID();
+    MigrationRequestDto request = request(MigrationAction.COMPLETE, CycleMode.REJECTS_ONLY);
+    request.setMigrationId(migrationId);
+    MigrationExecution execution = MigrationExecution.builder().id(migrationId).build();
+    when(migrationExecutionRepositoryMock.findById(migrationId)).thenReturn(Optional.of(execution));
+
+    assertSame(execution, validator.requirePreviousMigration(request));
+
+    verify(migrationExecutionRepositoryMock).findById(migrationId);
   }
 
   private MigrationRequestDto request(MigrationAction action, CycleMode cycleMode) {

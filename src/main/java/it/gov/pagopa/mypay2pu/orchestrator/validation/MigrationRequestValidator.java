@@ -9,7 +9,6 @@ import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionReposito
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
-import java.util.List;
 import java.util.UUID;
 
 /** Validates migration requests and resolves referenced migration executions. */
@@ -38,6 +37,18 @@ public class MigrationRequestValidator {
     if (migrationId == null) {
       throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "migrationId is required for TRANSFER");
     }
+    return requireExistingMigration(migrationId);
+  }
+
+  public MigrationExecution requirePreviousMigration(MigrationRequestDto request) {
+    UUID migrationId = request.getMigrationId();
+    if (migrationId == null) {
+      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "migrationId is required when orchestationMode is REJECTS_ONLY");
+    }
+    return requireExistingMigration(migrationId);
+  }
+
+  private MigrationExecution requireExistingMigration(UUID migrationId) {
     return migrationExecutionRepository.findById(migrationId)
       .orElseThrow(() -> new InvalidValueException(
         "INVALID_MIGRATION_REQUEST",
@@ -54,8 +65,20 @@ public class MigrationRequestValidator {
         if (CollectionUtils.isEmpty(request.getFileTypesToInclude())) {
           throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "fileTypesToInclude are required and must not be empty");
         }
+        if (request.getOrchestationMode() == CycleMode.REJECTS_ONLY && request.getMigrationId() == null) {
+          throw new InvalidValueException(
+            "INVALID_MIGRATION_REQUEST",
+            "migrationId is required when orchestationMode is REJECTS_ONLY"
+          );
+        }
       }
       case TRANSFER -> {
+        if (request.getOrchestationMode() == CycleMode.REJECTS_ONLY) {
+          throw new InvalidValueException(
+            "INVALID_MIGRATION_REQUEST",
+            "orchestationMode REJECTS_ONLY is not supported for TRANSFER"
+          );
+        }
         if (request.getMigrationId() == null) {
           throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "migrationId is required for TRANSFER");
         }
@@ -69,12 +92,6 @@ public class MigrationRequestValidator {
     }
     if (request.getOrchestationMode() == CycleMode.FULL && request.getPeriod() == null) {
       throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "period is required when orchestationMode is FULL");
-    }
-    if (request.getOrchestationMode() == CycleMode.REJECTS_ONLY) {
-      List<String> rejectsPayload = request.getRejectsPayload();
-      if (CollectionUtils.isEmpty(rejectsPayload)) {
-        throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "rejectsPayload is required when orchestationMode is REJECTS_ONLY");
-      }
     }
   }
 }

@@ -1,7 +1,8 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationResponseDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
@@ -83,6 +84,10 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
       }
       case COMPLETE -> {
         MigrationExecution newExecution = migrationExecutionMapper.toMigrationExecution(request);
+        if (request.getOrchestationMode() == CycleMode.REJECTS_ONLY) {
+          MigrationExecution previousExecution = migrationRequestValidator.requirePreviousMigration(request);
+          newExecution.setParentExecutionId(previousExecution.getId());
+        }
         newExecution.setCycleNumber(INITIAL_CYCLE_NUMBER);
         newExecution.setCreationDate(LocalDateTime.now(ZoneOffset.UTC));
         yield newExecution;

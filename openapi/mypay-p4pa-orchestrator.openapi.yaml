@@ -16,8 +16,9 @@ paths:
       description: |-
         Start an EXPORT, TRANSFER or COMPLETE migration action.
         EXPORT and COMPLETE actions require non-empty ipaCodes and fileTypesToInclude; all actions require orchestationMode.
-        TRANSFER actions require migrationId.
-        FULL orchestrator mode requires period; REJECTS_ONLY orchestrator mode requires rejectsPayload.
+        TRANSFER actions require migrationId and do not support REJECTS_ONLY mode.
+        For REJECTS_ONLY EXPORT and COMPLETE actions, migrationId identifies the previous migration; rejected records are assembled by the orchestrator.
+        FULL mode requires period for EXPORT and COMPLETE actions.
       requestBody:
         required: true
         content:
@@ -65,7 +66,7 @@ components:
           items:
             type: string
         orchestationMode:
-          description: Required for all migration actions
+          description: Required for all migration actions; REJECTS_ONLY is not supported for TRANSFER
           $ref: '#/components/schemas/CycleMode'
         fileTypesToInclude:
           description: Required and non-empty for EXPORT and COMPLETE actions
@@ -73,19 +74,14 @@ components:
           items:
             type: 'MigrationFileType'
         period:
-          description: Required when orchestationMode is FULL
+          description: Required when orchestationMode is FULL for EXPORT and COMPLETE actions
           $ref: '#/components/schemas/PeriodDto'
         migrationId:
-          description: Required for TRANSFER action
+          description: Required for TRANSFER; for REJECTS_ONLY EXPORT and COMPLETE, identifies the previous migration
           type: string
           format: uuid
         logicalKey:
           type: string
-        rejectsPayload:
-          description: Required when orchestationMode is REJECTS_ONLY; an array of strings
-          type: array
-          items:
-            type: string
     PeriodDto:
       type: object
       properties:
