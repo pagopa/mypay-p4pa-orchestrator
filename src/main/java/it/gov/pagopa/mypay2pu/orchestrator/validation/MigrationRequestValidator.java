@@ -2,6 +2,7 @@ package it.gov.pagopa.mypay2pu.orchestrator.validation;
 
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
@@ -37,7 +38,14 @@ public class MigrationRequestValidator {
     if (migrationId == null) {
       throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "migrationId is required for TRANSFER");
     }
-    return requireExistingMigration(migrationId);
+    MigrationExecution execution = requireExistingMigration(migrationId);
+    if (execution.getStatus() != MigrationExecutionStatus.COMPLETED) {
+      throw new InvalidValueException(
+        "INVALID_MIGRATION_REQUEST",
+        "migrationId must identify a completed migration for TRANSFER"
+      );
+    }
+    return execution;
   }
 
   public MigrationExecution requirePreviousMigration(MigrationRequestDto request) {

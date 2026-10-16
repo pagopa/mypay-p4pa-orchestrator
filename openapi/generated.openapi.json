@@ -18,7 +18,7 @@
       "post" : {
         "tags" : [ "OrchestrateMigration" ],
         "summary" : "Start a migration orchestration",
-        "description" : "Start an EXPORT, TRANSFER or COMPLETE migration action. EXPORT and COMPLETE actions require non-empty ipaCodes and fileTypesToInclude; all actions require orchestationMode. TRANSFER actions require migrationId and do not support REJECTS_ONLY mode. For REJECTS_ONLY EXPORT and COMPLETE actions, migrationId identifies the previous migration; rejected records are assembled by the orchestrator. FULL mode requires period for EXPORT and COMPLETE actions.",
+        "description" : "Start an EXPORT, TRANSFER or COMPLETE migration action. EXPORT and COMPLETE actions require non-empty ipaCodes and fileTypesToInclude; all actions require orchestationMode. TRANSFER actions require migrationId for an existing completed migration and do not support REJECTS_ONLY mode. For REJECTS_ONLY EXPORT and COMPLETE actions, migrationId identifies the previous migration; rejected records are assembled by the orchestrator. FULL mode requires period for EXPORT and COMPLETE actions.",
         "operationId" : "orchestrateMigration",
         "requestBody" : {
           "content" : {
@@ -181,7 +181,7 @@
           "migrationId" : {
             "type" : [ "string", "null" ],
             "format" : "uuid",
-            "description" : "Required for TRANSFER; for REJECTS_ONLY EXPORT and COMPLETE, identifies the previous migration"
+            "description" : "For TRANSFER, must identify an existing completed migration; for REJECTS_ONLY EXPORT and COMPLETE, identifies the previous migration"
           },
           "logicalKey" : {
             "type" : [ "string", "null" ]

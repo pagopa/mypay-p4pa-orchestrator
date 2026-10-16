@@ -3,6 +3,7 @@ package it.gov.pagopa.mypay2pu.orchestrator.validation;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
@@ -105,10 +106,36 @@ class MigrationRequestValidatorTest {
 
     UUID migrationId = UUID.randomUUID();
     request.setMigrationId(migrationId);
-    MigrationExecution execution = MigrationExecution.builder().id(migrationId).build();
+    MigrationExecution execution = MigrationExecution.builder()
+      .id(migrationId)
+      .status(MigrationExecutionStatus.COMPLETED)
+      .build();
     when(migrationExecutionRepositoryMock.findById(migrationId)).thenReturn(Optional.of(execution));
     assertDoesNotThrow(() -> validator.validate(request));
     assertSame(execution, validator.requireTransferExecution(request));
+    verify(migrationExecutionRepositoryMock).findById(migrationId);
+  }
+
+  @Test
+  void transferRejectsMigrationThatIsNotCompleted() {
+    UUID migrationId = UUID.randomUUID();
+    MigrationRequestDto request = new MigrationRequestDto();
+    request.setAction(MigrationAction.TRANSFER);
+    request.setMigrationId(migrationId);
+    request.setOrchestationMode(CycleMode.DELTA);
+    MigrationExecution execution = MigrationExecution.builder()
+      .id(migrationId)
+      .status(MigrationExecutionStatus.RUNNING)
+      .build();
+    when(migrationExecutionRepositoryMock.findById(migrationId)).thenReturn(Optional.of(execution));
+
+    assertDoesNotThrow(() -> validator.validate(request));
+    InvalidValueException exception = assertThrows(
+      InvalidValueException.class,
+      () -> validator.requireTransferExecution(request)
+    );
+
+    assertEquals("migrationId must identify a completed migration for TRANSFER", exception.getMessage());
     verify(migrationExecutionRepositoryMock).findById(migrationId);
   }
 
