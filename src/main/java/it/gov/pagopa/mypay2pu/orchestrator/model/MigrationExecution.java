@@ -1,7 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.model;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import jakarta.persistence.*;
@@ -40,7 +40,7 @@ public class MigrationExecution extends BaseEntity {
   private List<String> ipacodes;
   @Enumerated(EnumType.STRING)
   @NotNull
-  private CycleMode orchestrationMode;
+  private OrchestrationMode orchestrationMode;
   @Enumerated(EnumType.STRING)
   @NotNull
   private MigrationAction action;

@@ -1,6 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.validation;
 
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
@@ -74,7 +74,7 @@ public class MigrationRequestValidator {
         if (CollectionUtils.isEmpty(request.getFileTypesToInclude())) {
           throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "fileTypesToInclude are required and must not be empty");
         }
-        if (request.getOrchestrationMode() == CycleMode.REJECTS_ONLY && request.getMigrationId() == null) {
+        if (request.getOrchestrationMode() == OrchestrationMode.REJECTS_ONLY && request.getMigrationId() == null) {
           throw new InvalidValueException(
             "INVALID_MIGRATION_REQUEST",
             "migrationId is required when orchestrationMode is REJECTS_ONLY"
@@ -82,7 +82,7 @@ public class MigrationRequestValidator {
         }
       }
       case TRANSFER -> {
-        if (request.getOrchestrationMode() == CycleMode.REJECTS_ONLY) {
+        if (request.getOrchestrationMode() == OrchestrationMode.REJECTS_ONLY) {
           throw new InvalidValueException(
             "INVALID_MIGRATION_REQUEST",
             "orchestrationMode REJECTS_ONLY is not supported for TRANSFER"
@@ -99,7 +99,7 @@ public class MigrationRequestValidator {
     if (request.getAction() == MigrationAction.TRANSFER) {
       return;
     }
-    if (request.getOrchestrationMode() == CycleMode.FULL && request.getPeriod() == null) {
+    if (request.getOrchestrationMode() == OrchestrationMode.FULL && request.getPeriod() == null) {
       throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "period is required when orchestrationMode is FULL");
     }
   }

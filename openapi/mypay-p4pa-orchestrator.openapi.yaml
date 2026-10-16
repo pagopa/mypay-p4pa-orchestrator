@@ -67,7 +67,7 @@ components:
             type: string
         orchestrationMode:
           description: Required for all migration actions; REJECTS_ONLY is not supported for TRANSFER
-          $ref: '#/components/schemas/CycleMode'
+          $ref: '#/components/schemas/OrchestrationMode'
         fileTypesToInclude:
           description: Required and non-empty for EXPORT and COMPLETE actions
           type: array
@@ -102,7 +102,7 @@ components:
         status:
           $ref: '#/components/schemas/MigrationExecutionStatus'
         orchestrationMode:
-          $ref: '#/components/schemas/CycleMode'
+          $ref: '#/components/schemas/OrchestrationMode'
         ipaCodes:
           type: array
           items:
@@ -121,7 +121,7 @@ components:
         - EXPORT
         - TRANSFER
         - COMPLETE
-    CycleMode:
+    OrchestrationMode:
       type: string
       enum:
         - FULL

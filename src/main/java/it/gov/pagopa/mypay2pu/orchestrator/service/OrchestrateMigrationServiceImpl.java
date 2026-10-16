@@ -1,6 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
@@ -84,7 +84,7 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
       }
       case COMPLETE -> {
         MigrationExecution newExecution = migrationExecutionMapper.toMigrationExecution(request);
-        if (request.getOrchestrationMode() == CycleMode.REJECTS_ONLY) {
+        if (request.getOrchestrationMode() == OrchestrationMode.REJECTS_ONLY) {
           MigrationExecution previousExecution = migrationRequestValidator.requirePreviousMigration(request);
           newExecution.setParentExecutionId(previousExecution.getId());
         }

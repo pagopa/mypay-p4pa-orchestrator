@@ -1,6 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service.mapper;
 
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.CycleMode;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationResponseDto;
@@ -26,7 +26,7 @@ class MigrationResponseMapperTest {
     MigrationExecution execution = MigrationExecution.builder()
       .id(migrationId)
       .status(MigrationExecutionStatus.RUNNING)
-      .orchestrationMode(CycleMode.FULL)
+      .orchestrationMode(OrchestrationMode.FULL)
       .action(MigrationAction.COMPLETE)
       .ipacodes(List.of("80000000000", "80000000001"))
       .creationDate(CREATION_DATE)
@@ -38,7 +38,7 @@ class MigrationResponseMapperTest {
     assertEquals(migrationId, result.getMigrationId());
     assertEquals(MigrationAction.COMPLETE, result.getAction());
     assertEquals(MigrationExecutionStatus.RUNNING, result.getStatus());
-    assertEquals(CycleMode.FULL, result.getOrchestrationMode());
+    assertEquals(OrchestrationMode.FULL, result.getOrchestrationMode());
     assertEquals(List.of("80000000000", "80000000001"), result.getIpaCodes());
     assertEquals(List.of(), result.getUploadIds());
     assertEquals(CREATION_DATE.atZone(Constants.ZONEID).toOffsetDateTime(), result.getCreatedAt());
@@ -49,7 +49,7 @@ class MigrationResponseMapperTest {
     MigrationExecution execution = MigrationExecution.builder()
       .id(UUID.randomUUID())
       .status(MigrationExecutionStatus.RUNNING)
-      .orchestrationMode(CycleMode.DELTA)
+      .orchestrationMode(OrchestrationMode.DELTA)
       .action(MigrationAction.TRANSFER)
       .ipacodes(List.of("80000000000"))
       .creationDate(CREATION_DATE)

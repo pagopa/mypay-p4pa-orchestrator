@@ -77,7 +77,7 @@
   },
   "components" : {
     "schemas" : {
-      "CycleMode" : {
+      "OrchestrationMode" : {
         "type" : [ "string", "null" ],
         "enum" : [ "FULL", "DELTA", "REJECTS_ONLY" ]
       },
@@ -103,7 +103,7 @@
             "$ref" : "#/components/schemas/MigrationExecutionStatus"
           },
           "orchestrationMode" : {
-            "$ref" : "#/components/schemas/CycleMode"
+            "$ref" : "#/components/schemas/OrchestrationMode"
           },
           "ipaCodes" : {
             "type" : "array",
@@ -164,7 +164,7 @@
             }
           },
           "orchestrationMode" : {
-            "$ref" : "#/components/schemas/CycleMode",
+            "$ref" : "#/components/schemas/OrchestrationMode",
             "description" : "Required for all migration actions; REJECTS_ONLY is not supported for TRANSFER"
           },
           "fileTypesToInclude" : {
