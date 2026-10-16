@@ -23,7 +23,7 @@ public class MigrationExecutionMapper {
     return MigrationExecution.builder()
       .brokerIpaCode(brokerIpaCode)
       .ipacodes(request.getIpaCodes())
-      .cycleMode(request.getOrchestationMode())
+      .orchestrationMode(request.getOrchestrationMode())
       .action(request.getAction())
       .dateFrom(period == null ? null : period.getFromDate())
       .dateTo(period == null ? null : period.getToDate())
