@@ -40,7 +40,7 @@ public class MigrationExecution extends BaseEntity {
   private List<String> ipacodes;
   @Enumerated(EnumType.STRING)
   @NotNull
-  private CycleMode cycleMode;
+  private CycleMode orchestrationMode;
   @Enumerated(EnumType.STRING)
   @NotNull
   private MigrationAction action;

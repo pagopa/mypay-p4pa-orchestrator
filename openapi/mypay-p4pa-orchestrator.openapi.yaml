@@ -15,8 +15,8 @@ paths:
       summary: Start a migration orchestration
       description: |-
         Start an EXPORT, TRANSFER or COMPLETE migration action.
-        EXPORT and COMPLETE actions require non-empty ipaCodes and fileTypesToInclude; all actions require orchestationMode.
-        TRANSFER actions require migrationId for an existing completed migration and do not support REJECTS_ONLY mode.
+        EXPORT and COMPLETE actions require non-empty ipaCodes and fileTypesToInclude; all actions require orchestrationMode.
+        TRANSFER actions require migrationId for an existing completed EXPORT migration and do not support REJECTS_ONLY mode.
         For REJECTS_ONLY EXPORT and COMPLETE actions, migrationId identifies the previous migration; rejected records are assembled by the orchestrator.
         FULL mode requires period for EXPORT and COMPLETE actions.
       requestBody:
@@ -56,7 +56,7 @@ components:
       type: object
       required:
         - action
-        - orchestationMode
+        - orchestrationMode
       properties:
         action:
           $ref: '#/components/schemas/MigrationAction'
@@ -65,7 +65,7 @@ components:
           type: array
           items:
             type: string
-        orchestationMode:
+        orchestrationMode:
           description: Required for all migration actions; REJECTS_ONLY is not supported for TRANSFER
           $ref: '#/components/schemas/CycleMode'
         fileTypesToInclude:
@@ -74,10 +74,10 @@ components:
           items:
             type: 'MigrationFileType'
         period:
-          description: Required when orchestationMode is FULL for EXPORT and COMPLETE actions
+          description: Required when orchestrationMode is FULL for EXPORT and COMPLETE actions
           $ref: '#/components/schemas/PeriodDto'
         migrationId:
-          description: For TRANSFER, must identify an existing completed migration; for REJECTS_ONLY EXPORT and COMPLETE, identifies the previous migration
+          description: For TRANSFER, must identify an existing completed EXPORT migration; for REJECTS_ONLY EXPORT and COMPLETE, identifies the previous migration
           type: string
           format: uuid
         logicalKey:
@@ -101,7 +101,7 @@ components:
           $ref: '#/components/schemas/MigrationAction'
         status:
           $ref: '#/components/schemas/MigrationExecutionStatus'
-        orchestationMode:
+        orchestrationMode:
           $ref: '#/components/schemas/CycleMode'
         ipaCodes:
           type: array

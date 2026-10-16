@@ -78,13 +78,13 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
     return switch (request.getAction()) {
       case TRANSFER -> {
         MigrationExecution existingExecution = migrationRequestValidator.requireTransferExecution(request);
-        existingExecution.setCycleMode(request.getOrchestationMode());
+        existingExecution.setOrchestrationMode(request.getOrchestrationMode());
         existingExecution.setAction(request.getAction());
         yield existingExecution;
       }
       case COMPLETE -> {
         MigrationExecution newExecution = migrationExecutionMapper.toMigrationExecution(request);
-        if (request.getOrchestationMode() == CycleMode.REJECTS_ONLY) {
+        if (request.getOrchestrationMode() == CycleMode.REJECTS_ONLY) {
           MigrationExecution previousExecution = migrationRequestValidator.requirePreviousMigration(request);
           newExecution.setParentExecutionId(previousExecution.getId());
         }

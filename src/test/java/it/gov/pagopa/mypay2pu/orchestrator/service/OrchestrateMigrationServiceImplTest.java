@@ -79,7 +79,7 @@ class OrchestrateMigrationServiceImplTest {
     MigrationRequestDto request = new MigrationRequestDto();
     request.setAction(MigrationAction.TRANSFER);
     request.setMigrationId(migrationId);
-    request.setOrchestationMode(CycleMode.DELTA);
+    request.setOrchestrationMode(CycleMode.DELTA);
     MigrationExecution execution = existingExecution(migrationId, MigrationExecutionStatus.COMPLETED);
     when(migrationExecutionRepositoryMock.findById(migrationId)).thenReturn(Optional.of(execution));
     when(migrationExecutionRepositoryMock.save(execution)).thenReturn(execution);
@@ -95,7 +95,7 @@ class OrchestrateMigrationServiceImplTest {
     assertEquals(migrationId, response.getMigrationId());
     assertEquals(MigrationAction.TRANSFER, response.getAction());
     assertEquals(MigrationExecutionStatus.RUNNING, response.getStatus());
-    assertEquals(CycleMode.DELTA, response.getOrchestationMode());
+    assertEquals(CycleMode.DELTA, response.getOrchestrationMode());
     assertEquals(List.of(), response.getUploadIds());
     assertNotNull(response.getCreatedAt());
   }
@@ -120,7 +120,7 @@ class OrchestrateMigrationServiceImplTest {
     assertEquals(migrationId, response.getMigrationId());
     assertEquals(MigrationAction.COMPLETE, response.getAction());
     assertEquals(MigrationExecutionStatus.RUNNING, response.getStatus());
-    assertEquals(CycleMode.DELTA, response.getOrchestationMode());
+    assertEquals(CycleMode.DELTA, response.getOrchestrationMode());
     assertEquals(List.of("80000000000"), response.getIpaCodes());
     assertNotNull(response.getCreatedAt());
   }
@@ -138,7 +138,7 @@ class OrchestrateMigrationServiceImplTest {
   void transferWithoutMigrationIdIsRejected() {
     MigrationRequestDto request = new MigrationRequestDto();
     request.setAction(MigrationAction.TRANSFER);
-    request.setOrchestationMode(CycleMode.DELTA);
+    request.setOrchestrationMode(CycleMode.DELTA);
 
     InvalidValueException exception = assertThrows(InvalidValueException.class, () -> service.startMigration(request));
 
@@ -151,7 +151,7 @@ class OrchestrateMigrationServiceImplTest {
     MigrationRequestDto request = new MigrationRequestDto();
     request.setAction(MigrationAction.TRANSFER);
     request.setMigrationId(migrationId);
-    request.setOrchestationMode(CycleMode.DELTA);
+    request.setOrchestrationMode(CycleMode.DELTA);
     when(migrationExecutionRepositoryMock.findById(migrationId)).thenReturn(Optional.empty());
 
     InvalidValueException exception = assertThrows(InvalidValueException.class, () -> service.startMigration(request));
@@ -164,7 +164,7 @@ class OrchestrateMigrationServiceImplTest {
   void exportRemainsExplicitlyUnsupported() {
     MigrationRequestDto request = new MigrationRequestDto();
     request.setAction(MigrationAction.EXPORT);
-    request.setOrchestationMode(CycleMode.DELTA);
+    request.setOrchestrationMode(CycleMode.DELTA);
     request.setIpaCodes(List.of("80000000000"));
     request.setFileTypesToInclude(List.of(MigrationFileType.ORGANIZATIONS));
 
@@ -174,7 +174,7 @@ class OrchestrateMigrationServiceImplTest {
   private MigrationRequestDto completeRequest() {
     MigrationRequestDto request = new MigrationRequestDto();
     request.setAction(MigrationAction.COMPLETE);
-    request.setOrchestationMode(CycleMode.DELTA);
+    request.setOrchestrationMode(CycleMode.DELTA);
     request.setIpaCodes(List.of("80000000000"));
     request.setFileTypesToInclude(List.of(MigrationFileType.ORGANIZATIONS));
     return request;
@@ -186,7 +186,7 @@ class OrchestrateMigrationServiceImplTest {
       .status(MigrationExecutionStatus.RUNNING)
       .cycleNumber(1)
       .ipacodes(List.of("80000000000"))
-      .cycleMode(CycleMode.DELTA)
+      .orchestrationMode(CycleMode.DELTA)
       .action(MigrationAction.COMPLETE)
       .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))
       .build();
@@ -197,9 +197,10 @@ class OrchestrateMigrationServiceImplTest {
       .id(migrationId)
       .brokerIpaCode(BROKER_IPA_CODE)
       .status(status)
+      .action(MigrationAction.EXPORT)
       .cycleNumber(1)
       .ipacodes(List.of("80000000000"))
-      .cycleMode(CycleMode.DELTA)
+      .orchestrationMode(CycleMode.DELTA)
       .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))
       .creationDate(CREATION_DATE)
       .build();

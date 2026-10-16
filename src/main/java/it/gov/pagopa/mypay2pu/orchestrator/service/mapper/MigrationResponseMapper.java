@@ -17,7 +17,7 @@ public class MigrationResponseMapper {
       .migrationId(execution.getId())
       .action(execution.getAction())
       .status(execution.getStatus())
-      .orchestationMode(execution.getCycleMode())
+      .orchestrationMode(execution.getOrchestrationMode())
       .ipaCodes(execution.getIpacodes())
       .createdAt(createdAt);
   }

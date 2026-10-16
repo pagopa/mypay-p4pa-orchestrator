@@ -26,11 +26,11 @@ public class MigrationRequestValidator {
     if (request.getAction() == null) {
       throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "action is required");
     }
-    if (request.getOrchestationMode() == null) {
-      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "orchestationMode is required");
+    if (request.getOrchestrationMode() == null) {
+      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "orchestrationMode is required");
     }
     validateAction(request);
-    validateCycleMode(request);
+    validateOrchestrationMode(request);
   }
 
   public MigrationExecution requireTransferExecution(MigrationRequestDto request) {
@@ -39,10 +39,11 @@ public class MigrationRequestValidator {
       throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "migrationId is required for TRANSFER");
     }
     MigrationExecution execution = requireExistingMigration(migrationId);
-    if (execution.getStatus() != MigrationExecutionStatus.COMPLETED) {
+    if (execution.getStatus() != MigrationExecutionStatus.COMPLETED
+      || execution.getAction() != MigrationAction.EXPORT) {
       throw new InvalidValueException(
         "INVALID_MIGRATION_REQUEST",
-        "migrationId must identify a completed migration for TRANSFER"
+        "migrationId must identify a completed EXPORT migration for TRANSFER"
       );
     }
     return execution;
@@ -51,7 +52,7 @@ public class MigrationRequestValidator {
   public MigrationExecution requirePreviousMigration(MigrationRequestDto request) {
     UUID migrationId = request.getMigrationId();
     if (migrationId == null) {
-      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "migrationId is required when orchestationMode is REJECTS_ONLY");
+      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "migrationId is required when orchestrationMode is REJECTS_ONLY");
     }
     return requireExistingMigration(migrationId);
   }
@@ -73,18 +74,18 @@ public class MigrationRequestValidator {
         if (CollectionUtils.isEmpty(request.getFileTypesToInclude())) {
           throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "fileTypesToInclude are required and must not be empty");
         }
-        if (request.getOrchestationMode() == CycleMode.REJECTS_ONLY && request.getMigrationId() == null) {
+        if (request.getOrchestrationMode() == CycleMode.REJECTS_ONLY && request.getMigrationId() == null) {
           throw new InvalidValueException(
             "INVALID_MIGRATION_REQUEST",
-            "migrationId is required when orchestationMode is REJECTS_ONLY"
+            "migrationId is required when orchestrationMode is REJECTS_ONLY"
           );
         }
       }
       case TRANSFER -> {
-        if (request.getOrchestationMode() == CycleMode.REJECTS_ONLY) {
+        if (request.getOrchestrationMode() == CycleMode.REJECTS_ONLY) {
           throw new InvalidValueException(
             "INVALID_MIGRATION_REQUEST",
-            "orchestationMode REJECTS_ONLY is not supported for TRANSFER"
+            "orchestrationMode REJECTS_ONLY is not supported for TRANSFER"
           );
         }
         if (request.getMigrationId() == null) {
@@ -94,12 +95,12 @@ public class MigrationRequestValidator {
     }
   }
 
-  protected void validateCycleMode(MigrationRequestDto request) {
+  protected void validateOrchestrationMode(MigrationRequestDto request) {
     if (request.getAction() == MigrationAction.TRANSFER) {
       return;
     }
-    if (request.getOrchestationMode() == CycleMode.FULL && request.getPeriod() == null) {
-      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "period is required when orchestationMode is FULL");
+    if (request.getOrchestrationMode() == CycleMode.FULL && request.getPeriod() == null) {
+      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "period is required when orchestrationMode is FULL");
     }
   }
 }

@@ -18,7 +18,7 @@
       "post" : {
         "tags" : [ "OrchestrateMigration" ],
         "summary" : "Start a migration orchestration",
-        "description" : "Start an EXPORT, TRANSFER or COMPLETE migration action. EXPORT and COMPLETE actions require non-empty ipaCodes and fileTypesToInclude; all actions require orchestationMode. TRANSFER actions require migrationId for an existing completed migration and do not support REJECTS_ONLY mode. For REJECTS_ONLY EXPORT and COMPLETE actions, migrationId identifies the previous migration; rejected records are assembled by the orchestrator. FULL mode requires period for EXPORT and COMPLETE actions.",
+        "description" : "Start an EXPORT, TRANSFER or COMPLETE migration action. EXPORT and COMPLETE actions require non-empty ipaCodes and fileTypesToInclude; all actions require orchestrationMode. TRANSFER actions require migrationId for an existing completed EXPORT migration and do not support REJECTS_ONLY mode. For REJECTS_ONLY EXPORT and COMPLETE actions, migrationId identifies the previous migration; rejected records are assembled by the orchestrator. FULL mode requires period for EXPORT and COMPLETE actions.",
         "operationId" : "orchestrateMigration",
         "requestBody" : {
           "content" : {
@@ -102,7 +102,7 @@
           "status" : {
             "$ref" : "#/components/schemas/MigrationExecutionStatus"
           },
-          "orchestationMode" : {
+          "orchestrationMode" : {
             "$ref" : "#/components/schemas/CycleMode"
           },
           "ipaCodes" : {
@@ -163,7 +163,7 @@
               "type" : "string"
             }
           },
-          "orchestationMode" : {
+          "orchestrationMode" : {
             "$ref" : "#/components/schemas/CycleMode",
             "description" : "Required for all migration actions; REJECTS_ONLY is not supported for TRANSFER"
           },
@@ -176,18 +176,18 @@
           },
           "period" : {
             "$ref" : "#/components/schemas/PeriodDto",
-            "description" : "Required when orchestationMode is FULL for EXPORT and COMPLETE actions"
+            "description" : "Required when orchestrationMode is FULL for EXPORT and COMPLETE actions"
           },
           "migrationId" : {
             "type" : [ "string", "null" ],
             "format" : "uuid",
-            "description" : "For TRANSFER, must identify an existing completed migration; for REJECTS_ONLY EXPORT and COMPLETE, identifies the previous migration"
+            "description" : "For TRANSFER, must identify an existing completed EXPORT migration; for REJECTS_ONLY EXPORT and COMPLETE, identifies the previous migration"
           },
           "logicalKey" : {
             "type" : [ "string", "null" ]
           }
         },
-        "required" : [ "action", "orchestationMode" ]
+        "required" : [ "action", "orchestrationMode" ]
       },
       "PeriodDto" : {
         "type" : "object",

@@ -63,7 +63,7 @@ class MigrationRequestValidatorTest {
 
     InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
 
-    assertEquals("orchestationMode is required", exception.getMessage());
+    assertEquals("orchestrationMode is required", exception.getMessage());
   }
 
   @Test
@@ -71,7 +71,7 @@ class MigrationRequestValidatorTest {
     for (MigrationAction action : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
       MigrationRequestDto request = new MigrationRequestDto();
       request.setAction(action);
-      request.setOrchestationMode(CycleMode.DELTA);
+      request.setOrchestrationMode(CycleMode.DELTA);
       request.setIpaCodes(null);
 
       InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
@@ -84,7 +84,7 @@ class MigrationRequestValidatorTest {
     for (MigrationAction action : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
       MigrationRequestDto request = new MigrationRequestDto();
       request.setAction(action);
-      request.setOrchestationMode(CycleMode.DELTA);
+      request.setOrchestrationMode(CycleMode.DELTA);
       request.setIpaCodes(List.of("80000000000"));
       request.setFileTypesToInclude(null);
 
@@ -97,7 +97,7 @@ class MigrationRequestValidatorTest {
   void transferRequiresMigrationIdButNoExportFields() {
     MigrationRequestDto request = new MigrationRequestDto();
     request.setAction(MigrationAction.TRANSFER);
-    request.setOrchestationMode(CycleMode.FULL);
+    request.setOrchestrationMode(CycleMode.FULL);
     InvalidValueException exception = assertThrows(
       InvalidValueException.class,
       () -> validator.validate(request)
@@ -109,6 +109,7 @@ class MigrationRequestValidatorTest {
     MigrationExecution execution = MigrationExecution.builder()
       .id(migrationId)
       .status(MigrationExecutionStatus.COMPLETED)
+      .action(MigrationAction.EXPORT)
       .build();
     when(migrationExecutionRepositoryMock.findById(migrationId)).thenReturn(Optional.of(execution));
     assertDoesNotThrow(() -> validator.validate(request));
@@ -122,10 +123,11 @@ class MigrationRequestValidatorTest {
     MigrationRequestDto request = new MigrationRequestDto();
     request.setAction(MigrationAction.TRANSFER);
     request.setMigrationId(migrationId);
-    request.setOrchestationMode(CycleMode.DELTA);
+    request.setOrchestrationMode(CycleMode.DELTA);
     MigrationExecution execution = MigrationExecution.builder()
       .id(migrationId)
       .status(MigrationExecutionStatus.RUNNING)
+      .action(MigrationAction.EXPORT)
       .build();
     when(migrationExecutionRepositoryMock.findById(migrationId)).thenReturn(Optional.of(execution));
 
@@ -135,7 +137,30 @@ class MigrationRequestValidatorTest {
       () -> validator.requireTransferExecution(request)
     );
 
-    assertEquals("migrationId must identify a completed migration for TRANSFER", exception.getMessage());
+    assertEquals("migrationId must identify a completed EXPORT migration for TRANSFER", exception.getMessage());
+    verify(migrationExecutionRepositoryMock).findById(migrationId);
+  }
+
+  @Test
+  void transferRejectsCompletedMigrationThatWasNotExported() {
+    UUID migrationId = UUID.randomUUID();
+    MigrationRequestDto request = new MigrationRequestDto();
+    request.setAction(MigrationAction.TRANSFER);
+    request.setMigrationId(migrationId);
+    request.setOrchestrationMode(CycleMode.DELTA);
+    MigrationExecution execution = MigrationExecution.builder()
+      .id(migrationId)
+      .status(MigrationExecutionStatus.COMPLETED)
+      .action(MigrationAction.COMPLETE)
+      .build();
+    when(migrationExecutionRepositoryMock.findById(migrationId)).thenReturn(Optional.of(execution));
+
+    InvalidValueException exception = assertThrows(
+      InvalidValueException.class,
+      () -> validator.requireTransferExecution(request)
+    );
+
+    assertEquals("migrationId must identify a completed EXPORT migration for TRANSFER", exception.getMessage());
     verify(migrationExecutionRepositoryMock).findById(migrationId);
   }
 
@@ -144,11 +169,11 @@ class MigrationRequestValidatorTest {
     MigrationRequestDto request = new MigrationRequestDto();
     request.setAction(MigrationAction.TRANSFER);
     request.setMigrationId(UUID.randomUUID());
-    request.setOrchestationMode(CycleMode.REJECTS_ONLY);
+    request.setOrchestrationMode(CycleMode.REJECTS_ONLY);
 
     InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
 
-    assertEquals("orchestationMode REJECTS_ONLY is not supported for TRANSFER", exception.getMessage());
+    assertEquals("orchestrationMode REJECTS_ONLY is not supported for TRANSFER", exception.getMessage());
   }
 
   @Test
@@ -158,7 +183,7 @@ class MigrationRequestValidatorTest {
 
       InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
 
-      assertEquals("period is required when orchestationMode is FULL", exception.getMessage());
+      assertEquals("period is required when orchestrationMode is FULL", exception.getMessage());
 
       request.setPeriod(new PeriodDto());
       assertDoesNotThrow(() -> validator.validate(request));
@@ -179,7 +204,7 @@ class MigrationRequestValidatorTest {
 
       InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
 
-      assertEquals("migrationId is required when orchestationMode is REJECTS_ONLY", exception.getMessage());
+      assertEquals("migrationId is required when orchestrationMode is REJECTS_ONLY", exception.getMessage());
 
       request.setMigrationId(UUID.randomUUID());
       assertDoesNotThrow(() -> validator.validate(request));
@@ -199,10 +224,10 @@ class MigrationRequestValidatorTest {
     verify(migrationExecutionRepositoryMock).findById(migrationId);
   }
 
-  private MigrationRequestDto request(MigrationAction action, CycleMode cycleMode) {
+  private MigrationRequestDto request(MigrationAction action, CycleMode orchestrationMode) {
     MigrationRequestDto request = new MigrationRequestDto();
     request.setAction(action);
-    request.setOrchestationMode(cycleMode);
+    request.setOrchestrationMode(orchestrationMode);
     request.setIpaCodes(List.of("80000000000"));
     request.setFileTypesToInclude(List.of(MigrationFileType.ORGANIZATIONS));
     return request;
