@@ -5,13 +5,14 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatu
 import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import java.time.LocalDateTime;
-import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @AllArgsConstructor

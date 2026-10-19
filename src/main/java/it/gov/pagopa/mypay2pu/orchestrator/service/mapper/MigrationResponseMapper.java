@@ -1,46 +1,24 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service.mapper;
 
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationPhase;
+import it.gov.pagopa.mypay2pu.orchestrator.config.json.LocalDateTimeToOffsetDateTimeSerializer;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationResponseDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.util.List;
 import org.springframework.stereotype.Component;
-import tools.jackson.core.JacksonException;
-import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.json.JsonMapper;
+
+import java.time.OffsetDateTime;
 
 @Component
 public class MigrationResponseMapper {
 
-  private static final TypeReference<List<String>> IPA_CODES_TYPE = new TypeReference<>() {};
-
-  private final JsonMapper jsonMapper;
-
-  public MigrationResponseMapper(JsonMapper jsonMapper) {
-    this.jsonMapper = jsonMapper;
-  }
-
   public MigrationResponseDto toMigrationResponseDto(MigrationExecution execution) {
-    List<String> ipaCodes = null;
-    OffsetDateTime createdAt = execution.getCreationDate() == null
-      ? null
-      : execution.getCreationDate().atOffset(ZoneOffset.UTC);
-    if (execution.getAction() != MigrationPhase.TRANSFER) {
-      try {
-        ipaCodes = jsonMapper.readValue(execution.getIpacodes(), IPA_CODES_TYPE);
-      } catch (JacksonException e) {
-        throw new IllegalStateException("Unable to deserialize migration execution IPA codes", e);
-      }
-    }
+    OffsetDateTime createdAt = LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(execution.getCreationDate());
 
     return new MigrationResponseDto()
       .migrationId(execution.getId())
       .action(execution.getAction())
       .status(execution.getStatus())
-      .orchestationMode(execution.getCycleMode())
-      .ipaCodes(ipaCodes)
+      .orchestrationMode(execution.getOrchestrationMode())
+      .ipaCodes(execution.getIpacodes())
       .createdAt(createdAt);
   }
 }
