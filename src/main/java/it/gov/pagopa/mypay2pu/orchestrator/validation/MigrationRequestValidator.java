@@ -99,8 +99,18 @@ public class MigrationRequestValidator {
     if (request.getAction() == MigrationAction.TRANSFER) {
       return;
     }
-    if (request.getOrchestrationMode() == OrchestrationMode.FULL && request.getPeriod() == null) {
-      throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "period is required when orchestrationMode is FULL");
+    if (request.getOrchestrationMode() == OrchestrationMode.FULL) {
+      if (request.getPeriod() == null) {
+        throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "period is required when orchestrationMode is FULL");
+      }
+      if (request.getPeriod().getFromDate() != null
+        && request.getPeriod().getToDate() != null
+        && request.getPeriod().getFromDate().isAfter(request.getPeriod().getToDate())) {
+        throw new InvalidValueException(
+          "INVALID_MIGRATION_REQUEST",
+          "period.fromDate must not be after period.toDate"
+        );
+      }
     }
   }
 }

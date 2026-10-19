@@ -1,7 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.model;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -32,7 +32,7 @@ public class MigrationFileExecution extends BaseEntity {
   private MigrationFileType fileType;
   @NotNull
   @Enumerated(EnumType.STRING)
-  private MigrationExecutionStatus status;
+  private MigrationFileExecutionStatus status;
   private String extractorId;
   private String filePath;
   private String extractorErrorCode;

@@ -198,6 +198,23 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
+  void fullCycleRejectsInvertedPeriodAndAllowsOptionalEndpoints() {
+    MigrationRequestDto request = request(MigrationAction.EXPORT, OrchestrationMode.FULL);
+    request.setPeriod(new PeriodDto(
+      java.time.LocalDate.of(2026, java.time.Month.FEBRUARY, 1),
+      java.time.LocalDate.of(2026, java.time.Month.JANUARY, 1)
+    ));
+
+    InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
+    assertEquals("period.fromDate must not be after period.toDate", exception.getMessage());
+
+    request.setPeriod(new PeriodDto());
+    assertDoesNotThrow(() -> validator.validate(request));
+    request.setPeriod(new PeriodDto(java.time.LocalDate.of(2026, java.time.Month.JANUARY, 1), null));
+    assertDoesNotThrow(() -> validator.validate(request));
+  }
+
+  @Test
   void rejectsOnlyCycleRequiresPreviousMigrationId() {
     for (MigrationAction action : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
       MigrationRequestDto request = request(action, OrchestrationMode.REJECTS_ONLY);

@@ -10,6 +10,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.CompleteMigrationPhaseCoordinator;
+import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.ExportPhaseCoordinator;
 import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.TransferPhaseCoordinator;
 import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationExecutionMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationResponseMapper;
@@ -42,6 +43,8 @@ import static org.mockito.Mockito.when;
 class OrchestrateMigrationServiceImplTest {
 
   @Mock
+  private ExportPhaseCoordinator exportPhaseCoordinatorMock;
+  @Mock
   private TransferPhaseCoordinator transferPhaseCoordinatorMock;
   @Mock
   private CompleteMigrationPhaseCoordinator completeMigrationPhaseCoordinatorMock;
@@ -55,6 +58,7 @@ class OrchestrateMigrationServiceImplTest {
   @BeforeEach
   void setUp() {
     service = new OrchestrateMigrationServiceImpl(
+      exportPhaseCoordinatorMock,
       transferPhaseCoordinatorMock,
       completeMigrationPhaseCoordinatorMock,
       new MigrationRequestValidator(migrationExecutionRepositoryMock),
@@ -67,10 +71,89 @@ class OrchestrateMigrationServiceImplTest {
   @AfterEach
   void verifyMocks() {
     verifyNoMoreInteractions(
+      exportPhaseCoordinatorMock,
       transferPhaseCoordinatorMock,
       completeMigrationPhaseCoordinatorMock,
       migrationExecutionRepositoryMock
     );
+  }
+
+  @Test
+  void exportDelegatesSavedExecutionAndReturnsInitialResponse() {
+    MigrationRequestDto request = new MigrationRequestDto();
+    request.setAction(MigrationAction.EXPORT);
+    request.setOrchestrationMode(OrchestrationMode.DELTA);
+    request.setIpaCodes(List.of("80000000000"));
+    request.setFileTypesToInclude(List.of(MigrationFileType.ORGANIZATIONS));
+    MigrationExecution expectedExecution = MigrationExecution.builder()
+      .brokerIpaCode(BROKER_IPA_CODE)
+      .status(MigrationExecutionStatus.RUNNING)
+      .cycleNumber(1)
+      .ipacodes(List.of("80000000000"))
+      .orchestrationMode(OrchestrationMode.DELTA)
+      .action(MigrationAction.EXPORT)
+      .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))
+      .build();
+    UUID migrationId = UUID.randomUUID();
+    MigrationExecution savedExecution = MigrationExecution.builder()
+      .id(migrationId)
+      .brokerIpaCode(BROKER_IPA_CODE)
+      .status(MigrationExecutionStatus.RUNNING)
+      .cycleNumber(1)
+      .ipacodes(List.of("80000000000"))
+      .orchestrationMode(OrchestrationMode.DELTA)
+      .action(MigrationAction.EXPORT)
+      .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))
+      .creationDate(CREATION_DATE)
+      .build();
+    when(migrationExecutionRepositoryMock.save(refEq(expectedExecution, "creationDate"))).thenReturn(savedExecution);
+    when(exportPhaseCoordinatorMock.start(savedExecution)).thenReturn(CompletableFuture.completedFuture(null));
+
+    MigrationResponseDto response = service.startMigration(request);
+
+    InOrder inOrder = inOrder(migrationExecutionRepositoryMock, exportPhaseCoordinatorMock);
+    ArgumentCaptor<MigrationExecution> executionCaptor = ArgumentCaptor.forClass(MigrationExecution.class);
+    inOrder.verify(migrationExecutionRepositoryMock).save(executionCaptor.capture());
+    assertNotNull(executionCaptor.getValue().getCreationDate());
+    inOrder.verify(exportPhaseCoordinatorMock).start(savedExecution);
+    assertEquals(migrationId, response.getMigrationId());
+    assertEquals(MigrationAction.EXPORT, response.getAction());
+    assertEquals(MigrationExecutionStatus.RUNNING, response.getStatus());
+    assertEquals(OrchestrationMode.DELTA, response.getOrchestrationMode());
+  }
+
+  @Test
+  void rejectsOnlyExportLinksPreviousMigration() {
+    UUID previousMigrationId = UUID.randomUUID();
+    MigrationExecution previousExecution = MigrationExecution.builder()
+      .id(previousMigrationId)
+      .status(MigrationExecutionStatus.COMPLETED)
+      .action(MigrationAction.COMPLETE)
+      .build();
+    MigrationRequestDto request = new MigrationRequestDto();
+    request.setAction(MigrationAction.EXPORT);
+    request.setOrchestrationMode(OrchestrationMode.REJECTS_ONLY);
+    request.setMigrationId(previousMigrationId);
+    request.setIpaCodes(List.of("80000000000"));
+    request.setFileTypesToInclude(List.of(MigrationFileType.ORGANIZATIONS));
+    when(migrationExecutionRepositoryMock.findById(previousMigrationId)).thenReturn(Optional.of(previousExecution));
+    when(migrationExecutionRepositoryMock.save(org.mockito.ArgumentMatchers.argThat(
+      execution -> previousMigrationId.equals(execution.getParentExecutionId())
+    ))).thenAnswer(invocation -> invocation.getArgument(0));
+    when(exportPhaseCoordinatorMock.start(org.mockito.ArgumentMatchers.argThat(
+      execution -> previousMigrationId.equals(execution.getParentExecutionId())
+    ))).thenReturn(CompletableFuture.completedFuture(null));
+
+    MigrationResponseDto response = service.startMigration(request);
+
+    assertEquals(MigrationAction.EXPORT, response.getAction());
+    verify(migrationExecutionRepositoryMock).findById(previousMigrationId);
+    verify(migrationExecutionRepositoryMock).save(org.mockito.ArgumentMatchers.argThat(
+      execution -> previousMigrationId.equals(execution.getParentExecutionId())
+    ));
+    verify(exportPhaseCoordinatorMock).start(org.mockito.ArgumentMatchers.argThat(
+      execution -> previousMigrationId.equals(execution.getParentExecutionId())
+    ));
   }
 
   @Test
@@ -158,17 +241,6 @@ class OrchestrateMigrationServiceImplTest {
 
     assertEquals("migrationId does not identify an existing migration", exception.getMessage());
     verify(migrationExecutionRepositoryMock).findById(migrationId);
-  }
-
-  @Test
-  void exportRemainsExplicitlyUnsupported() {
-    MigrationRequestDto request = new MigrationRequestDto();
-    request.setAction(MigrationAction.EXPORT);
-    request.setOrchestrationMode(OrchestrationMode.DELTA);
-    request.setIpaCodes(List.of("80000000000"));
-    request.setFileTypesToInclude(List.of(MigrationFileType.ORGANIZATIONS));
-
-    assertThrows(UnsupportedOperationException.class, () -> service.startMigration(request));
   }
 
   private MigrationRequestDto completeRequest() {

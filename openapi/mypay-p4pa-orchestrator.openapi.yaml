@@ -134,6 +134,27 @@ components:
         - COMPLETED
         - FAILED
         - WARNING
+    MigrationFileExecutionStatus:
+      type: string
+      enum:
+        - PENDING
+        - EXTRACTING
+        - EXTRACTED
+        - UPLOADING
+        - WAITING_PU
+        - COMPLETED
+        - WARNING
+        - FAILED
+    MigrationFileExecutionDetailStatus:
+      type: string
+      enum:
+        - PENDING
+        - EXTRACTED
+        - UPLOADING
+        - WAITING_PU
+        - COMPLETED
+        - PARTIAL
+        - FAILED
     ErrorDTO:
       type: object
       required:
