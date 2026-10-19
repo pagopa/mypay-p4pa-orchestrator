@@ -19,7 +19,7 @@ public class MigrationExportOperationImpl implements MigrationExportOperation {
   @Override
   public void execute(MigrationRequestDto request) {
     throw new UnsupportedOperationException(
-      "EXPORT for %s is not implemented: the Extractor request and extraction-status handling belong to the Extract component tasks (PDF tasks 27-30 and file-type extraction tasks).".formatted(migrationFileType)
+      "EXPORT for %s is not implemented: the Extractor request and extraction-status handling belong to the Extract component tasks.".formatted(migrationFileType)
     );
   }
 }
