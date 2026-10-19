@@ -1,9 +1,9 @@
-package it.gov.pagopa.mypay2pu.orchestrator.service.tmp;
+package it.gov.pagopa.mypay2pu.orchestrator.service.orchestrator;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 
 public interface MigrationOperation {
-  MigrationFileType getMigrationFileType();
+  MigrationFileType migrationFileType();
   void execute(MigrationRequestDto request);
 }

@@ -1,4 +1,4 @@
-package it.gov.pagopa.mypay2pu.orchestrator.service.tmp;
+package it.gov.pagopa.mypay2pu.orchestrator.service.orchestrator;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
@@ -12,14 +12,18 @@ public class MigrationCompleteOperation implements MigrationOperation {
     this.exportOperation = exportOperation;
     this.transferOperation = transferOperation;
 
-    if(exportOperation.getMigrationFileType().equals(transferOperation.getMigrationFileType())){
-      throw new IllegalStateException("Invalid configuration:" + MigrationExportOperation.class.getSimpleName()  + MigrationTransferOperation.class.getSimpleName());
+    MigrationFileType exportFileType = exportOperation.migrationFileType();
+    MigrationFileType transferFileType = transferOperation.migrationFileType();
+    if (exportFileType != transferFileType) {
+      throw new IllegalArgumentException(
+        "COMPLETE operations must target the same migration file type: export=%s, transfer=%s".formatted(exportFileType, transferFileType)
+      );
     }
   }
 
   @Override
-  public MigrationFileType getMigrationFileType() {
-    return exportOperation.getMigrationFileType();
+  public MigrationFileType migrationFileType() {
+    return exportOperation.migrationFileType();
   }
 
   @Override
