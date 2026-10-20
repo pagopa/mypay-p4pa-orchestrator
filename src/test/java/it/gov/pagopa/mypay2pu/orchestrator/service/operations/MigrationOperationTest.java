@@ -47,8 +47,9 @@ class MigrationOperationTest {
   @ParameterizedTest
   @MethodSource("operations")
   void givenUnimplementedOperationWhenExecuteThenThrowUnsupportedOperationException(MigrationFileType expectedFileType, MigrationOperation operation) {
+    MigrationRequestDto request = new MigrationRequestDto();
     UnsupportedOperationException exception = assertThrows(
-      UnsupportedOperationException.class, () -> operation.execute(new MigrationRequestDto())
+      UnsupportedOperationException.class, () -> operation.execute(request)
     );
 
     assertTrue(exception.getMessage().contains(expectedFileType.name()));

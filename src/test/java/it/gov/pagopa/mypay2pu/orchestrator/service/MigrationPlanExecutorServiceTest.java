@@ -50,15 +50,16 @@ class MigrationPlanExecutorServiceTest {
     IllegalStateException failure = new IllegalStateException("parent failed");
     Map<MigrationFileType, MigrationOperation> operations = operations(executed);
     operations.put(failedParent, operation(failedParent, executed, failure));
+    MigrationRequestDto request = request(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileType.ORGANIZATIONS,
+      failedParent,
+      MigrationFileType.DEBT_POSITIONS_TYPE_ORG_OPERATORS
+    );
 
     IllegalStateException thrown = assertThrows(
       IllegalStateException.class,
-      () -> planExecutor.execute(request(
-        MigrationFileType.DEBT_POSITIONS_TYPE,
-        MigrationFileType.ORGANIZATIONS,
-        failedParent,
-        MigrationFileType.DEBT_POSITIONS_TYPE_ORG_OPERATORS
-      ), operations)
+      () -> planExecutor.execute(request, operations)
     );
 
     assertEquals(failure, thrown);
