@@ -1,8 +1,10 @@
-package it.gov.pagopa.mypay2pu.orchestrator.service.orchestrator;
+package it.gov.pagopa.mypay2pu.orchestrator.service;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
+import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationOperation;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -11,11 +13,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class MigrationOrchestratorTest {
+@Timeout(10)
+class MigrationPlanExecutorServiceTest {
 
   private static final Map<MigrationFileType, MigrationFileType> PARENTS = Map.ofEntries(
     Map.entry(MigrationFileType.ORGANIZATIONS, MigrationFileType.DEBT_POSITIONS_TYPE),
@@ -31,13 +37,30 @@ class MigrationOrchestratorTest {
     Map.entry(MigrationFileType.ASSESSMENTS_REGISTRY, MigrationFileType.DEBT_POSITIONS_TYPE_ORG)
   );
 
-  private final MigrationOrchestrator orchestrator = new MigrationOrchestrator();
+  private final MigrationPlanExecutorService planExecutor = new MigrationPlanExecutorService();
 
   @Test
-  void visitsAllTwelveFileTypesAndExecutesDuplicatesOnlyOnce() {
+  void validatePlan() {
+    Set<MigrationFileType> visited = EnumSet.noneOf(MigrationFileType.class);
+    visitPlan(MigrationFileType.DEBT_POSITIONS_TYPE, visited);
+
+    assertEquals(EnumSet.allOf(MigrationFileType.class), visited);
+    MigrationPlanExecutorService.MIGRATION_PLAN.forEach((parent, children) ->
+      children.forEach(child -> assertEquals(parent, PARENTS.get(child)))
+    );
+  }
+
+  private void visitPlan(MigrationFileType fileType, Set<MigrationFileType> visited) {
+    assertTrue(visited.add(fileType), "Cycle or multiple paths in migration plan at " + fileType);
+    MigrationPlanExecutorService.MIGRATION_PLAN.getOrDefault(fileType, Set.of())
+      .forEach(child -> visitPlan(child, visited));
+  }
+
+  @Test
+  void visitsAllFileTypesOnVirtualThreads() {
     Set<MigrationFileType> executed = ConcurrentHashMap.newKeySet();
 
-    orchestrator.execute(
+    planExecutor.execute(
       request(MigrationFileType.values()),
       recordingOperations(executed, null)
     );
@@ -50,7 +73,7 @@ class MigrationOrchestratorTest {
     Set<MigrationFileType> executed = ConcurrentHashMap.newKeySet();
     Map<MigrationFileType, MigrationOperation> operations = recordingOperations(executed, null);
 
-    orchestrator.execute(request(
+    planExecutor.execute(request(
       MigrationFileType.ORGANIZATIONS,
       MigrationFileType.DEBT_POSITIONS_TYPE,
       MigrationFileType.ASSESSMENTS,
@@ -68,7 +91,7 @@ class MigrationOrchestratorTest {
   void completesLeafNodesWithoutChildren() {
     Set<MigrationFileType> executed = ConcurrentHashMap.newKeySet();
 
-    orchestrator.execute(
+    planExecutor.execute(
       request(MigrationFileType.ASSESSMENTS_REGISTRY),
       recordingOperations(executed, null)
     );
@@ -77,21 +100,41 @@ class MigrationOrchestratorTest {
   }
 
   @Test
-  void validatesEverySelectedOperationBeforeExecutingAny() {
-    List<MigrationFileType> executed = new ArrayList<>();
-    Map<MigrationFileType, MigrationOperation> operations = new EnumMap<>(MigrationFileType.class);
-    operations.put(
-      MigrationFileType.DEBT_POSITIONS_TYPE,
-      operation(MigrationFileType.DEBT_POSITIONS_TYPE, executed, null)
-    );
+  void runsSiblingBranchesConcurrentlyWithoutAGlobalLevelBarrier() {
+    CountDownLatch slowSiblingStarted = new CountDownLatch(1);
+    CountDownLatch descendantCompleted = new CountDownLatch(1);
+    Set<MigrationFileType> executed = ConcurrentHashMap.newKeySet();
+    Map<MigrationFileType, MigrationOperation> operations = recordingOperations(executed, null);
+    operations.put(MigrationFileType.ORG_SIL_SERVICES, new MigrationOperation() {
+      @Override
+      public MigrationFileType migrationFileType() {
+        return MigrationFileType.ORG_SIL_SERVICES;
+      }
 
-    MigrationRequestDto request = request(MigrationFileType.DEBT_POSITIONS_TYPE, MigrationFileType.ORGANIZATIONS);
-    assertThrows(IllegalArgumentException.class, () -> orchestrator.execute(
-      request,
-      operations
-    ));
+      @Override
+      public void execute(MigrationRequestDto request) {
+        slowSiblingStarted.countDown();
+        await(descendantCompleted);
+        executed.add(migrationFileType());
+      }
+    });
+    operations.put(MigrationFileType.ASSESSMENTS, new MigrationOperation() {
+      @Override
+      public MigrationFileType migrationFileType() {
+        return MigrationFileType.ASSESSMENTS;
+      }
 
-    assertEquals(List.of(), executed);
+      @Override
+      public void execute(MigrationRequestDto request) {
+        await(slowSiblingStarted);
+        executed.add(migrationFileType());
+        descendantCompleted.countDown();
+      }
+    });
+
+    planExecutor.execute(request(MigrationFileType.values()), operations);
+
+    assertEquals(EnumSet.allOf(MigrationFileType.class), executed);
   }
 
   @Test
@@ -109,7 +152,7 @@ class MigrationOrchestratorTest {
       operation(MigrationFileType.ORGANIZATIONS, executed, null)
     );
 
-    IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> orchestrator.execute(
+    IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> planExecutor.execute(
       request,
       operations
     ));
@@ -119,20 +162,44 @@ class MigrationOrchestratorTest {
   }
 
   @Test
-  void rejectsUnresolvedOrEmptySelection() {
-    Map<MigrationFileType, MigrationOperation> migrationFileTypeMigrationOperationMap = recordingOperations(ConcurrentHashMap.newKeySet(), null);
-    MigrationRequestDto request = request();
-    assertThrows(IllegalArgumentException.class, () -> orchestrator.execute(
-      request,
-      migrationFileTypeMigrationOperationMap
-    ));
+  void propagatesFailureFromANestedBranchWithoutExecutingItsDescendants() {
+    Set<MigrationFileType> executed = ConcurrentHashMap.newKeySet();
+    Map<MigrationFileType, MigrationOperation> operations = recordingOperations(executed, null);
+    operations.put(MigrationFileType.DEBT_POSITIONS_TYPE_ORG, new MigrationOperation() {
 
-    MigrationRequestDto unresolvedRequest = new MigrationRequestDto();
-    unresolvedRequest.setFileTypesToInclude(null);
-    assertThrows(IllegalArgumentException.class, () -> orchestrator.execute(
-      unresolvedRequest,
-      migrationFileTypeMigrationOperationMap
-    ));
+      @Override
+      public MigrationFileType migrationFileType() {
+        return MigrationFileType.DEBT_POSITIONS_TYPE_ORG;
+      }
+
+      @Override
+      public void execute(MigrationRequestDto request) {
+        executed.add(migrationFileType());
+        throw new IllegalStateException("nested parent failed");
+      }
+    });
+
+    MigrationRequestDto request = request(MigrationFileType.values());
+    assertThrows(IllegalStateException.class,
+      () -> planExecutor.execute(request, operations),
+      "nested parent failed"
+    );
+
+    assertEquals(Set.of(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileType.ORGANIZATIONS,
+      MigrationFileType.DEBT_POSITIONS_TYPE_ORG,
+      MigrationFileType.ORG_SIL_SERVICES
+    ), executed);
+  }
+
+  private void await(CountDownLatch latch) {
+    try {
+      assertTrue(latch.await(5, TimeUnit.SECONDS), "Timed out waiting for a sibling branch");
+    } catch (InterruptedException exception) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException("Interrupted while waiting for a sibling branch", exception);
+    }
   }
 
   private Map<MigrationFileType, MigrationOperation> recordingOperations(
@@ -149,6 +216,7 @@ class MigrationOrchestratorTest {
 
         @Override
         public void execute(MigrationRequestDto request) {
+          assertTrue(Thread.currentThread().isVirtual());
           MigrationFileType parent = PARENTS.get(fileType);
           if (parent != null
             && request.getFileTypesToInclude().contains(parent)
