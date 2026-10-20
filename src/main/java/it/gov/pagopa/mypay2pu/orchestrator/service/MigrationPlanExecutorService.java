@@ -11,6 +11,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.function.Function;
 
 @Service
 public class MigrationPlanExecutorService {
@@ -58,14 +59,15 @@ public class MigrationPlanExecutorService {
                                               Set<MigrationFileType> selectedFileTypes,
                                               Map<MigrationFileType, ? extends MigrationOperation> operationMap,
                                               Executor executor) {
-    return CompletableFuture.runAsync(() -> {
-      if (selectedFileTypes.contains(migrationFileType)) {
-        operationMap.get(migrationFileType).execute(request);
-      }
-    }, executor).thenCompose(ignored -> CompletableFuture.allOf(
-      MIGRATION_PLAN.getOrDefault(migrationFileType, Set.of()).stream()
-        .map(child -> executePlan(request, child, selectedFileTypes, operationMap, executor))
-        .toArray(CompletableFuture<?>[]::new)
-    ));
+    if (selectedFileTypes.contains(migrationFileType)) {
+      operationMap.get(migrationFileType).execute(request);
+    }
+
+    return CompletableFuture.allOf(MIGRATION_PLAN.getOrDefault(migrationFileType, Set.of()).stream()
+      .map(child -> CompletableFuture.supplyAsync(
+        () -> executePlan(request, child, selectedFileTypes, operationMap, executor),
+        executor
+      ).thenCompose(Function.identity()))
+      .toArray(CompletableFuture<?>[]::new));
   }
 }

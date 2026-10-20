@@ -3,163 +3,116 @@ package it.gov.pagopa.mypay2pu.orchestrator.service;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
-import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationCompleteOperation;
 import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationExportOperation;
 import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationTransferOperation;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationContext;
 
 import java.util.List;
-import java.util.EnumSet;
-import java.util.stream.Collectors;
+import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 class MigrationFacadeServiceTest {
 
-  @Test
-  void discoversOneComponentPerFileTypeAndPhaseAndFailsExplicitlyForUnimplementedUseCases() {
-    try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
-      context.scan("it.gov.pagopa.mypay2pu.orchestrator.service.operations");
-      context.register(MigrationPlanExecutorService.class, MigrationFacadeService.class);
-      context.refresh();
-      MigrationFacadeService facade = context.getBean(MigrationFacadeService.class);
+  @Mock
+  private ApplicationContext applicationContextMock;
+  @Mock
+  private MigrationExportOperation organizationsExportMock;
+  @Mock
+  private MigrationExportOperation orgSilServicesExportMock;
+  @Mock
+  private MigrationExportOperation debtPositionsExportMock;
+  @Mock
+  private MigrationTransferOperation organizationsTransferMock;
+  @Mock
+  private MigrationTransferOperation orgSilServicesTransferMock;
+  @Mock
+  private MigrationTransferOperation debtPositionsTransferMock;
 
-      var exportOperations = context.getBeansOfType(MigrationExportOperation.class).values();
-      var transferOperations = context.getBeansOfType(MigrationTransferOperation.class).values();
-      assertEquals(MigrationFileType.values().length, exportOperations.size());
-      assertEquals(MigrationFileType.values().length, transferOperations.size());
-      assertEquals(EnumSet.allOf(MigrationFileType.class), exportOperations.stream()
-        .map(MigrationExportOperation::migrationFileType).collect(Collectors.toSet()));
-      assertEquals(EnumSet.allOf(MigrationFileType.class), transferOperations.stream()
-        .map(MigrationTransferOperation::migrationFileType).collect(Collectors.toSet()));
+  private MigrationFacadeService facade;
 
-      for (MigrationAction action : MigrationAction.values()) {
-        for (MigrationFileType fileType : MigrationFileType.values()) {
-          MigrationRequestDto request = new MigrationRequestDto();
-          request.setAction(action);
-          request.setFileTypesToInclude(List.of(fileType));
+  @BeforeEach
+  void setUp() {
+    when(organizationsExportMock.getMigrationFileType()).thenReturn(MigrationFileType.ORGANIZATIONS);
+    when(orgSilServicesExportMock.getMigrationFileType()).thenReturn(MigrationFileType.ORG_SIL_SERVICES);
+    when(debtPositionsExportMock.getMigrationFileType()).thenReturn(MigrationFileType.DEBT_POSITIONS);
+    when(organizationsTransferMock.getMigrationFileType()).thenReturn(MigrationFileType.ORGANIZATIONS);
+    when(orgSilServicesTransferMock.getMigrationFileType()).thenReturn(MigrationFileType.ORG_SIL_SERVICES);
+    when(debtPositionsTransferMock.getMigrationFileType()).thenReturn(MigrationFileType.DEBT_POSITIONS);
+    when(applicationContextMock.getBeansOfType(MigrationExportOperation.class)).thenReturn(Map.of(
+      "organizationsExport", organizationsExportMock,
+      "orgSilServicesExport", orgSilServicesExportMock,
+      "debtPositionsExport", debtPositionsExportMock
+    ));
+    when(applicationContextMock.getBeansOfType(MigrationTransferOperation.class)).thenReturn(Map.of(
+      "organizationsTransfer", organizationsTransferMock,
+      "orgSilServicesTransfer", orgSilServicesTransferMock,
+      "debtPositionsTransfer", debtPositionsTransferMock
+    ));
 
-          UnsupportedOperationException exception = assertThrows(
-            UnsupportedOperationException.class,
-            () -> facade.execute(request)
-          );
-          assertTrue(exception.getMessage().contains(fileType.name()));
-          assertTrue(exception.getMessage().contains(
-            action == MigrationAction.TRANSFER ? "p4pa-migration" : "Extractor"
-          ));
-        }
-      }
-    }
+    facade = new MigrationFacadeService(new MigrationPlanExecutorService(), applicationContextMock);
   }
 
-  @Test
-  void dispatchesEachActionAndComposesOnlyMatchingExportAndTransferOperations() {
-    StringBuilder executionOrder = new StringBuilder();
-    MigrationFileType fileType = MigrationFileType.ORGANIZATIONS;
-    try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
-      context.registerBean("organizationsExport", MigrationExportOperation.class,
-        () -> operation(fileType, executionOrder, "export"));
-      context.registerBean("organizationsTransfer", MigrationTransferOperation.class,
-        () -> transferOperation(fileType, executionOrder, "transfer"));
-      context.register(MigrationPlanExecutorService.class, MigrationFacadeService.class);
-      context.refresh();
-      MigrationFacadeService facade = context.getBean(MigrationFacadeService.class);
-      MigrationRequestDto request = new MigrationRequestDto();
-      request.setFileTypesToInclude(List.of(fileType));
-
-      request.setAction(MigrationAction.EXPORT);
-      facade.execute(request);
-      assertEquals("export,", executionOrder.toString());
-      executionOrder.setLength(0);
-
-      request.setAction(MigrationAction.TRANSFER);
-      facade.execute(request);
-      assertEquals("transfer,", executionOrder.toString());
-      executionOrder.setLength(0);
-
-      request.setAction(MigrationAction.COMPLETE);
-      facade.execute(request);
-      assertEquals("export,transfer,", executionOrder.toString());
-    }
-  }
-
-  @Test
-  void completeOperationRequiresMatchingFileTypesAndExecutesExportBeforeTransfer() {
-    MigrationFileType fileType = MigrationFileType.ORGANIZATIONS;
-    StringBuilder executionOrder = new StringBuilder();
-    MigrationExportOperation export = operation(fileType, executionOrder, "export");
-    MigrationTransferOperation transfer = transferOperation(fileType, executionOrder, "transfer");
-
-    MigrationCompleteOperation completeOperation = new MigrationCompleteOperation(export, transfer);
-    completeOperation.execute(new MigrationRequestDto());
-
-    MigrationExportOperation export1 = operation(fileType, new StringBuilder(), "export");
-    MigrationTransferOperation transfer1 = transferOperation(MigrationFileType.DEBT_POSITIONS, new StringBuilder(), "transfer");
-    assertEquals("export,transfer,", executionOrder.toString());
-    assertThrows(IllegalArgumentException.class, () -> new MigrationCompleteOperation(export1, transfer1));
-  }
-
-  @Test
-  void completeOperationDoesNotTransferWhenExportFails() {
-    StringBuilder executionOrder = new StringBuilder();
-    MigrationExportOperation export = new MigrationExportOperation() {
-      @Override
-      public MigrationFileType migrationFileType() {
-        return MigrationFileType.ORGANIZATIONS;
-      }
-
-      @Override
-      public void execute(MigrationRequestDto request) {
-        throw new IllegalStateException("export failed");
-      }
-    };
-    MigrationCompleteOperation complete = new MigrationCompleteOperation(export,
-      transferOperation(MigrationFileType.ORGANIZATIONS, executionOrder, "transfer"));
-
-    MigrationRequestDto request = new MigrationRequestDto();
-    assertThrows(IllegalStateException.class,
-      () -> complete.execute(request),
-      "export failed"
+  @AfterEach
+  void verifyMocks() {
+    verifyNoMoreInteractions(
+      applicationContextMock,
+      organizationsExportMock,
+      orgSilServicesExportMock,
+      debtPositionsExportMock,
+      organizationsTransferMock,
+      orgSilServicesTransferMock,
+      debtPositionsTransferMock
     );
-    assertEquals("", executionOrder.toString());
   }
 
-  private MigrationExportOperation operation(
-    MigrationFileType fileType,
-    StringBuilder executionOrder,
-    String action
-  ) {
-    return new MigrationExportOperation() {
-      @Override
-      public MigrationFileType migrationFileType() {
-        return fileType;
-      }
+  @Test
+  void givenTransferSelectionWhenExecuteThenInvokeOnlySelectedTransferOperation() {
+    MigrationRequestDto request = request(MigrationAction.TRANSFER,
+      MigrationFileType.DEBT_POSITIONS);
 
-      @Override
-      public void execute(MigrationRequestDto request) {
-        executionOrder.append(action).append(',');
-      }
-    };
+    facade.execute(request);
+
+    verify(debtPositionsTransferMock).execute(request);
   }
 
-  private MigrationTransferOperation transferOperation(
-    MigrationFileType fileType,
-    StringBuilder executionOrder,
-    String action
-  ) {
-    return new MigrationTransferOperation() {
-      @Override
-      public MigrationFileType migrationFileType() {
-        return fileType;
-      }
+  @Test
+  void givenExportSelectionWhenExecuteThenInvokeOnlySelectedExportOperation() {
+    MigrationRequestDto request = request(MigrationAction.EXPORT,
+      MigrationFileType.ORG_SIL_SERVICES);
 
-      @Override
-      public void execute(MigrationRequestDto request) {
-        executionOrder.append(action).append(',');
-      }
-    };
+    facade.execute(request);
+
+    verify(orgSilServicesExportMock).execute(request);
+  }
+
+  @Test
+  void givenCompleteSelectionWhenExecuteThenInvokeOnlySelectedExportAndTransferOperations() {
+    MigrationRequestDto request = request(MigrationAction.COMPLETE,
+      MigrationFileType.ORGANIZATIONS,
+      MigrationFileType.ORG_SIL_SERVICES);
+
+    facade.execute(request);
+
+    verify(organizationsExportMock).execute(request);
+    verify(organizationsTransferMock).execute(request);
+    verify(orgSilServicesExportMock).execute(request);
+    verify(orgSilServicesTransferMock).execute(request);
+  }
+
+  private MigrationRequestDto request(MigrationAction action, MigrationFileType... fileTypes) {
+    MigrationRequestDto request = new MigrationRequestDto();
+    request.setAction(action);
+    request.setFileTypesToInclude(List.of(fileTypes));
+    return request;
   }
 }

@@ -10,7 +10,6 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -29,13 +28,13 @@ public class MigrationFacadeService {
     this.migrationExportOperations = applicationContext.getBeansOfType(MigrationExportOperation.class).values()
       .stream()
       .collect(Collectors.toUnmodifiableMap(
-        MigrationOperation::migrationFileType,
+        MigrationOperation::getMigrationFileType,
         Function.identity()
       ));
     this.migrationTransferOperations = applicationContext.getBeansOfType(MigrationTransferOperation.class).values()
       .stream()
       .collect(Collectors.toUnmodifiableMap(
-        MigrationOperation::migrationFileType,
+        MigrationOperation::getMigrationFileType,
         Function.identity()
       ));
 
@@ -51,11 +50,6 @@ public class MigrationFacadeService {
   }
 
   public void execute(MigrationRequestDto request) {
-    Objects.requireNonNull(request, "request must not be null");
-    if (request.getAction() == null) {
-      throw new IllegalArgumentException("action must not be null");
-    }
-
     Map<MigrationFileType, ? extends MigrationOperation> migrationOperations = switch (request.getAction()) {
       case EXPORT -> migrationExportOperations;
       case TRANSFER -> migrationTransferOperations;
