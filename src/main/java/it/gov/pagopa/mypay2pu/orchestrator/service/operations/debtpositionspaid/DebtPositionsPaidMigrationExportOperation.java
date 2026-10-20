@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 public class DebtPositionsPaidMigrationExportOperation implements MigrationExportOperation {
 
   @Override
-  public MigrationFileType migrationFileType() {
+  public MigrationFileType getMigrationFileType() {
     return MigrationFileType.DEBT_POSITIONS_PAID;
   }
 
@@ -17,7 +17,7 @@ public class DebtPositionsPaidMigrationExportOperation implements MigrationExpor
   public void execute(MigrationRequestDto request) {
     throw new UnsupportedOperationException(
       "EXPORT for %s is not implemented: the Extractor request and extraction-status handling belong to the Extract component tasks."
-        .formatted(migrationFileType())
+        .formatted(getMigrationFileType())
     );
   }
 }

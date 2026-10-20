@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 public class OrgSilServicesMigrationTransferOperation implements MigrationTransferOperation {
 
   @Override
-  public MigrationFileType migrationFileType() {
+  public MigrationFileType getMigrationFileType() {
     return MigrationFileType.ORG_SIL_SERVICES;
   }
 
@@ -17,7 +17,7 @@ public class OrgSilServicesMigrationTransferOperation implements MigrationTransf
   public void execute(MigrationRequestDto request) {
     throw new UnsupportedOperationException(
       "TRANSFER for %s is not implemented: submitting the extracted file to p4pa-migration and handling its workflow status belong to the Transfer component tasks."
-        .formatted(migrationFileType())
+        .formatted(getMigrationFileType())
     );
   }
 }

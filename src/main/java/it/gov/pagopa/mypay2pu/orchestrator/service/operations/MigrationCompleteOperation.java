@@ -12,8 +12,8 @@ public class MigrationCompleteOperation implements MigrationOperation {
     this.exportOperation = exportOperation;
     this.transferOperation = transferOperation;
 
-    MigrationFileType exportFileType = exportOperation.migrationFileType();
-    MigrationFileType transferFileType = transferOperation.migrationFileType();
+    MigrationFileType exportFileType = exportOperation.getMigrationFileType();
+    MigrationFileType transferFileType = transferOperation.getMigrationFileType();
     if (exportFileType != transferFileType) {
       throw new IllegalArgumentException(
         "COMPLETE operations must target the same migration file type: export=%s, transfer=%s".formatted(exportFileType, transferFileType)
@@ -22,8 +22,8 @@ public class MigrationCompleteOperation implements MigrationOperation {
   }
 
   @Override
-  public MigrationFileType migrationFileType() {
-    return exportOperation.migrationFileType();
+  public MigrationFileType getMigrationFileType() {
+    return exportOperation.getMigrationFileType();
   }
 
   @Override
