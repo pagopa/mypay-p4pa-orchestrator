@@ -138,9 +138,9 @@ components:
       type: string
       enum:
         - PENDING
-        - EXTRACTING
-        - EXTRACTED
-        - UPLOADING
+        - EXPORTING
+        - EXPORTED
+        - TRANSFERING
         - WAITING_PU
         - COMPLETED
         - WARNING
@@ -149,8 +149,8 @@ components:
       type: string
       enum:
         - PENDING
-        - EXTRACTED
-        - UPLOADING
+        - EXPORTED
+        - TRANSFERING
         - WAITING_PU
         - COMPLETED
         - PARTIAL
