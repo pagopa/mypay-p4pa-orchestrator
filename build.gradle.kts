@@ -56,6 +56,7 @@ val httpClientVersion = "5.6.4"
 val httpCoreVersion = "5.4.4"
 val kafkaAppender = "0.2.0-RC2"
 val lz4JavaVersion = "1.12.0"
+val postgresJdbcVersion = "42.7.13"
 
 // CVE Security dependencies
 val tomcatEmbedCoreVersion = "11.0.26"
@@ -82,7 +83,7 @@ dependencies {
     exclude(group = "org.lz4", module = "lz4-java")
   }
   implementation("at.yawk.lz4:lz4-java:$lz4JavaVersion")
-  runtimeOnly("org.postgresql:postgresql")
+  runtimeOnly("org.postgresql:postgresql:$postgresJdbcVersion")
 
   // CVE Security dependencies
   implementation("org.apache.tomcat.embed:tomcat-embed-core:$tomcatEmbedCoreVersion")
