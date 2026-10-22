@@ -15,10 +15,8 @@ public class ExtractorApisHolder {
   private final ExtractApi extractApi;
   private final ThreadLocal<String> bearerTokenHolder = new ThreadLocal<>();
 
-  public ExtractorApisHolder(
-    ExtractorApiClientConfig clientConfig,
-    RestTemplateBuilder restTemplateBuilder
-  ) {
+  public ExtractorApisHolder(ExtractorApiClientConfig clientConfig,
+                             RestTemplateBuilder restTemplateBuilder) {
     RestTemplate restTemplate = restTemplateBuilder.build();
     ApiClient apiClient = new ApiClient(restTemplate);
     apiClient.setBasePath(clientConfig.getBaseUrl());
