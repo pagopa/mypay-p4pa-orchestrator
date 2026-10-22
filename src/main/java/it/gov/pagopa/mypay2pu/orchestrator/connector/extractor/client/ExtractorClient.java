@@ -15,11 +15,11 @@ public class ExtractorClient {
     this.extractorApisHolder = extractorApisHolder;
   }
 
-  public ExtractionAcceptedResponse createExtraction(String accessToken, ExtractionRequest extractionRequest) {
-    return extractorApisHolder.getExtractApi(accessToken).createExtraction(extractionRequest);
+  public ExtractionAcceptedResponse createExtraction(ExtractionRequest extractionRequest) {
+    return extractorApisHolder.getExtractApi().createExtraction(extractionRequest);
   }
 
-  public ExtractionStatusResponse getExtractionStatus(String accessToken, String extractionId) {
-    return extractorApisHolder.getExtractApi(accessToken).getExtractionStatus(extractionId);
+  public ExtractionStatusResponse getExtractionStatus(String extractionId) {
+    return extractorApisHolder.getExtractApi().getExtractionStatus(extractionId);
   }
 }

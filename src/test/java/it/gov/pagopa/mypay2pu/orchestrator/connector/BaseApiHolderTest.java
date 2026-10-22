@@ -22,6 +22,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 @Slf4j
@@ -31,6 +32,34 @@ public abstract class BaseApiHolderTest {
   protected RestTemplate restTemplateMock;
   @Mock
   protected Void voidMock;
+
+  protected <T> void assertAuthenticationShouldBeSetInThreadSafeMode(Supplier<T> apiInvoke,
+                                                                     ParameterizedTypeReference<T> apiReturnedType,
+                                                                     T expectedResult,
+                                                                     String username,
+                                                                     String password) throws InterruptedException, ExecutionException {
+    HttpHeaders headers = new HttpHeaders();
+    headers.setBasicAuth(username, password);
+    Mockito.doReturn(ResponseEntity.ok(expectedResult))
+      .when(restTemplateMock)
+      .exchange(
+        Mockito.argThat(req -> headers.getFirst(HttpHeaders.AUTHORIZATION)
+          .equals(req.getHeaders().getFirst(HttpHeaders.AUTHORIZATION))),
+        Mockito.eq(apiReturnedType));
+
+    int invocationCount = 100;
+    try (ExecutorService executorService = Executors.newFixedThreadPool(10)) {
+      var results = executorService.invokeAll(IntStream.range(0, invocationCount)
+        .mapToObj(i -> (Callable<T>) apiInvoke::get)
+        .toList());
+      for (var result : results) {
+        Assertions.assertSame(expectedResult, result.get());
+      }
+    }
+
+    Mockito.verify(restTemplateMock, Mockito.times(invocationCount))
+      .exchange(Mockito.any(), Mockito.eq(apiReturnedType));
+  }
 
   @SuppressWarnings("unchecked")
   protected <T> void assertAuthenticationShouldBeSetInThreadSafeMode(Function<String, T> apiInvoke, ParameterizedTypeReference<T> apiReturnedType, Runnable apiUnloader) throws InterruptedException {

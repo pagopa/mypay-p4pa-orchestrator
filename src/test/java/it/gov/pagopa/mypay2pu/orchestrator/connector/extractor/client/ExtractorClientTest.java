@@ -16,12 +16,11 @@ import org.springframework.web.client.RestClientException;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ExtractorClientTest {
-
-  private static final String ACCESS_TOKEN = "access-token";
 
   @Mock
   private ExtractorApisHolder extractorApisHolderMock;
@@ -32,7 +31,7 @@ class ExtractorClientTest {
 
   @BeforeEach
   void setUp() {
-    when(extractorApisHolderMock.getExtractApi(ACCESS_TOKEN)).thenReturn(extractApiMock);
+    when(extractorApisHolderMock.getExtractApi()).thenReturn(extractApiMock);
     extractorClient = new ExtractorClient(extractorApisHolderMock);
   }
 
@@ -47,9 +46,11 @@ class ExtractorClientTest {
     ExtractionAcceptedResponse expectedResponse = new ExtractionAcceptedResponse("extraction-123");
     when(extractApiMock.createExtraction(extractionRequest)).thenReturn(expectedResponse);
 
-    ExtractionAcceptedResponse response = extractorClient.createExtraction(ACCESS_TOKEN, extractionRequest);
+    ExtractionAcceptedResponse response = extractorClient.createExtraction(extractionRequest);
 
     assertSame(expectedResponse, response);
+    verify(extractorApisHolderMock).getExtractApi();
+    verify(extractApiMock).createExtraction(extractionRequest);
   }
 
   @Test
@@ -58,9 +59,11 @@ class ExtractorClientTest {
     ExtractionStatusResponse expectedResponse = new ExtractionStatusResponse();
     when(extractApiMock.getExtractionStatus(extractionId)).thenReturn(expectedResponse);
 
-    ExtractionStatusResponse response = extractorClient.getExtractionStatus(ACCESS_TOKEN, extractionId);
+    ExtractionStatusResponse response = extractorClient.getExtractionStatus(extractionId);
 
     assertSame(expectedResponse, response);
+    verify(extractorApisHolderMock).getExtractApi();
+    verify(extractApiMock).getExtractionStatus(extractionId);
   }
 
   @Test
@@ -71,9 +74,11 @@ class ExtractorClientTest {
 
     RestClientException exception = assertThrows(
       RestClientException.class,
-      () -> extractorClient.createExtraction(ACCESS_TOKEN, extractionRequest)
+      () -> extractorClient.createExtraction(extractionRequest)
     );
 
     assertSame(expectedException, exception);
+    verify(extractorApisHolderMock).getExtractApi();
+    verify(extractApiMock).createExtraction(extractionRequest);
   }
 }

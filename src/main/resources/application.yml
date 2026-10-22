@@ -92,6 +92,8 @@ rest:
       read-millis: "\${DEFAULT_REST_TIMEOUT_READ_MILLIS:120000}"
   extractor:
     base-url: "\${EXTRACTOR_BASE_URL:}"
+    username: "\${EXTRACTOR_USERNAME:}"
+    password: "\${EXTRACTOR_PASSWORD:}"
     max-attempts: "\${EXTRACTOR_MAX_ATTEMPTS:3}" # It's counting also the first attempt
     wait-time-millis: "\${EXTRACTOR_WAIT_TIME_MILLIS:500}"
     print-body-when-error: "\${EXTRACTOR_PRINT_BODY_WHEN_ERROR:true}"
