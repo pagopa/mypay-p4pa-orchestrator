@@ -51,7 +51,8 @@ repositories {
 
 val springDocOpenApiVersion = "3.1.1"
 val openApiToolsVersion = "0.2.11"
-val micrometerVersion = "1.7.1"
+val micrometerOtelBridgeVersion = "1.7.1"
+val micrometerPrometheusVersion = "1.17.1"
 val httpClientVersion = "5.6.4"
 val httpCoreVersion = "5.4.4"
 val kafkaAppender = "0.2.0-RC2"
@@ -73,8 +74,8 @@ dependencies {
   implementation("org.springframework.boot:spring-boot-starter-actuator")
   implementation("org.springframework.boot:spring-boot-starter-security")
   implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springDocOpenApiVersion")
-  implementation("io.micrometer:micrometer-tracing-bridge-otel:$micrometerVersion")
-  implementation("io.micrometer:micrometer-registry-prometheus")
+  implementation("io.micrometer:micrometer-tracing-bridge-otel:$micrometerOtelBridgeVersion")
+  implementation("io.micrometer:micrometer-registry-prometheus:$micrometerPrometheusVersion")
   implementation("org.openapitools:jackson-databind-nullable:$openApiToolsVersion")
   implementation("org.apache.httpcomponents.client5:httpclient5:$httpClientVersion")
   implementation("org.apache.httpcomponents.core5:httpcore5-h2:$httpCoreVersion")
