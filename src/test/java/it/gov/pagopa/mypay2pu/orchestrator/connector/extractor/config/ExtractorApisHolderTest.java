@@ -1,8 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.config;
 
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionRequest;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.BaseApiHolderTest;
-import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.auth.config.PuAuthApiClientConfig;
-import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.auth.config.PuAuthApisHolder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,25 +13,29 @@ import org.springframework.boot.restclient.RestTemplateBuilder;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.util.DefaultUriBuilderFactory;
 
+import java.util.List;
+
+import static it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType.ORGANIZATIONS;
+
 @ExtendWith(MockitoExtension.class)
 class ExtractorApisHolderTest extends BaseApiHolderTest {
     @Mock
     private RestTemplateBuilder restTemplateBuilderMock;
 
-    private PuAuthApisHolder puAuthApisHolder;
-    private PuAuthApiClientConfig apiClientConfig;
+    private ExtractorApisHolder extractorApisHolder;
+    private ExtractorApiClientConfig apiClientConfig;
 
     @BeforeEach
     void setUp() {
         Mockito.when(restTemplateBuilderMock.build()).thenReturn(restTemplateMock);
         Mockito.when(restTemplateMock.getUriTemplateHandler()).thenReturn(new DefaultUriBuilderFactory());
 
-        apiClientConfig = PuAuthApiClientConfig.builder()
+        apiClientConfig = ExtractorApiClientConfig.builder()
                 .baseUrl("http://example.com")
                 .maxAttempts(3)
                 .build();
 
-        puAuthApisHolder = new PuAuthApisHolder(apiClientConfig, restTemplateBuilderMock);
+        extractorApisHolder = new ExtractorApisHolder(apiClientConfig, restTemplateBuilderMock);
     }
 
     @AfterEach
@@ -46,18 +49,18 @@ class ExtractorApisHolderTest extends BaseApiHolderTest {
     @Test
     void testRetryConfiguration() {
         assertRetry(apiClientConfig,
-                accessToken -> puAuthApisHolder.getAuthnApi(accessToken)
-                        .getUserInfo(),
+                accessToken -> extractorApisHolder.getExtractApi(accessToken)
+                  .createExtraction(new ExtractionRequest().ipaCodes(List.of("IPACODE")).fileTypes(ORGANIZATIONS)),
                 new ParameterizedTypeReference<>() {}
         );
     }
 
     @Test
-    void whenGetAuthnApiThenAuthenticationShouldBeSetInThreadSafeMode() throws InterruptedException {
+    void whenGetExtractApiThenAuthenticationShouldBeSetInThreadSafeMode() throws InterruptedException {
         assertAuthenticationShouldBeSetInThreadSafeMode(
-                accessToken -> puAuthApisHolder.getAuthnApi(accessToken)
-                        .getUserInfo(),
+                accessToken -> extractorApisHolder.getExtractApi(accessToken)
+                        .createExtraction(new ExtractionRequest().ipaCodes(List.of("IPACODE")).fileTypes(ORGANIZATIONS)),
                 new ParameterizedTypeReference<>() {},
-                puAuthApisHolder::unload);
+                extractorApisHolder::unload);
     }
 }
