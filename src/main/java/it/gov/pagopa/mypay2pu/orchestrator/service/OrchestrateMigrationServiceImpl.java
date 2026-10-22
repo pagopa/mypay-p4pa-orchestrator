@@ -23,8 +23,6 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationService {
 
-  private static final int INITIAL_FILE_TYPE_COUNT_COMPLETED = 0;
-
   private final ExportPhaseCoordinator exportPhaseCoordinator;
   private final TransferPhaseCoordinator transferPhaseCoordinator;
   private final CompleteMigrationPhaseCoordinator completeMigrationPhaseCoordinator;
@@ -102,7 +100,7 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
       MigrationExecution previousExecution = migrationRequestValidator.requirePreviousMigration(request);
       newExecution.setParentExecutionId(previousExecution.getId());
     }
-    newExecution.setFileTypeCountCompleted(INITIAL_FILE_TYPE_COUNT_COMPLETED);
+    newExecution.setFileTypeCountCompleted(0);
     newExecution.setCreationDate(LocalDateTime.now(ZoneOffset.UTC));
     return newExecution;
   }
