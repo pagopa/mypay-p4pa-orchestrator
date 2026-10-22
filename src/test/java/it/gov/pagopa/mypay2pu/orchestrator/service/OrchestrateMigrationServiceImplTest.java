@@ -52,7 +52,6 @@ class OrchestrateMigrationServiceImplTest {
   private MigrationExecutionRepository migrationExecutionRepositoryMock;
 
   private OrchestrateMigrationServiceImpl service;
-  private static final String BROKER_IPA_CODE = "IPA_DEFAULT";
   private static final LocalDateTime CREATION_DATE = LocalDateTime.of(2026, Month.JANUARY, 1, 12, 30);
 
   @BeforeEach
@@ -63,7 +62,7 @@ class OrchestrateMigrationServiceImplTest {
       completeMigrationPhaseCoordinatorMock,
       new MigrationRequestValidator(migrationExecutionRepositoryMock),
       migrationExecutionRepositoryMock,
-      new MigrationExecutionMapper(BROKER_IPA_CODE),
+      new MigrationExecutionMapper(),
       new MigrationResponseMapper()
     );
   }
@@ -86,9 +85,8 @@ class OrchestrateMigrationServiceImplTest {
     request.setIpaCodes(List.of("80000000000"));
     request.setFileTypesToInclude(List.of(MigrationFileType.ORGANIZATIONS));
     MigrationExecution expectedExecution = MigrationExecution.builder()
-      .brokerIpaCode(BROKER_IPA_CODE)
       .status(MigrationExecutionStatus.RUNNING)
-      .cycleNumber(1)
+      .fileTypeCountCompleted(1)
       .ipacodes(List.of("80000000000"))
       .orchestrationMode(OrchestrationMode.DELTA)
       .action(MigrationAction.EXPORT)
@@ -97,9 +95,8 @@ class OrchestrateMigrationServiceImplTest {
     UUID migrationId = UUID.randomUUID();
     MigrationExecution savedExecution = MigrationExecution.builder()
       .id(migrationId)
-      .brokerIpaCode(BROKER_IPA_CODE)
       .status(MigrationExecutionStatus.RUNNING)
-      .cycleNumber(1)
+      .fileTypeCountCompleted(1)
       .ipacodes(List.of("80000000000"))
       .orchestrationMode(OrchestrationMode.DELTA)
       .action(MigrationAction.EXPORT)
@@ -254,9 +251,8 @@ class OrchestrateMigrationServiceImplTest {
 
   private MigrationExecution expectedCompleteExecution() {
     return MigrationExecution.builder()
-      .brokerIpaCode(BROKER_IPA_CODE)
       .status(MigrationExecutionStatus.RUNNING)
-      .cycleNumber(1)
+      .fileTypeCountCompleted(1)
       .ipacodes(List.of("80000000000"))
       .orchestrationMode(OrchestrationMode.DELTA)
       .action(MigrationAction.COMPLETE)
@@ -267,10 +263,9 @@ class OrchestrateMigrationServiceImplTest {
   private MigrationExecution existingExecution(UUID migrationId, MigrationExecutionStatus status) {
     return MigrationExecution.builder()
       .id(migrationId)
-      .brokerIpaCode(BROKER_IPA_CODE)
       .status(status)
       .action(MigrationAction.EXPORT)
-      .cycleNumber(1)
+      .fileTypeCountCompleted(1)
       .ipacodes(List.of("80000000000"))
       .orchestrationMode(OrchestrationMode.DELTA)
       .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))

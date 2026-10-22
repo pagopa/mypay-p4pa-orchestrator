@@ -33,10 +33,10 @@ public class MigrationFileExecution extends BaseEntity {
   @NotNull
   @Enumerated(EnumType.STRING)
   private MigrationFileExecutionStatus status;
-  private String extractorId;
+  private String extractionId;
   private String filePath;
-  private String extractorErrorCode;
-  private String extractorErrorMsg;
+  private String extractionErrorCode;
+  private String extractionErrorMsg;
   private Long uploadId;
   @Enumerated(EnumType.STRING)
   private UploadsStatusEnum uploadStatus;

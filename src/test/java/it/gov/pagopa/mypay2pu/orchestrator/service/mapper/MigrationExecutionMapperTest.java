@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class MigrationExecutionMapperTest {
 
-  private final MigrationExecutionMapper mapper = new MigrationExecutionMapper("BROKER-IPA");
+  private final MigrationExecutionMapper mapper = new MigrationExecutionMapper();
 
   @Test
   void mapsRequestFieldsToMigrationExecution() {
@@ -38,7 +38,6 @@ class MigrationExecutionMapperTest {
     MigrationExecution result = mapper.toMigrationExecution(request);
 
     checkNotNullFields(result);
-    assertEquals("BROKER-IPA", result.getBrokerIpaCode());
     assertEquals(List.of("80000000000"), result.getIpacodes());
     assertEquals(OrchestrationMode.FULL, result.getOrchestrationMode());
     assertEquals(MigrationAction.COMPLETE, result.getAction());
@@ -49,7 +48,6 @@ class MigrationExecutionMapperTest {
   }
 
   private void checkNotNullFields(MigrationExecution execution) {
-    assertNotNull(execution.getBrokerIpaCode());
     assertNotNull(execution.getIpacodes());
     assertNotNull(execution.getOrchestrationMode());
     assertNotNull(execution.getAction());
