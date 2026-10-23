@@ -1,6 +1,5 @@
 package it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.config;
 
-import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionAcceptedResponse;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionRequest;
 import it.gov.pagopa.mypay2pu.orchestrator.config.json.JsonConfig;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.BaseApiHolderTest;
@@ -16,7 +15,6 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.util.DefaultUriBuilderFactory;
 
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 import static it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType.ORGANIZATIONS;
 
@@ -42,12 +40,12 @@ class ExtractorApisHolderTest extends BaseApiHolderTest {
       .build();
 
     extractorApisHolder = new ExtractorApisHolder(apiClientConfig, restTemplateBuilderMock, new JsonConfig().objectMapperJackson3());
-    Mockito.verify(restTemplateBuilderMock).build();
+    verifyHttpClientErrorJsonBodyHandlerConfiguration(extractorApisHolder.getExtractApi());
   }
 
   @AfterEach
   void verifyNoMoreInteractions() {
-    Mockito.verifyNoMoreInteractions(restTemplateBuilderMock, restTemplateMock, voidMock);
+    Mockito.verifyNoMoreInteractions(restTemplateBuilderMock, restTemplateMock);
   }
 
   @Test
@@ -55,21 +53,18 @@ class ExtractorApisHolderTest extends BaseApiHolderTest {
     assertRetry(apiClientConfig,
       ignored -> extractorApisHolder.getExtractApi()
         .createExtraction(new ExtractionRequest().ipaCodes(List.of("IPACODE")).fileTypes(ORGANIZATIONS)),
-      new ParameterizedTypeReference<>() {
-      });
+      new ParameterizedTypeReference<>() {}
+    );
   }
 
   @Test
-  void givenBasicCredentialsWhenCreateExtractionThenAuthenticationIsThreadSafe()
-    throws InterruptedException, ExecutionException {
+  void givenBasicCredentialsWhenCreateExtractionThenAuthenticationIsThreadSafe() throws InterruptedException {
     assertAuthenticationShouldBeSetInThreadSafeMode(
-      () -> extractorApisHolder.getExtractApi()
+      basic -> extractorApisHolder.getExtractApi()
         .createExtraction(new ExtractionRequest().ipaCodes(List.of("IPACODE")).fileTypes(ORGANIZATIONS)),
-      new ParameterizedTypeReference<>() {
-      },
-      new ExtractionAcceptedResponse("extraction-123"),
-      apiClientConfig.getUsername(),
-      apiClientConfig.getPassword());
-    Mockito.verify(restTemplateMock, Mockito.times(100)).getUriTemplateHandler();
+      new ParameterizedTypeReference<>() {},
+      null,
+      AUTH_TYPE.BASIC
+    );
   }
 }

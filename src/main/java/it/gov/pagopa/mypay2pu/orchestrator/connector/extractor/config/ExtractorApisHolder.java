@@ -28,9 +28,14 @@ public class ExtractorApisHolder {
     apiClient.setMaxAttemptsForRetry(Math.max(1, clientConfig.getMaxAttempts()));
     apiClient.setWaitTimeMillis(clientConfig.getWaitTimeMillis());
 
-    restTemplate.setErrorHandler(new HttpClientErrorJsonBodyHandler<>(jsonMapper, "EXTRACTOR", clientConfig.isPrintBodyWhenError(),
-      ErrorDTO.class, ErrorDTO::getCode, ErrorDTO::getMessage)
-    );
+    restTemplate.setErrorHandler(new HttpClientErrorJsonBodyHandler<>(
+      jsonMapper,
+      "EXTRACTOR",
+      clientConfig.isPrintBodyWhenError(),
+      ErrorDTO.class,
+      errorDTO -> errorDTO.getCategory().getValue(),
+      ErrorDTO::getMessage
+    ));
     this.extractApi = new ExtractApi(apiClient);
   }
 
