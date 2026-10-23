@@ -2,6 +2,7 @@ package it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.config;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionAcceptedResponse;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionRequest;
+import it.gov.pagopa.mypay2pu.orchestrator.config.json.JsonConfig;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.BaseApiHolderTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +41,7 @@ class ExtractorApisHolderTest extends BaseApiHolderTest {
       .maxAttempts(3)
       .build();
 
-    extractorApisHolder = new ExtractorApisHolder(apiClientConfig, restTemplateBuilderMock);
+    extractorApisHolder = new ExtractorApisHolder(apiClientConfig, restTemplateBuilderMock, new JsonConfig().objectMapperJackson3());
     Mockito.verify(restTemplateBuilderMock).build();
   }
 
