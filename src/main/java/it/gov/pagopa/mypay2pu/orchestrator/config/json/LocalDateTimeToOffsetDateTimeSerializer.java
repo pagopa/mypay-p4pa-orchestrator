@@ -22,6 +22,6 @@ public class LocalDateTimeToOffsetDateTimeSerializer extends JsonSerializer<Loca
   }
 
   public static OffsetDateTime convertToOffsetDateTime(LocalDateTime value) {
-    return value.atZone(Constants.ZONEID).toOffsetDateTime();
+    return value == null ? null : value.atZone(Constants.ZONEID).toOffsetDateTime();
   }
 }

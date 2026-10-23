@@ -15,6 +15,7 @@ import java.time.Month;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 @ExtendWith(MockitoExtension.class)
 class LocalDateTimeToOffsetDateTimeSerializerTest {
@@ -54,5 +55,10 @@ class LocalDateTimeToOffsetDateTimeSerializerTest {
     dateTimeSerializer.serialize(null, jsonGenerator, serializerProvider);
 
     verifyNoInteractions(jsonGenerator, serializerProvider);
+  }
+
+  @Test
+  void returnsNullWhenConversionInputIsNull() {
+    assertNull(LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(null));
   }
 }

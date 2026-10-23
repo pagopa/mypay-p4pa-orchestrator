@@ -73,20 +73,147 @@
           }
         }
       }
+    },
+    "/orchestrate/migrate/{migration_id}" : {
+      "get" : {
+        "tags" : [ "OrchestrateMigration" ],
+        "summary" : "Get migration orchestration status",
+        "description" : "Returns the single migration status and persisted file execution details. The status is not split into separate export and transfer statuses.",
+        "operationId" : "getMigrationStatus",
+        "parameters" : [ {
+          "name" : "migration_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Migration status",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MigrationStatusDto"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Migration not found",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orchestrate/migrate/{migration_id}/transfer/file-status/{fileType}" : {
+      "get" : {
+        "tags" : [ "OrchestrateMigration" ],
+        "summary" : "Get persisted transfer status for a file type",
+        "description" : "Returns upload fields and accepted/rejected row totals aggregated from migration file execution detail records.",
+        "operationId" : "getTransferFileStatus",
+        "parameters" : [ {
+          "name" : "migration_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "fileType",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/MigrationFileType"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Transfer file status",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransferFileStatusDto"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Migration or file execution not found",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orchestrate/migrate/{migration_id}/export/file-status/{fileType}" : {
+      "get" : {
+        "tags" : [ "OrchestrateMigration" ],
+        "summary" : "Get persisted export status for a file type",
+        "description" : "Returns extraction fields and row totals aggregated from migration file execution detail records.",
+        "operationId" : "getExportFileStatus",
+        "parameters" : [ {
+          "name" : "migration_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "fileType",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/MigrationFileType"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Export file status",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ExportFileStatusDto"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Migration or file execution not found",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components" : {
     "schemas" : {
-      "OrchestrationMode" : {
-        "type" : [ "string", "null" ],
-        "enum" : [ "FULL", "DELTA", "REJECTS_ONLY" ]
-      },
       "MigrationAction" : {
-        "type" : [ "string", "null" ],
+        "type" : "string",
         "enum" : [ "EXPORT", "TRANSFER", "COMPLETE" ]
       },
       "MigrationExecutionStatus" : {
-        "type" : [ "string", "null" ],
+        "type" : "string",
         "enum" : [ "RUNNING", "COMPLETED", "FAILED", "WARNING" ]
       },
       "MigrationResponseDto" : {
@@ -123,6 +250,10 @@
             }
           }
         }
+      },
+      "OrchestrationMode" : {
+        "type" : "string",
+        "enum" : [ "FULL", "DELTA", "REJECTS_ONLY" ]
       },
       "CategoryEnum" : {
         "type" : "string",
@@ -201,6 +332,172 @@
             "format" : "date"
           }
         }
+      },
+      "ExportFileStatusDto" : {
+        "type" : "object",
+        "description" : "Persisted extraction fields and totals from associated file execution details.",
+        "properties" : {
+          "fileType" : {
+            "$ref" : "#/components/schemas/MigrationFileType"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/MigrationFileExecutionStatus",
+            "description" : "Current shared file execution status"
+          },
+          "extractionId" : {
+            "type" : [ "string", "null" ]
+          },
+          "filePath" : {
+            "type" : [ "string", "null" ]
+          },
+          "recordCount" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int64",
+            "description" : "Sum of numTotalRows over this file execution's detail records"
+          },
+          "errorCode" : {
+            "type" : [ "string", "null" ]
+          },
+          "errorMsg" : {
+            "type" : [ "string", "null" ]
+          },
+          "extractionStartedAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time"
+          },
+          "extractedAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time"
+          }
+        },
+        "required" : [ "fileType", "status" ]
+      },
+      "MigrationExportPhaseDto" : {
+        "type" : "object",
+        "description" : "Export file details; the phase status mirrors the single migration status.",
+        "properties" : {
+          "status" : {
+            "$ref" : "#/components/schemas/MigrationExecutionStatus"
+          },
+          "files" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ExportFileStatusDto"
+            }
+          }
+        },
+        "required" : [ "files", "status" ]
+      },
+      "MigrationFileExecutionStatus" : {
+        "type" : "string",
+        "enum" : [ "PENDING", "EXPORTING", "EXPORTED", "TRANSFERING", "WAITING_PU", "COMPLETED", "WARNING", "FAILED" ]
+      },
+      "MigrationStatusDto" : {
+        "type" : "object",
+        "properties" : {
+          "migrationId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "action" : {
+            "$ref" : "#/components/schemas/MigrationAction"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/MigrationExecutionStatus"
+          },
+          "orchestrationMode" : {
+            "$ref" : "#/components/schemas/OrchestrationMode"
+          },
+          "ipaCodes" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "createdAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time"
+          },
+          "updatedAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time"
+          },
+          "errorCode" : {
+            "type" : [ "string", "null" ]
+          },
+          "errorMsg" : {
+            "type" : [ "string", "null" ]
+          },
+          "exportPhase" : {
+            "$ref" : "#/components/schemas/MigrationExportPhaseDto"
+          },
+          "transferPhase" : {
+            "$ref" : "#/components/schemas/MigrationTransferPhaseDto"
+          }
+        },
+        "required" : [ "action", "exportPhase", "ipaCodes", "migrationId", "orchestrationMode", "status", "transferPhase" ]
+      },
+      "MigrationTransferPhaseDto" : {
+        "type" : "object",
+        "description" : "Transfer file details; the phase status mirrors the single migration status.",
+        "properties" : {
+          "status" : {
+            "$ref" : "#/components/schemas/MigrationExecutionStatus"
+          },
+          "files" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TransferFileStatusDto"
+            }
+          }
+        },
+        "required" : [ "files", "status" ]
+      },
+      "TransferFileStatusDto" : {
+        "type" : "object",
+        "description" : "Persisted upload fields and accepted/rejected totals from associated file execution details.",
+        "properties" : {
+          "fileType" : {
+            "$ref" : "#/components/schemas/MigrationFileType"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/MigrationFileExecutionStatus",
+            "description" : "Current shared file execution status"
+          },
+          "uploadId" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int64"
+          },
+          "uploadStatus" : {
+            "type" : [ "string", "null" ]
+          },
+          "recordsAccepted" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int64",
+            "description" : "Sum of numCorrectlyImportedRows over this file execution's detail records"
+          },
+          "recordsRejected" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int64",
+            "description" : "Sum of numTotalRows minus numCorrectlyImportedRows over detail records"
+          },
+          "errorCode" : {
+            "type" : [ "string", "null" ]
+          },
+          "errorMsg" : {
+            "type" : [ "string", "null" ]
+          },
+          "uploadedAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time"
+          },
+          "evidenceCollectedAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time",
+            "description" : "Latest updateDate among terminal migration file execution details (COMPLETED, PARTIAL, FAILED)"
+          }
+        },
+        "required" : [ "fileType", "status" ]
       }
     }
   }
