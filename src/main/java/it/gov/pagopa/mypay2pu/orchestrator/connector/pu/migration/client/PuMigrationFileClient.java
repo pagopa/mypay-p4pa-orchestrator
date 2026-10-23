@@ -5,7 +5,6 @@ import it.gov.pagopa.pu.migration.dto.generated.MigrationFileTypeEnum;
 import it.gov.pagopa.pu.migration.dto.generated.UploadDetails;
 import it.gov.pagopa.pu.migration.dto.generated.UploadMigrationFileResponseDTO;
 import it.gov.pagopa.pu.migration.dto.generated.Uploads;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
@@ -20,13 +19,12 @@ public class PuMigrationFileClient {
         this.puMigrationApisHolder = puMigrationApisHolder;
     }
 
-    public UploadMigrationFileResponseDTO uploadMigrationFile(String orgIpaCode, MigrationFileTypeEnum migrationFileType, String fileName, byte[] fileContent, String accessToken) {
-      ByteArrayResource file = new ByteArrayResource(fileContent){
-        @Override
-        public String getFilename() {
-          return fileName;
-        }
-      };
+    public UploadMigrationFileResponseDTO uploadMigrationFile(
+      String orgIpaCode,
+      MigrationFileTypeEnum migrationFileType,
+      Resource file,
+      String accessToken
+    ) {
         return puMigrationApisHolder.getMigrationFileApi(accessToken)
                 .uploadMigrationFile(orgIpaCode, migrationFileType, file);
     }
