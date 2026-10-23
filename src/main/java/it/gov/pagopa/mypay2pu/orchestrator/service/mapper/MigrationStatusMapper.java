@@ -12,7 +12,6 @@ import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
@@ -43,8 +42,8 @@ public class MigrationStatusMapper {
       .status(execution.getStatus())
       .orchestrationMode(execution.getOrchestrationMode())
       .ipaCodes(execution.getIpacodes())
-      .createdAt(toOffsetDateTime(execution.getCreationDate()))
-      .updatedAt(toOffsetDateTime(execution.getUpdateDate()))
+      .createdAt(LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(execution.getCreationDate()))
+      .updatedAt(LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(execution.getUpdateDate()))
       .errorCode(execution.getErrorCode())
       .errorMsg(execution.getErrorMsg())
       .exportPhase(new MigrationExportPhaseDto()
@@ -80,8 +79,8 @@ public class MigrationStatusMapper {
       .recordCount(metrics.recordCount())
       .errorCode(fileExecution.getExtractionErrorCode())
       .errorMsg(fileExecution.getExtractionErrorMsg())
-      .extractionStartedAt(toOffsetDateTime(fileExecution.getExtractionStartedAt()))
-      .extractedAt(toOffsetDateTime(fileExecution.getExtractionCompletedAt()));
+      .extractionStartedAt(LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(fileExecution.getExtractionStartedAt()))
+      .extractedAt(LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(fileExecution.getExtractionCompletedAt()));
   }
 
   public TransferFileStatusDto toTransferFileStatusDto(
@@ -98,8 +97,8 @@ public class MigrationStatusMapper {
       .recordsRejected(metrics.recordsRejected())
       .errorCode(fileExecution.getUploadErrorCode())
       .errorMsg(fileExecution.getUploadErrorMsg())
-      .uploadedAt(toOffsetDateTime(fileExecution.getUploadCompletedAt()))
-      .evidenceCollectedAt(toOffsetDateTime(latestTerminalDetailUpdateDate(details)));
+      .uploadedAt(LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(fileExecution.getUploadCompletedAt()))
+      .evidenceCollectedAt(LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(latestTerminalDetailUpdateDate(details)));
   }
 
   private FileMetrics calculateMetrics(
@@ -140,10 +139,6 @@ public class MigrationStatusMapper {
       .map(valueExtractor)
       .mapToLong(Number::longValue)
       .sum();
-  }
-
-  private OffsetDateTime toOffsetDateTime(LocalDateTime value) {
-    return value == null ? null : LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(value);
   }
 
   private record FileMetrics(Long recordCount, Long recordsAccepted, Long recordsRejected) {

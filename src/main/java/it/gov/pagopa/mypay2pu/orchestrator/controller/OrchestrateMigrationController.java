@@ -41,16 +41,19 @@ public class OrchestrateMigrationController implements OrchestrateMigrationApi {
 
   @Override
   public ResponseEntity<MigrationStatusDto> getMigrationStatus(UUID migrationId) {
+    log.info("getMigrationStatus: migrationId={}", migrationId);
     return ResponseEntity.ok(migrationStatusService.getMigrationStatus(migrationId));
   }
 
   @Override
   public ResponseEntity<ExportFileStatusDto> getExportFileStatus(UUID migrationId, MigrationFileType fileType) {
+    log.info("getExportFileStatus: migrationId={}, fileType={}", migrationId, fileType);
     return ResponseEntity.ok(migrationStatusService.getExportFileStatus(migrationId, fileType));
   }
 
   @Override
   public ResponseEntity<TransferFileStatusDto> getTransferFileStatus(UUID migrationId, MigrationFileType fileType) {
+    log.info("getTransferFileStatus: migrationId={}, fileType={}", migrationId, fileType);
     return ResponseEntity.ok(migrationStatusService.getTransferFileStatus(migrationId, fileType));
   }
 }
