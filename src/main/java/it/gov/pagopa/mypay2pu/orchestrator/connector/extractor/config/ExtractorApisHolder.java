@@ -11,14 +11,12 @@ import tools.jackson.databind.json.JsonMapper;
 
 @Service
 public class ExtractorApisHolder {
-  private final ExtractorApiClientConfig clientConfig;
   private final RestTemplate restTemplate;
   private final ExtractApi extractApi;
 
   public ExtractorApisHolder(ExtractorApiClientConfig clientConfig,
                              RestTemplateBuilder restTemplateBuilder,
                              JsonMapper jsonMapper) {
-    this.clientConfig = clientConfig;
     this.restTemplate = restTemplateBuilder.build();
 
     ApiClient apiClient = new ApiClient(restTemplate);
