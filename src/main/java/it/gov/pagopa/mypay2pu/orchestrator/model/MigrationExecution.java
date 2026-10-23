@@ -29,13 +29,11 @@ public class MigrationExecution extends BaseEntity {
   @Id
   @GeneratedValue(strategy = GenerationType.UUID)
   private UUID id;
-  @NotEmpty
-  private String brokerIpaCode;
   @Enumerated(EnumType.STRING)
   @NotNull
   private MigrationExecutionStatus status;
   @NotNull
-  private Integer cycleNumber;
+  private Integer fileTypeCountCompleted;
   @NotEmpty
   private List<String> ipacodes;
   @Enumerated(EnumType.STRING)
