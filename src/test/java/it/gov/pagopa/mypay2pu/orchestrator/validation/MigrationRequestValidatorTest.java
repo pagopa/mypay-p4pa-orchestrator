@@ -45,7 +45,7 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void requestWithoutActionIsRejected() {
+  void givenRequestWithoutActionWhenValidateThenRejectRequest() {
     MigrationRequestDto request = new MigrationRequestDto();
 
     InvalidValueException exception = assertThrows(
@@ -57,7 +57,7 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void requestWithoutOrchestratorModeIsRejected() {
+  void givenRequestWithoutOrchestrationModeWhenValidateThenRejectRequest() {
     MigrationRequestDto request = new MigrationRequestDto();
     request.setAction(MigrationAction.TRANSFER);
 
@@ -67,7 +67,7 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void exportAndCompleteActionsRequireIpaCodes() {
+  void givenExportOrCompleteWithoutIpaCodesWhenValidateThenRejectRequest() {
     for (MigrationAction action : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
       MigrationRequestDto request = new MigrationRequestDto();
       request.setAction(action);
@@ -80,7 +80,7 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void exportAndCompleteActionsRequireFileTypes() {
+  void givenExportOrCompleteWithoutFileTypesWhenValidateThenRejectRequest() {
     for (MigrationAction action : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
       MigrationRequestDto request = new MigrationRequestDto();
       request.setAction(action);
@@ -94,7 +94,7 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void transferRequiresMigrationIdButNoExportFields() {
+  void givenTransferWithoutExportFieldsWhenValidateThenRequireOnlyMigrationId() {
     MigrationRequestDto request = new MigrationRequestDto();
     request.setAction(MigrationAction.TRANSFER);
     request.setOrchestrationMode(OrchestrationMode.FULL);
@@ -118,7 +118,7 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void transferRejectsMigrationThatIsNotCompleted() {
+  void givenRunningExportMigrationWhenRequireTransferExecutionThenRejectRequest() {
     UUID migrationId = UUID.randomUUID();
     MigrationRequestDto request = new MigrationRequestDto();
     request.setAction(MigrationAction.TRANSFER);
@@ -142,7 +142,7 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void transferRejectsCompletedMigrationThatWasNotExported() {
+  void givenCompletedNonExportMigrationWhenRequireTransferExecutionThenRejectRequest() {
     UUID migrationId = UUID.randomUUID();
     MigrationRequestDto request = new MigrationRequestDto();
     request.setAction(MigrationAction.TRANSFER);
@@ -165,7 +165,7 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void transferRejectsRejectsOnlyMode() {
+  void givenTransferWithRejectsOnlyOrchestrationWhenValidateThenRejectRequest() {
     MigrationRequestDto request = new MigrationRequestDto();
     request.setAction(MigrationAction.TRANSFER);
     request.setMigrationId(UUID.randomUUID());
@@ -177,7 +177,7 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void fullCycleRequiresPeriod() {
+  void givenFullOrchestrationWhenValidateThenRequirePeriod() {
     for (MigrationAction action : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
       MigrationRequestDto request = request(action, OrchestrationMode.FULL);
 
@@ -191,14 +191,31 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void deltaCycleDoesNotRequirePeriod() {
+  void givenDeltaOrchestrationWithoutPeriodWhenValidateThenAcceptRequest() {
     for (MigrationAction action : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
       assertDoesNotThrow(() -> validator.validate(request(action, OrchestrationMode.DELTA)));
     }
   }
 
   @Test
-  void rejectsOnlyCycleRequiresPreviousMigrationId() {
+  void givenFullOrchestrationWhenValidateThenRejectInvertedPeriodAndAllowOptionalEndpoints() {
+    MigrationRequestDto request = request(MigrationAction.EXPORT, OrchestrationMode.FULL);
+    request.setPeriod(new PeriodDto(
+      java.time.LocalDate.of(2026, java.time.Month.FEBRUARY, 1),
+      java.time.LocalDate.of(2026, java.time.Month.JANUARY, 1)
+    ));
+
+    InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
+    assertEquals("period.fromDate must not be after period.toDate", exception.getMessage());
+
+    request.setPeriod(new PeriodDto());
+    assertDoesNotThrow(() -> validator.validate(request));
+    request.setPeriod(new PeriodDto(java.time.LocalDate.of(2026, java.time.Month.JANUARY, 1), null));
+    assertDoesNotThrow(() -> validator.validate(request));
+  }
+
+  @Test
+  void givenRejectsOnlyOrchestrationWhenValidateThenRequirePreviousMigrationId() {
     for (MigrationAction action : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
       MigrationRequestDto request = request(action, OrchestrationMode.REJECTS_ONLY);
 
@@ -212,7 +229,7 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void rejectsOnlyCanResolvePreviousMigration() {
+  void givenRejectsOnlyOrchestrationWithExistingMigrationWhenRequirePreviousMigrationThenReturnExecution() {
     UUID migrationId = UUID.randomUUID();
     MigrationRequestDto request = request(MigrationAction.COMPLETE, OrchestrationMode.REJECTS_ONLY);
     request.setMigrationId(migrationId);

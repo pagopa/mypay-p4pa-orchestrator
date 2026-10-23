@@ -1,6 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.model;
 
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionDetailStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -27,7 +27,7 @@ public class MigrationFileExecutionDetail extends BaseEntity {
   private UUID migrationFileExecutionId;
   @NotNull
   @Enumerated(EnumType.STRING)
-  private MigrationExecutionStatus status;
+  private MigrationFileExecutionDetailStatus status;
   @NotEmpty
   private String fileName;
   private Long uploadDetailId;
