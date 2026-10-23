@@ -104,10 +104,18 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | ENV                             | DESCRIPTION                                 | DEFAULT |
 |---------------------------------|---------------------------------------------|---------|
 | EXTRACTOR_BASE_URL              | Extractor microservice URL                  |         |
+| EXTRACTOR_USERNAME              | Extractor HTTP Basic username               |         |
+| EXTRACTOR_PASSWORD              | Extractor HTTP Basic password               |         |
 | EXTRACTOR_MAX_ATTEMPTS          | Extractor API max attempts                  | 3       |
 | EXTRACTOR_WAIT_TIME_MILLIS      | Extractor retry waiting time (milliseconds) | 500     |
 | EXTRACTOR_PRINT_BODY_WHEN_ERROR | To print body when an error occurs          | true    |
 
+Set `EXTRACTOR_USERNAME` and `EXTRACTOR_PASSWORD` to the credentials configured on
+the Extractor service through `extractor.basic-auth.username` and
+`extractor.basic-auth.password` (its `CLIENT_ID` and `CLIENT_SECRET` environment
+variables). The connector uses the generated API client's HTTP Basic authentication;
+no access token is required. Credentials must be supplied by the deployment, not
+stored in source code.
 
 ##### 🌍 External services
 | ENV                                | DESCRIPTION                                    | DEFAULT                     |
