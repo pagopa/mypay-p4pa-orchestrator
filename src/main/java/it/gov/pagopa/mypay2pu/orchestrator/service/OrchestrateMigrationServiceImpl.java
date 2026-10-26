@@ -8,6 +8,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationResponseDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.CompleteMigrationPhaseCoordinator;
+import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.ExportPhaseCoordinator;
 import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.TransferPhaseCoordinator;
 import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationExecutionMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationResponseMapper;
@@ -22,8 +23,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationService {
 
-  private static final int INITIAL_CYCLE_NUMBER = 1;
-
+  private final ExportPhaseCoordinator exportPhaseCoordinator;
   private final TransferPhaseCoordinator transferPhaseCoordinator;
   private final CompleteMigrationPhaseCoordinator completeMigrationPhaseCoordinator;
   private final MigrationRequestValidator migrationRequestValidator;
@@ -32,6 +32,7 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
   private final MigrationResponseMapper migrationResponseMapper;
 
   public OrchestrateMigrationServiceImpl(
+    ExportPhaseCoordinator exportPhaseCoordinator,
     TransferPhaseCoordinator transferPhaseCoordinator,
     CompleteMigrationPhaseCoordinator completeMigrationPhaseCoordinator,
     MigrationRequestValidator migrationRequestValidator,
@@ -39,6 +40,7 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
     MigrationExecutionMapper migrationExecutionMapper,
     MigrationResponseMapper migrationResponseMapper
   ) {
+    this.exportPhaseCoordinator = exportPhaseCoordinator;
     this.transferPhaseCoordinator = transferPhaseCoordinator;
     this.completeMigrationPhaseCoordinator = completeMigrationPhaseCoordinator;
     this.migrationRequestValidator = migrationRequestValidator;
@@ -59,6 +61,13 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
     UUID migrationId = savedExecution.getId();
 
     switch (action) {
+      case EXPORT -> exportPhaseCoordinator.start(savedExecution)
+        .whenComplete((ignored, error) -> {
+          if (error != null) {
+            // TODO: Persist asynchronous coordinator failures in the migration status.
+            log.error("Failed to start EXPORT coordinator for migration {}", migrationId, error);
+          }
+        });
       case TRANSFER -> transferPhaseCoordinator.start(savedExecution)
         .whenComplete((ignored, error) -> {
           if (error != null) {
@@ -67,7 +76,6 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
           }
         });
       case COMPLETE -> completeMigrationPhaseCoordinator.start(savedExecution);
-      case EXPORT -> throw new UnsupportedOperationException("EXPORT orchestration is not implemented yet");
       default -> throw new UnsupportedOperationException("Unsupported migration phase");
     }
 
@@ -82,18 +90,18 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
         existingExecution.setAction(request.getAction());
         yield existingExecution;
       }
-      case COMPLETE -> {
-        MigrationExecution newExecution = migrationExecutionMapper.toMigrationExecution(request);
-        if (request.getOrchestrationMode() == OrchestrationMode.REJECTS_ONLY) {
-          MigrationExecution previousExecution = migrationRequestValidator.requirePreviousMigration(request);
-          newExecution.setParentExecutionId(previousExecution.getId());
-        }
-        newExecution.setCycleNumber(INITIAL_CYCLE_NUMBER);
-        newExecution.setCreationDate(LocalDateTime.now(ZoneOffset.UTC));
-        yield newExecution;
-      }
-      case EXPORT -> throw new UnsupportedOperationException("EXPORT orchestration is not implemented yet");
-      default -> throw new UnsupportedOperationException("Unsupported migration phase");
+      case EXPORT, COMPLETE -> newMigrationExecution(request);
     };
+  }
+
+  private MigrationExecution newMigrationExecution(MigrationRequestDto request) {
+    MigrationExecution newExecution = migrationExecutionMapper.toMigrationExecution(request);
+    if (request.getOrchestrationMode() == OrchestrationMode.REJECTS_ONLY) {
+      MigrationExecution previousExecution = migrationRequestValidator.requirePreviousMigration(request);
+      newExecution.setParentExecutionId(previousExecution.getId());
+    }
+    newExecution.setFileTypeCountCompleted(0);
+    newExecution.setCreationDate(LocalDateTime.now(ZoneOffset.UTC));
+    return newExecution;
   }
 }
