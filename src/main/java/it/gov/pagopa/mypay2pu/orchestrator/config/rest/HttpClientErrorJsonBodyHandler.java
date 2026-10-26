@@ -1,11 +1,9 @@
   package it.gov.pagopa.mypay2pu.orchestrator.config.rest;
 
-import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.ForbiddenException;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.NotAuthorizedException;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.*;
 import it.gov.pagopa.mypay2pu.orchestrator.utils.Utilities;
 import jakarta.annotation.Nonnull;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -25,8 +23,10 @@ import java.util.function.Function;
 
 /** It will transcode Http client errors (see ignoredClientErrors for exceptions) using the provided transcoder. */
 @Slf4j
+@Getter
 public class HttpClientErrorJsonBodyHandler<T> extends DefaultResponseErrorHandler {
 
+  private final String applicationName;
   private final JsonMapper jsonMapper;
   private final Class<T> errorDtoClass;
   private final BiFunction<HttpStatusCodeException, T, RuntimeException> errorTranscoder;
@@ -48,6 +48,7 @@ public class HttpClientErrorJsonBodyHandler<T> extends DefaultResponseErrorHandl
   }
 
   public HttpClientErrorJsonBodyHandler(JsonMapper jsonMapper, String applicationName, boolean bodyPrinterWhenError, Class<T> errorDtoClass, BiFunction<HttpStatusCodeException, T, RuntimeException> httpClientExceptionTranscoder) {
+    this.applicationName = applicationName;
     this.jsonMapper = jsonMapper;
     this.errorDtoClass = errorDtoClass;
     this.errorTranscoder = httpClientExceptionTranscoder;
@@ -89,8 +90,8 @@ public class HttpClientErrorJsonBodyHandler<T> extends DefaultResponseErrorHandl
       return switch (exception.getStatusCode()) {
         case HttpStatus.CONFLICT -> new ConflictException(code, message);
         case HttpStatus.FORBIDDEN -> new ForbiddenException(code, message);
-        case HttpStatus.UNAUTHORIZED ->
-          new NotAuthorizedException(code, message);
+        case HttpStatus.UNAUTHORIZED -> new NotAuthorizedException(code, message);
+        case HttpStatus.NOT_FOUND -> new NotFoundException(code, message);
         default -> new InvalidValueException(code, message);
       };
     };

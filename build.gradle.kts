@@ -58,6 +58,7 @@ val httpCoreVersion = "5.4.4"
 val kafkaAppender = "0.2.0-RC2"
 val lz4JavaVersion = "1.12.1"
 val postgresJdbcVersion = "42.7.14"
+val podamVersion = "8.0.2.RELEASE"
 
 // CVE Security dependencies
 val jackson2DatabindVersion = "2.22.3"
@@ -97,6 +98,7 @@ dependencies {
   testImplementation("org.mockito:mockito-core")
   testImplementation("org.projectlombok:lombok")
   testImplementation("com.h2database:h2")
+  testImplementation("uk.co.jemos.podam:podam:${podamVersion}")
 }
 
 tasks.withType<Test> {
