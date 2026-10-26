@@ -10,7 +10,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@ConfigurationProperties(prefix = "rest.extractor")
+@ConfigurationProperties(prefix = "rest.extractor.basic-auth")
 @SuperBuilder
 @NoArgsConstructor
 @Getter

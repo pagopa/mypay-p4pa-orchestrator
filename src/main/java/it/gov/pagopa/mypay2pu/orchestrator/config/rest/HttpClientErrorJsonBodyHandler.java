@@ -1,9 +1,6 @@
   package it.gov.pagopa.mypay2pu.orchestrator.config.rest;
 
-import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.ForbiddenException;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.NotAuthorizedException;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.*;
 import it.gov.pagopa.mypay2pu.orchestrator.utils.Utilities;
 import jakarta.annotation.Nonnull;
 import lombok.Getter;
@@ -93,8 +90,8 @@ public class HttpClientErrorJsonBodyHandler<T> extends DefaultResponseErrorHandl
       return switch (exception.getStatusCode()) {
         case HttpStatus.CONFLICT -> new ConflictException(code, message);
         case HttpStatus.FORBIDDEN -> new ForbiddenException(code, message);
-        case HttpStatus.UNAUTHORIZED ->
-          new NotAuthorizedException(code, message);
+        case HttpStatus.UNAUTHORIZED -> new NotAuthorizedException(code, message);
+        case HttpStatus.NOT_FOUND -> new NotFoundException(code, message);
         default -> new InvalidValueException(code, message);
       };
     };

@@ -115,7 +115,8 @@ class HttpClientErrorJsonBodyHandlerTest {
   private final Map<HttpStatus, Class<? extends BaseBusinessException>> httpStatus2ExpectedException = Map.of(
     HttpStatus.CONFLICT, ConflictException.class,
     HttpStatus.FORBIDDEN, ForbiddenException.class,
-    HttpStatus.UNAUTHORIZED, NotAuthorizedException.class
+    HttpStatus.UNAUTHORIZED, NotAuthorizedException.class,
+    HttpStatus.NOT_FOUND, NotFoundException.class
   );
 
   @Test

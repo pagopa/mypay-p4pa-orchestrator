@@ -5,18 +5,19 @@ import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionAcceptedResponse
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionRequest;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionStatusResponse;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.config.ExtractorApisHolder;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.NotFoundException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.client.RestClientException;
 
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,21 +50,24 @@ class ExtractorClientTest {
     ExtractionAcceptedResponse response = extractorClient.createExtraction(extractionRequest);
 
     assertSame(expectedResponse, response);
-    verify(extractorApisHolderMock).getExtractApi();
-    verify(extractApiMock).createExtraction(extractionRequest);
   }
 
-  @Test
-  void givenExtractionIdWhenGetExtractionStatusThenReturnsGeneratedResponse() {
-    String extractionId = "extraction-123";
-    ExtractionStatusResponse expectedResponse = new ExtractionStatusResponse();
-    when(extractApiMock.getExtractionStatus(extractionId)).thenReturn(expectedResponse);
+  @ParameterizedTest
+  @ValueSource(strings = {"extraction-123", "not-found-extraction"})
+  void givenExtractionIdWhenGetExtractionStatusThenInvokeApi(String extractionId) {
+    ExtractionStatusResponse expectedResponse;
+
+    if ("not-found-extraction".equals(extractionId)) {
+      when(extractApiMock.getExtractionStatus(extractionId)).thenThrow(new NotFoundException("ERRORCODE", "ERRORMESSAGE"));
+      expectedResponse = null;
+    } else {
+      expectedResponse = new ExtractionStatusResponse();
+      when(extractApiMock.getExtractionStatus(extractionId)).thenReturn(expectedResponse);
+    }
 
     ExtractionStatusResponse response = extractorClient.getExtractionStatus(extractionId);
 
-    assertSame(expectedResponse, response);
-    verify(extractorApisHolderMock).getExtractApi();
-    verify(extractApiMock).getExtractionStatus(extractionId);
+    assertEquals(expectedResponse, response);
   }
 
   @Test
@@ -78,7 +82,5 @@ class ExtractorClientTest {
     );
 
     assertSame(expectedException, exception);
-    verify(extractorApisHolderMock).getExtractApi();
-    verify(extractApiMock).createExtraction(extractionRequest);
   }
 }

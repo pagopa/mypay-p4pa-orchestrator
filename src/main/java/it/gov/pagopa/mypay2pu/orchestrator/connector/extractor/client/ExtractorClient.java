@@ -4,8 +4,12 @@ import it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.config.ExtractorA
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionAcceptedResponse;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionRequest;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionStatusResponse;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.NotFoundException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientException;
 
+@Slf4j
 @Service
 public class ExtractorClient {
 
@@ -20,6 +24,11 @@ public class ExtractorClient {
   }
 
   public ExtractionStatusResponse getExtractionStatus(String extractionId) {
-    return extractorApisHolder.getExtractApi().getExtractionStatus(extractionId);
+    try {
+      return extractorApisHolder.getExtractApi().getExtractionStatus(extractionId);
+    } catch (NotFoundException e) {
+      log.info("Cannot find extraction status for id {}", extractionId);
+      return null;
+    }
   }
 }
