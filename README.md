@@ -66,6 +66,13 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 |-------------|-----------------------------------|---------|
 | SERVER_PORT | Application server listening port | 8080    |
 
+#### 🔐 Authentication
+
+| ENV | DESCRIPTION | DEFAULT |
+|---|---|---|
+| `CLIENT_ID` | Application-level username for HTTP Basic Auth (root `basic-auth.username`) | client |
+| `CLIENT_SECRET` | Application-level password for HTTP Basic Auth (root `basic-auth.password`) | secret |
+
 #### ✏️ Logging
 | ENV                                   | DESCRIPTION                                                                                                                                            | DEFAULT |
 |---------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
@@ -100,13 +107,6 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | DEFAULT_REST_TIMEOUT_CONNECT_MILLIS               | Default connection timeout (milliseconds) | 120000  |
 | DEFAULT_REST_TIMEOUT_READ_MILLIS                  | Default read timeout (milliseconds)       | 120000  |
 
-#### 🔐 Authentication
-
-| ENV | DESCRIPTION | DEFAULT |
-|---|---|---|
-| `CLIENT_ID` | Application-level username for HTTP Basic Auth (root `basic-auth.username`) | client |
-| `CLIENT_SECRET` | Application-level password for HTTP Basic Auth (root `basic-auth.password`) | secret |
-
 ##### 🧩 Microservices
 | ENV                             | DESCRIPTION                                 | DEFAULT |
 |---------------------------------|---------------------------------------------|---------|
@@ -114,10 +114,6 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | EXTRACTOR_MAX_ATTEMPTS          | Extractor API max attempts                  | 3       |
 | EXTRACTOR_WAIT_TIME_MILLIS      | Extractor retry waiting time (milliseconds) | 500     |
 | EXTRACTOR_PRINT_BODY_WHEN_ERROR | To print body when an error occurs          | true    |
-
-Set `CLIENT_ID` and `CLIENT_SECRET` to the credentials configured on
-the Extractor service. The connector uses the generated API client's HTTP Basic authentication;
-no access token is required.
 
 ##### 🌍 External services
 | ENV                                | DESCRIPTION                                    | DEFAULT                     |
