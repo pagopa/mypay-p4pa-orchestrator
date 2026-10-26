@@ -1,6 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.config;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionRequest;
+import it.gov.pagopa.mypay2pu.orchestrator.config.BasicAuthProperties;
 import it.gov.pagopa.mypay2pu.orchestrator.config.json.JsonConfig;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.BaseApiHolderTest;
 import org.junit.jupiter.api.AfterEach;
@@ -34,12 +35,11 @@ class ExtractorApisHolderTest extends BaseApiHolderTest {
 
     apiClientConfig = ExtractorApiClientConfig.builder()
       .baseUrl("http://example.com")
-      .username("test-user")
-      .password("test-password")
       .maxAttempts(3)
       .build();
+    BasicAuthProperties basicAuth = new BasicAuthProperties("test-user", "test-password");
 
-    extractorApisHolder = new ExtractorApisHolder(apiClientConfig, restTemplateBuilderMock, new JsonConfig().objectMapperJackson3());
+    extractorApisHolder = new ExtractorApisHolder(apiClientConfig, basicAuth, restTemplateBuilderMock, new JsonConfig().objectMapperJackson3());
     verifyHttpClientErrorJsonBodyHandlerConfiguration(extractorApisHolder.getExtractApi());
   }
 

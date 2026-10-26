@@ -104,8 +104,8 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 
 | ENV | DESCRIPTION | DEFAULT |
 |---|---|---|
-| `CLIENT_ID` | Username for HTTP Basic Auth on extractor APIs | — |
-| `CLIENT_SECRET` | Password for HTTP Basic Auth on extractor APIs | — |
+| `CLIENT_ID` | Application-level username for HTTP Basic Auth (root `basic-auth.username`) | client |
+| `CLIENT_SECRET` | Application-level password for HTTP Basic Auth (root `basic-auth.password`) | secret |
 
 ##### 🧩 Microservices
 | ENV                             | DESCRIPTION                                 | DEFAULT |
@@ -117,8 +117,7 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 
 Set `CLIENT_ID` and `CLIENT_SECRET` to the credentials configured on
 the Extractor service. The connector uses the generated API client's HTTP Basic authentication;
-no access token is required. Credentials must be supplied by the deployment, not
-stored in source code.
+no access token is required.
 
 ##### 🌍 External services
 | ENV                                | DESCRIPTION                                    | DEFAULT                     |

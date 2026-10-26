@@ -1,6 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.config;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ErrorDTO;
+import it.gov.pagopa.mypay2pu.orchestrator.config.BasicAuthProperties;
 import it.gov.pagopa.mypay2pu.orchestrator.config.rest.HttpClientErrorJsonBodyHandler;
 import it.gov.pagopa.mypay2pu.extractor.controller.generated.ExtractApi;
 import it.gov.pagopa.mypay2pu.extractor.generated.ApiClient;
@@ -15,14 +16,15 @@ public class ExtractorApisHolder {
   private final ExtractApi extractApi;
 
   public ExtractorApisHolder(ExtractorApiClientConfig clientConfig,
+                             BasicAuthProperties basicAuth,
                              RestTemplateBuilder restTemplateBuilder,
                              JsonMapper jsonMapper) {
     this.restTemplate = restTemplateBuilder.build();
 
     ApiClient apiClient = new ApiClient(restTemplate);
     apiClient.setBasePath(clientConfig.getBaseUrl());
-    apiClient.setUsername(clientConfig.getUsername());
-    apiClient.setPassword(clientConfig.getPassword());
+    apiClient.setUsername(basicAuth.username());
+    apiClient.setPassword(basicAuth.password());
     apiClient.setMaxAttemptsForRetry(Math.max(1, clientConfig.getMaxAttempts()));
     apiClient.setWaitTimeMillis(clientConfig.getWaitTimeMillis());
 

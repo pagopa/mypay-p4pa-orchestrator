@@ -81,6 +81,10 @@ logging:
     PERFORMANCE_LOG.API_REQUEST: "\${LOG_LEVEL_PERFORMANCE_LOG_API_REQUEST:\${logging.level.PERFORMANCE_LOG}}"
     PERFORMANCE_LOG.REST_INVOKE: "\${LOG_LEVEL_PERFORMANCE_LOG_REST_INVOKE:\${logging.level.PERFORMANCE_LOG}}"
 
+basic-auth:
+  username: "\${CLIENT_ID:client}"
+  password: "\${CLIENT_SECRET:secret}"
+
 rest:
   defaults:
     connection-pool:
@@ -92,9 +96,6 @@ rest:
       read-millis: "\${DEFAULT_REST_TIMEOUT_READ_MILLIS:120000}"
   extractor:
     base-url: "\${EXTRACTOR_BASE_URL:}"
-    basic-auth:
-      username: "\${CLIENT_ID:client}"
-      password: "\${CLIENT_SECRET:secret}"
     max-attempts: "\${EXTRACTOR_MAX_ATTEMPTS:3}" # It's counting also the first attempt
     wait-time-millis: "\${EXTRACTOR_WAIT_TIME_MILLIS:500}"
     print-body-when-error: "\${EXTRACTOR_PRINT_BODY_WHEN_ERROR:true}"
