@@ -1,13 +1,15 @@
 package it.gov.pagopa.mypay2pu.orchestrator.connector.pu.migration.config;
 
-import it.gov.pagopa.mypay2pu.orchestrator.config.rest.RestTemplateConfig;
+import it.gov.pagopa.mypay2pu.orchestrator.config.rest.HttpClientErrorJsonBodyHandler;
 import it.gov.pagopa.pu.migration.controller.generated.MigrationFileApi;
+import it.gov.pagopa.pu.migration.dto.generated.ErrorDTO;
 import it.gov.pagopa.pu.migration.generated.ApiClient;
 import it.gov.pagopa.pu.migration.generated.BaseApi;
 import jakarta.annotation.PreDestroy;
 import org.springframework.boot.restclient.RestTemplateBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import tools.jackson.databind.json.JsonMapper;
 
 @Service
 public class PuMigrationApisHolder {
@@ -18,7 +20,8 @@ public class PuMigrationApisHolder {
 
     public PuMigrationApisHolder(
             PuMigrationApiClientConfig clientConfig,
-            RestTemplateBuilder restTemplateBuilder
+            RestTemplateBuilder restTemplateBuilder,
+            JsonMapper jsonMapper
     ) {
         RestTemplate restTemplate = restTemplateBuilder.build();
         ApiClient apiClient = new ApiClient(restTemplate);
@@ -26,9 +29,15 @@ public class PuMigrationApisHolder {
         apiClient.setBearerToken(bearerTokenHolder::get);
         apiClient.setMaxAttemptsForRetry(Math.max(1, clientConfig.getMaxAttempts()));
         apiClient.setWaitTimeMillis(clientConfig.getWaitTimeMillis());
-        if (clientConfig.isPrintBodyWhenError()) {
-            restTemplate.setErrorHandler(RestTemplateConfig.bodyPrinterWhenError("PU-MIGRATION"));
-        }
+
+        restTemplate.setErrorHandler(new HttpClientErrorJsonBodyHandler<>(
+                jsonMapper,
+                "PU-MIGRATION",
+                clientConfig.isPrintBodyWhenError(),
+                ErrorDTO.class,
+                errorDTO -> errorDTO.getCode().getValue(),
+                ErrorDTO::getMessage
+        ));
 
         this.migrationFileApi = new MigrationFileApi(apiClient);
     }
