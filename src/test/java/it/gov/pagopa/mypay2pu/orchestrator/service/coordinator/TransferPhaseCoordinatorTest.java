@@ -10,9 +10,11 @@ import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFacadeService;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationPlanExecutorService;
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletionException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,7 +26,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -274,6 +278,297 @@ class TransferPhaseCoordinatorTest {
     verify(migrationFacadeServiceMock).execute(argThat(
       request -> request.getFileTypesToInclude().equals(List.of(MigrationFileType.DEBT_POSITIONS_TYPE))
     ));
+  }
+
+  @Test
+  void givenTransferAlreadyStartedWhenStartThenResumePollingWithoutResubmitting() {
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.DEBT_POSITIONS_TYPE
+    )).thenReturn(Optional.of(fileExecution(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileExecutionStatus.TRANSFERING
+    ))).thenReturn(Optional.of(fileExecution(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileExecutionStatus.COMPLETED
+    )));
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.ORGANIZATIONS
+    )).thenReturn(Optional.of(fileExecution(
+      MigrationFileType.ORGANIZATIONS,
+      MigrationFileExecutionStatus.WAITING_PU
+    ))).thenReturn(Optional.of(fileExecution(
+      MigrationFileType.ORGANIZATIONS,
+      MigrationFileExecutionStatus.WARNING
+    )));
+    MigrationExecution migrationExecution = execution(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileType.ORGANIZATIONS
+    );
+
+    coordinator.start(migrationExecution).join();
+
+    verify(migrationFileExecutionRepositoryMock, times(2)).findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.DEBT_POSITIONS_TYPE
+    );
+    verify(migrationFileExecutionRepositoryMock, times(2)).findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.ORGANIZATIONS
+    );
+  }
+
+  @Test
+  void givenPendingFileWhenStartThenRejectTransferAsNotReady() {
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.DEBT_POSITIONS_TYPE
+    )).thenReturn(Optional.of(fileExecution(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileExecutionStatus.PENDING
+    )));
+    MigrationExecution migrationExecution = execution(MigrationFileType.DEBT_POSITIONS_TYPE);
+
+    IllegalStateException exception = assertThrows(
+      IllegalStateException.class,
+      () -> coordinator.start(migrationExecution)
+    );
+
+    assertEquals(
+      "File type DEBT_POSITIONS_TYPE for migration %s is not ready for transfer (status=PENDING)"
+        .formatted(MIGRATION_ID),
+      exception.getMessage()
+    );
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.DEBT_POSITIONS_TYPE
+    );
+  }
+
+  @Test
+  void givenMissingFileExecutionWhenStartThenFailWithFileTypeAndMigration() {
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.DEBT_POSITIONS_TYPE
+    )).thenReturn(Optional.empty());
+    MigrationExecution migrationExecution = execution(MigrationFileType.DEBT_POSITIONS_TYPE);
+
+    IllegalStateException exception = assertThrows(
+      IllegalStateException.class,
+      () -> coordinator.start(migrationExecution)
+    );
+
+    assertEquals(
+      "File execution for type DEBT_POSITIONS_TYPE and migration %s was not found".formatted(MIGRATION_ID),
+      exception.getMessage()
+    );
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.DEBT_POSITIONS_TYPE
+    );
+  }
+
+  @Test
+  void givenChildTransferFailsWhenStartThenPropagateRuntimeFailure() {
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.DEBT_POSITIONS_TYPE
+    )).thenReturn(Optional.of(fileExecution(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileExecutionStatus.COMPLETED
+    )));
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.ORGANIZATIONS
+    )).thenReturn(Optional.of(fileExecution(
+      MigrationFileType.ORGANIZATIONS,
+      MigrationFileExecutionStatus.EXPORTED
+    )));
+    doThrow(new IllegalStateException("upload failed"))
+      .when(migrationFacadeServiceMock)
+      .execute(argThat(
+        request -> request.getFileTypesToInclude().equals(List.of(MigrationFileType.ORGANIZATIONS))
+      ));
+    MigrationExecution migrationExecution = execution(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileType.ORGANIZATIONS
+    );
+
+    IllegalStateException exception = assertThrows(
+      IllegalStateException.class,
+      () -> coordinator.start(migrationExecution)
+    );
+
+    assertEquals("upload failed", exception.getMessage());
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.DEBT_POSITIONS_TYPE
+    );
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.ORGANIZATIONS
+    );
+    verify(migrationFacadeServiceMock).execute(argThat(
+      request -> request.getFileTypesToInclude().equals(List.of(MigrationFileType.ORGANIZATIONS))
+    ));
+  }
+
+  @Test
+  void givenChildTransferThrowsErrorWhenStartThenPropagateError() {
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.DEBT_POSITIONS_TYPE
+    )).thenReturn(Optional.of(fileExecution(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileExecutionStatus.COMPLETED
+    )));
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.ORGANIZATIONS
+    )).thenReturn(Optional.of(fileExecution(
+      MigrationFileType.ORGANIZATIONS,
+      MigrationFileExecutionStatus.EXPORTED
+    )));
+    doThrow(new AssertionError("fatal upload error"))
+      .when(migrationFacadeServiceMock)
+      .execute(argThat(
+        request -> request.getFileTypesToInclude().equals(List.of(MigrationFileType.ORGANIZATIONS))
+      ));
+    MigrationExecution migrationExecution = execution(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileType.ORGANIZATIONS
+    );
+
+    AssertionError error = assertThrows(
+      AssertionError.class,
+      () -> coordinator.start(migrationExecution)
+    );
+
+    assertEquals("fatal upload error", error.getMessage());
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.DEBT_POSITIONS_TYPE
+    );
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.ORGANIZATIONS
+    );
+    verify(migrationFacadeServiceMock).execute(argThat(
+      request -> request.getFileTypesToInclude().equals(List.of(MigrationFileType.ORGANIZATIONS))
+    ));
+  }
+
+  @Test
+  void givenCheckedCauseWhenStartThenPreserveCompletionException() {
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.DEBT_POSITIONS_TYPE
+    )).thenReturn(Optional.of(fileExecution(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileExecutionStatus.COMPLETED
+    )));
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.ORGANIZATIONS
+    )).thenThrow(new CompletionException(new IOException("checked failure")));
+    MigrationExecution migrationExecution = execution(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileType.ORGANIZATIONS
+    );
+
+    CompletionException exception = assertThrows(
+      CompletionException.class,
+      () -> coordinator.start(migrationExecution)
+    );
+
+    assertTrue(exception.getCause() instanceof IOException);
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.DEBT_POSITIONS_TYPE
+    );
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.ORGANIZATIONS
+    );
+  }
+
+  @Test
+  void givenInterruptedPollingWhenStartThenRestoreInterruptAndFail() {
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.DEBT_POSITIONS_TYPE
+    )).thenReturn(Optional.of(fileExecution(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileExecutionStatus.EXPORTED
+    ))).thenReturn(Optional.of(fileExecution(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileExecutionStatus.WAITING_PU
+    )));
+    MigrationExecution migrationExecution = execution(MigrationFileType.DEBT_POSITIONS_TYPE);
+    boolean interruptedBeforeTest = Thread.interrupted();
+
+    try {
+      Thread.currentThread().interrupt();
+      IllegalStateException exception = assertThrows(
+        IllegalStateException.class,
+        () -> coordinator.start(migrationExecution)
+      );
+
+      assertTrue(Thread.currentThread().isInterrupted());
+      assertEquals(
+        "Interrupted while waiting for PU completion of file type DEBT_POSITIONS_TYPE for migration %s"
+          .formatted(MIGRATION_ID),
+        exception.getMessage()
+      );
+    } finally {
+      Thread.interrupted();
+      if (interruptedBeforeTest) {
+        Thread.currentThread().interrupt();
+      }
+    }
+
+    verify(migrationFileExecutionRepositoryMock, times(2)).findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.DEBT_POSITIONS_TYPE
+    );
+    verify(migrationFacadeServiceMock).execute(argThat(
+      request -> request.getFileTypesToInclude().equals(List.of(MigrationFileType.DEBT_POSITIONS_TYPE))
+    ));
+  }
+
+  @Test
+  void givenNonPositivePollingIntervalWhenConstructThenRejectConfiguration() {
+    MigrationPlanExecutorService planExecutorService = new MigrationPlanExecutorService();
+    IllegalArgumentException exception = assertThrows(
+      IllegalArgumentException.class,
+      () -> new TransferPhaseCoordinator(
+        migrationFacadeServiceMock,
+        migrationFileExecutionRepositoryMock,
+        planExecutorService,
+        0,
+        3
+      )
+    );
+
+    assertEquals("Transfer polling interval must be greater than zero", exception.getMessage());
+  }
+
+  @Test
+  void givenNonPositivePollingMaxAttemptsWhenConstructThenRejectConfiguration() {
+    MigrationPlanExecutorService planExecutorService = new MigrationPlanExecutorService();
+    IllegalArgumentException exception = assertThrows(
+      IllegalArgumentException.class,
+      () -> new TransferPhaseCoordinator(
+        migrationFacadeServiceMock,
+        migrationFileExecutionRepositoryMock,
+        planExecutorService,
+        1,
+        0
+      )
+    );
+
+    assertEquals("Transfer polling max attempts must be greater than zero", exception.getMessage());
   }
 
   private MigrationExecution execution(MigrationFileType... fileTypes) {
