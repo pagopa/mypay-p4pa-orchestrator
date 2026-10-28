@@ -278,6 +278,11 @@ class TransferPhaseCoordinatorTest {
     verify(migrationFacadeServiceMock).execute(argThat(
       request -> request.getFileTypesToInclude().equals(List.of(MigrationFileType.DEBT_POSITIONS_TYPE))
     ));
+    verify(migrationFileExecutionRepositoryMock).save(argThat(
+      fileExecution -> fileExecution.getFileType() == MigrationFileType.DEBT_POSITIONS_TYPE
+        && fileExecution.getStatus() == MigrationFileExecutionStatus.FAILED
+        && "TRANSFER_PU_TIMEOUT".equals(fileExecution.getUploadErrorCode())
+    ));
   }
 
   @Test
@@ -344,6 +349,11 @@ class TransferPhaseCoordinatorTest {
       MIGRATION_ID,
       MigrationFileType.DEBT_POSITIONS_TYPE
     );
+    verify(migrationFileExecutionRepositoryMock).save(argThat(
+      fileExecution -> fileExecution.getFileType() == MigrationFileType.DEBT_POSITIONS_TYPE
+        && fileExecution.getStatus() == MigrationFileExecutionStatus.FAILED
+        && "TRANSFER_FILE_NOT_READY".equals(fileExecution.getUploadErrorCode())
+    ));
   }
 
   @Test
@@ -411,6 +421,11 @@ class TransferPhaseCoordinatorTest {
     );
     verify(migrationFacadeServiceMock).execute(argThat(
       request -> request.getFileTypesToInclude().equals(List.of(MigrationFileType.ORGANIZATIONS))
+    ));
+    verify(migrationFileExecutionRepositoryMock).save(argThat(
+      fileExecution -> fileExecution.getFileType() == MigrationFileType.ORGANIZATIONS
+        && fileExecution.getStatus() == MigrationFileExecutionStatus.FAILED
+        && "TRANSFER_FAILED".equals(fileExecution.getUploadErrorCode())
     ));
   }
 
@@ -534,6 +549,11 @@ class TransferPhaseCoordinatorTest {
     );
     verify(migrationFacadeServiceMock).execute(argThat(
       request -> request.getFileTypesToInclude().equals(List.of(MigrationFileType.DEBT_POSITIONS_TYPE))
+    ));
+    verify(migrationFileExecutionRepositoryMock).save(argThat(
+      fileExecution -> fileExecution.getFileType() == MigrationFileType.DEBT_POSITIONS_TYPE
+        && fileExecution.getStatus() == MigrationFileExecutionStatus.FAILED
+        && "TRANSFER_PU_INTERRUPTED".equals(fileExecution.getUploadErrorCode())
     ));
   }
 

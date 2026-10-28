@@ -11,7 +11,6 @@ import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFacadeService;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationPlanExecutorService;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -30,9 +29,9 @@ import org.springframework.stereotype.Component;
 /**
  * Coordinates the transfer phase of a migration.
  *
- * <p>Each selected file is submitted only after its ancestors have reached a terminal outcome on
- * PU. Evidence collection persists those outcomes; independent sibling branches may continue
- * concurrently.
+ * <p>Each selected file is submitted only after its selected ancestors have reached a terminal
+ * outcome on PU. Evidence collection persists those outcomes; independent sibling branches may
+ * continue concurrently.
  *
  * <p>A WARNING outcome is considered sufficient to continue the branch, while a FAILED outcome
  * blocks only its descendants.
@@ -80,7 +79,6 @@ public class TransferPhaseCoordinator {
   public CompletableFuture<Void> start(MigrationExecution execution) {
     log.info("Starting TRANSFER coordination for migration {}", execution.getId());
     Set<MigrationFileType> selectedFileTypes = Set.copyOf(execution.getFileTypes());
-    Set<MigrationFileType> relevantFileTypes = findRelevantFileTypes(selectedFileTypes);
     AtomicBoolean hasWarning = new AtomicBoolean();
     AtomicReference<MigrationFileType> failedFileType = new AtomicReference<>();
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -88,7 +86,6 @@ public class TransferPhaseCoordinator {
         execution,
         MigrationPlanExecutorService.PLAN_ROOT,
         selectedFileTypes,
-        relevantFileTypes,
         hasWarning,
         failedFileType,
         executor
@@ -120,30 +117,24 @@ public class TransferPhaseCoordinator {
     MigrationExecution execution,
     MigrationFileType fileType,
     Set<MigrationFileType> selectedFileTypes,
-    Set<MigrationFileType> relevantFileTypes,
     AtomicBoolean hasWarning,
     AtomicReference<MigrationFileType> failedFileType,
     ExecutorService executor
   ) {
-    if (!relevantFileTypes.contains(fileType)) {
-      return CompletableFuture.completedFuture(null);
-    }
-
-    MigrationFileExecutionStatus outcome = selectedFileTypes.contains(fileType)
-      ? transferAndAwaitOutcome(execution, fileType)
-      : awaitExistingOutcome(execution.getId(), fileType);
-
-    if (outcome == MigrationFileExecutionStatus.WARNING) {
-      hasWarning.set(true);
-    }
-    if (outcome == MigrationFileExecutionStatus.FAILED) {
-      failedFileType.compareAndSet(null, fileType);
-      log.warn(
-        "Skipping dependent transfer branch for migration {} because parent file type {} failed",
-        execution.getId(),
-        fileType
-      );
-      return CompletableFuture.completedFuture(null);
+    if (selectedFileTypes.contains(fileType)) {
+      MigrationFileExecutionStatus outcome = transferAndAwaitOutcome(execution, fileType);
+      if (outcome == MigrationFileExecutionStatus.WARNING) {
+        hasWarning.set(true);
+      }
+      if (outcome == MigrationFileExecutionStatus.FAILED) {
+        failedFileType.compareAndSet(null, fileType);
+        log.warn(
+          "Skipping dependent transfer branch for migration {} because parent file type {} failed",
+          execution.getId(),
+          fileType
+        );
+        return CompletableFuture.completedFuture(null);
+      }
     }
 
     return CompletableFuture.allOf(migrationPlanExecutorService.getChildren(fileType).stream()
@@ -152,7 +143,6 @@ public class TransferPhaseCoordinator {
           execution,
           child,
           selectedFileTypes,
-          relevantFileTypes,
           hasWarning,
           failedFileType,
           executor
@@ -162,39 +152,6 @@ public class TransferPhaseCoordinator {
       .toArray(CompletableFuture<?>[]::new));
   }
 
-  private Set<MigrationFileType> findRelevantFileTypes(Set<MigrationFileType> selectedFileTypes) {
-    Set<MigrationFileType> relevantFileTypes = new HashSet<>();
-    collectRelevantFileTypes(
-      MigrationPlanExecutorService.PLAN_ROOT,
-      selectedFileTypes,
-      relevantFileTypes
-    );
-    if (!relevantFileTypes.containsAll(selectedFileTypes)) {
-      Set<MigrationFileType> unreachableFileTypes = new HashSet<>(selectedFileTypes);
-      unreachableFileTypes.removeAll(relevantFileTypes);
-      throw new TransferPhaseException(
-        "INVALID_TRANSFER_FILE_TYPES",
-        "Selected file types are not present in the migration plan: %s".formatted(unreachableFileTypes)
-      );
-    }
-    return relevantFileTypes;
-  }
-
-  private boolean collectRelevantFileTypes(
-    MigrationFileType fileType,
-    Set<MigrationFileType> selectedFileTypes,
-    Set<MigrationFileType> relevantFileTypes
-  ) {
-    boolean relevant = selectedFileTypes.contains(fileType);
-    for (MigrationFileType child : migrationPlanExecutorService.getChildren(fileType)) {
-      relevant |= collectRelevantFileTypes(child, selectedFileTypes, relevantFileTypes);
-    }
-    if (relevant) {
-      relevantFileTypes.add(fileType);
-    }
-    return relevant;
-  }
-
   private MigrationFileExecutionStatus transferAndAwaitOutcome(
     MigrationExecution execution,
     MigrationFileType fileType
@@ -202,38 +159,43 @@ public class TransferPhaseCoordinator {
     MigrationFileExecution fileExecution = findFileExecution(execution.getId(), fileType);
     MigrationFileExecutionStatus status = fileExecution.getStatus();
 
-    if (isTerminal(status)) {
-      return status;
-    }
+    try {
+      if (isTerminal(status)) {
+        return status;
+      }
 
-    if (status == MigrationFileExecutionStatus.EXPORTED) {
-      migrationFacadeService.execute(transferRequest(execution, fileType));
-    } else if (status != MigrationFileExecutionStatus.TRANSFERING
-      && status != MigrationFileExecutionStatus.WAITING_PU) {
-      throw new TransferPhaseException(
-        "TRANSFER_FILE_NOT_READY",
-        "File type %s for migration %s is not ready for transfer (status=%s)"
-          .formatted(fileType, execution.getId(), status)
-      );
-    }
+      if (status == MigrationFileExecutionStatus.EXPORTED) {
+        migrationFacadeService.execute(transferRequest(execution, fileType));
+      } else if (status != MigrationFileExecutionStatus.TRANSFERING
+        && status != MigrationFileExecutionStatus.WAITING_PU) {
+        throw new TransferPhaseException(
+          "TRANSFER_FILE_NOT_READY",
+          "File type %s for migration %s is not ready for transfer (status=%s)"
+            .formatted(fileType, execution.getId(), status)
+        );
+      }
 
-    return awaitTerminalOutcome(execution.getId(), fileType);
+      return awaitTerminalOutcome(execution.getId(), fileType);
+    } catch (RuntimeException exception) {
+      markFileExecutionAsFailed(fileExecution, exception);
+      throw exception;
+    }
   }
 
-  private MigrationFileExecutionStatus awaitExistingOutcome(UUID migrationId, MigrationFileType fileType) {
-    MigrationFileExecutionStatus status = findFileExecution(migrationId, fileType).getStatus();
-    if (isTerminal(status)) {
-      return status;
-    }
-    if (status != MigrationFileExecutionStatus.TRANSFERING
-      && status != MigrationFileExecutionStatus.WAITING_PU) {
-      throw new TransferPhaseException(
-        "TRANSFER_DEPENDENCY_NOT_READY",
-        "Parent file type %s for migration %s has not completed on PU (status=%s)"
-          .formatted(fileType, migrationId, status)
-      );
-    }
-    return awaitTerminalOutcome(migrationId, fileType);
+  private void markFileExecutionAsFailed(
+    MigrationFileExecution fileExecution,
+    RuntimeException exception
+  ) {
+    fileExecution.setStatus(MigrationFileExecutionStatus.FAILED);
+    fileExecution.setUploadErrorCode(errorCode(exception));
+    fileExecution.setUploadErrorMsg(exception.getMessage());
+    migrationFileExecutionRepository.save(fileExecution);
+  }
+
+  private String errorCode(RuntimeException exception) {
+    return exception instanceof TransferPhaseException transferPhaseException
+      ? transferPhaseException.getCode()
+      : "TRANSFER_FAILED";
   }
 
   private MigrationFileExecutionStatus awaitTerminalOutcome(

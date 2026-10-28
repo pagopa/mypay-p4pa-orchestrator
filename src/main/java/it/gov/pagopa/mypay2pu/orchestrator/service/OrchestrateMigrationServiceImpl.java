@@ -97,6 +97,7 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
         migrationExecutionRepository.save(execution);
       } catch (DataAccessException persistenceError) {
         log.error("Failed to persist TRANSFER result for migration {}", execution.getId(), persistenceError);
+        throw persistenceError;
       }
     }
   }

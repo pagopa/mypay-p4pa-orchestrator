@@ -5,7 +5,6 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.TransferPhaseException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
@@ -22,7 +21,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -61,99 +59,13 @@ class TransferPhaseCoordinatorDependencyTest {
   }
 
   @Test
-  void givenSelectedChildHasCompletedUnselectedParentWhenStartThenTransferAndComplete() {
-    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
-      MIGRATION_ID,
-      MigrationFileType.DEBT_POSITIONS_TYPE
-    )).thenReturn(Optional.of(fileExecution(
-      MigrationFileType.DEBT_POSITIONS_TYPE,
-      MigrationFileExecutionStatus.COMPLETED
-    )));
+  void givenSelectedChildWhenStartThenSkipUnselectedAncestorsAndTransferChild() {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.ORGANIZATIONS
     )).thenReturn(Optional.of(fileExecution(
-      MigrationFileType.ORGANIZATIONS,
       MigrationFileExecutionStatus.EXPORTED
     ))).thenReturn(Optional.of(fileExecution(
-      MigrationFileType.ORGANIZATIONS,
-      MigrationFileExecutionStatus.COMPLETED
-    )));
-
-    MigrationExecution execution = execution(MigrationFileType.ORGANIZATIONS);
-    coordinator.start(execution).join();
-
-    assertEquals(MigrationExecutionStatus.COMPLETED, execution.getStatus());
-    verify(migrationFacadeServiceMock).execute(argThat(
-      request -> request.getFileTypesToInclude().equals(List.of(MigrationFileType.ORGANIZATIONS))
-    ));
-    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(
-      MIGRATION_ID,
-      MigrationFileType.DEBT_POSITIONS_TYPE
-    );
-    verify(migrationFileExecutionRepositoryMock, times(2)).findByMigrationIdAndFileType(
-      MIGRATION_ID,
-      MigrationFileType.ORGANIZATIONS
-    );
-  }
-
-  @Test
-  void givenSelectedChildHasWarningUnselectedParentWhenStartThenTransferAndWarnMigration() {
-    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
-      MIGRATION_ID,
-      MigrationFileType.DEBT_POSITIONS_TYPE
-    )).thenReturn(Optional.of(fileExecution(
-      MigrationFileType.DEBT_POSITIONS_TYPE,
-      MigrationFileExecutionStatus.WARNING
-    )));
-    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
-      MIGRATION_ID,
-      MigrationFileType.ORGANIZATIONS
-    )).thenReturn(Optional.of(fileExecution(
-      MigrationFileType.ORGANIZATIONS,
-      MigrationFileExecutionStatus.EXPORTED
-    ))).thenReturn(Optional.of(fileExecution(
-      MigrationFileType.ORGANIZATIONS,
-      MigrationFileExecutionStatus.COMPLETED
-    )));
-
-    MigrationExecution execution = execution(MigrationFileType.ORGANIZATIONS);
-    coordinator.start(execution).join();
-
-    assertEquals(MigrationExecutionStatus.WARNING, execution.getStatus());
-    verify(migrationFacadeServiceMock).execute(argThat(
-      request -> request.getFileTypesToInclude().equals(List.of(MigrationFileType.ORGANIZATIONS))
-    ));
-    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(
-      MIGRATION_ID,
-      MigrationFileType.DEBT_POSITIONS_TYPE
-    );
-    verify(migrationFileExecutionRepositoryMock, times(2)).findByMigrationIdAndFileType(
-      MIGRATION_ID,
-      MigrationFileType.ORGANIZATIONS
-    );
-  }
-
-  @Test
-  void givenSelectedChildHasParentWaitingOnPuWhenStartThenWaitForParentBeforeTransfer() {
-    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
-      MIGRATION_ID,
-      MigrationFileType.DEBT_POSITIONS_TYPE
-    )).thenReturn(Optional.of(fileExecution(
-      MigrationFileType.DEBT_POSITIONS_TYPE,
-      MigrationFileExecutionStatus.WAITING_PU
-    ))).thenReturn(Optional.of(fileExecution(
-      MigrationFileType.DEBT_POSITIONS_TYPE,
-      MigrationFileExecutionStatus.COMPLETED
-    )));
-    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
-      MIGRATION_ID,
-      MigrationFileType.ORGANIZATIONS
-    )).thenReturn(Optional.of(fileExecution(
-      MigrationFileType.ORGANIZATIONS,
-      MigrationFileExecutionStatus.EXPORTED
-    ))).thenReturn(Optional.of(fileExecution(
-      MigrationFileType.ORGANIZATIONS,
       MigrationFileExecutionStatus.COMPLETED
     )));
 
@@ -166,60 +78,7 @@ class TransferPhaseCoordinatorDependencyTest {
     ));
     verify(migrationFileExecutionRepositoryMock, times(2)).findByMigrationIdAndFileType(
       MIGRATION_ID,
-      MigrationFileType.DEBT_POSITIONS_TYPE
-    );
-    verify(migrationFileExecutionRepositoryMock, times(2)).findByMigrationIdAndFileType(
-      MIGRATION_ID,
       MigrationFileType.ORGANIZATIONS
-    );
-  }
-
-  @Test
-  void givenSelectedChildHasFailedUnselectedParentWhenStartThenSkipDescendantAndFailMigration() {
-    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
-      MIGRATION_ID,
-      MigrationFileType.DEBT_POSITIONS_TYPE
-    )).thenReturn(Optional.of(fileExecution(
-      MigrationFileType.DEBT_POSITIONS_TYPE,
-      MigrationFileExecutionStatus.FAILED
-    )));
-
-    MigrationExecution execution = execution(MigrationFileType.ORGANIZATIONS);
-    coordinator.start(execution).join();
-
-    assertEquals(MigrationExecutionStatus.FAILED, execution.getStatus());
-    assertEquals("TRANSFER_FAILED", execution.getErrorCode());
-    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(
-      MIGRATION_ID,
-      MigrationFileType.DEBT_POSITIONS_TYPE
-    );
-  }
-
-  @Test
-  void givenSelectedChildHasUnfinishedUnselectedParentWhenStartThenRejectTransfer() {
-    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
-      MIGRATION_ID,
-      MigrationFileType.DEBT_POSITIONS_TYPE
-    )).thenReturn(Optional.of(fileExecution(
-      MigrationFileType.DEBT_POSITIONS_TYPE,
-      MigrationFileExecutionStatus.EXPORTED
-    )));
-
-    MigrationExecution execution = execution(MigrationFileType.ORGANIZATIONS);
-    TransferPhaseException exception = assertThrows(
-      TransferPhaseException.class,
-      () -> coordinator.start(execution)
-    );
-
-    assertEquals("TRANSFER_DEPENDENCY_NOT_READY", exception.getCode());
-    assertEquals(
-      "Parent file type DEBT_POSITIONS_TYPE for migration %s has not completed on PU (status=EXPORTED)"
-        .formatted(MIGRATION_ID),
-      exception.getMessage()
-    );
-    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(
-      MIGRATION_ID,
-      MigrationFileType.DEBT_POSITIONS_TYPE
     );
   }
 
@@ -234,13 +93,10 @@ class TransferPhaseCoordinatorDependencyTest {
       .build();
   }
 
-  private MigrationFileExecution fileExecution(
-    MigrationFileType fileType,
-    MigrationFileExecutionStatus status
-  ) {
+  private MigrationFileExecution fileExecution(MigrationFileExecutionStatus status) {
     return MigrationFileExecution.builder()
       .migrationId(MIGRATION_ID)
-      .fileType(fileType)
+      .fileType(MigrationFileType.ORGANIZATIONS)
       .status(status)
       .build();
   }
