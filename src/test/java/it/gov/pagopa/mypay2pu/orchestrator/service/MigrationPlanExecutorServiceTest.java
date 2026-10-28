@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -41,6 +42,26 @@ class MigrationPlanExecutorServiceTest {
     planExecutor.execute(request(MigrationFileType.ASSESSMENTS), operations(executed));
 
     assertEquals(Set.of(MigrationFileType.ASSESSMENTS), executed);
+  }
+
+  @Test
+  void givenSelectedRootWhenExecuteThenRunsOperationOnCallingThread() {
+    Thread callingThread = Thread.currentThread();
+    MigrationOperation operation = new MigrationOperation() {
+      @Override
+      public MigrationFileType getMigrationFileType() {
+        return MigrationFileType.DEBT_POSITIONS_TYPE;
+      }
+
+      @Override
+      public void execute(MigrationRequestDto request) {
+        assertSame(callingThread, Thread.currentThread());
+      }
+    };
+
+    planExecutor.execute(request(MigrationFileType.DEBT_POSITIONS_TYPE), Map.of(
+      MigrationFileType.DEBT_POSITIONS_TYPE, operation
+    ));
   }
 
   @Test

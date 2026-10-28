@@ -59,13 +59,14 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
     MigrationExecution savedExecution = migrationExecutionRepository.save(execution);
 
     UUID migrationId = savedExecution.getId();
+    MigrationResponseDto response = migrationResponseMapper.toMigrationResponseDto(savedExecution);
 
     switch (action) {
+      // ExportPhaseCoordinator persists the terminal migration status itself.
       case EXPORT -> exportPhaseCoordinator.start(savedExecution)
         .whenComplete((ignored, error) -> {
           if (error != null) {
-            // TODO: Persist asynchronous coordinator failures in the migration status.
-            log.error("Failed to start EXPORT coordinator for migration {}", migrationId, error);
+            log.error("EXPORT coordinator failed for migration {}", migrationId, error);
           }
         });
       case TRANSFER -> transferPhaseCoordinator.start(savedExecution)
@@ -79,7 +80,7 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
       default -> throw new UnsupportedOperationException("Unsupported migration phase");
     }
 
-    return migrationResponseMapper.toMigrationResponseDto(savedExecution);
+    return response;
   }
 
   private MigrationExecution actionRequest2MigrationExecution(MigrationRequestDto request) {
