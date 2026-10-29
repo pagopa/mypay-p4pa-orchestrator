@@ -99,6 +99,12 @@ public class MigrationRequestValidator {
     if (request.getAction() == MigrationAction.TRANSFER) {
       return;
     }
+    if (request.getAction() == MigrationAction.EXPORT && request.getOrchestrationMode() != OrchestrationMode.FULL) {
+      throw new InvalidValueException(
+        "INVALID_MIGRATION_REQUEST",
+        "orchestrationMode %s is not yet implemented for EXPORT".formatted(request.getOrchestrationMode())
+      );
+    }
     if (request.getOrchestrationMode() == OrchestrationMode.FULL) {
       if (request.getPeriod() == null) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "period is required when orchestrationMode is FULL");
