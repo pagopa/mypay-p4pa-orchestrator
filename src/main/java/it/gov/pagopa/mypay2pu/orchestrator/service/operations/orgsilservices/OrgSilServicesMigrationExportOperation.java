@@ -1,23 +1,20 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service.operations.orgsilservices;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
-import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationExportOperation;
+import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationExportOperationExecutor;
+import it.gov.pagopa.mypay2pu.orchestrator.service.operations.AbstractMigrationExportOperation;
 import org.springframework.stereotype.Service;
 
 @Service
-public class OrgSilServicesMigrationExportOperation implements MigrationExportOperation {
+public class OrgSilServicesMigrationExportOperation extends AbstractMigrationExportOperation {
+
+  public OrgSilServicesMigrationExportOperation(MigrationExportOperationExecutor operationExecutor) {
+    super(operationExecutor);
+  }
 
   @Override
   public MigrationFileType getMigrationFileType() {
     return MigrationFileType.ORG_SIL_SERVICES;
   }
 
-  @Override
-  public void execute(MigrationRequestDto request) {
-    throw new UnsupportedOperationException(
-      "EXPORT for %s is not implemented: the Extractor request and extraction-status handling belong to the Extract component tasks."
-        .formatted(getMigrationFileType())
-    );
-  }
 }
