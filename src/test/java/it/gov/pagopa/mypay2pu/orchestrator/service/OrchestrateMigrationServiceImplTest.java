@@ -81,14 +81,15 @@ class OrchestrateMigrationServiceImplTest {
   void exportDelegatesSavedExecutionAndReturnsInitialResponse() {
     MigrationRequestDto request = new MigrationRequestDto();
     request.setAction(MigrationAction.EXPORT);
-    request.setOrchestrationMode(OrchestrationMode.DELTA);
+    request.setOrchestrationMode(OrchestrationMode.FULL);
+    request.setPeriod(new it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto());
     request.setIpaCodes(List.of("80000000000"));
     request.setFileTypesToInclude(List.of(MigrationFileType.ORGANIZATIONS));
     MigrationExecution expectedExecution = MigrationExecution.builder()
       .status(MigrationExecutionStatus.RUNNING)
       .fileTypeCountCompleted(0)
       .ipacodes(List.of("80000000000"))
-      .orchestrationMode(OrchestrationMode.DELTA)
+      .orchestrationMode(OrchestrationMode.FULL)
       .action(MigrationAction.EXPORT)
       .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))
       .build();
@@ -98,7 +99,7 @@ class OrchestrateMigrationServiceImplTest {
       .status(MigrationExecutionStatus.RUNNING)
       .fileTypeCountCompleted(0)
       .ipacodes(List.of("80000000000"))
-      .orchestrationMode(OrchestrationMode.DELTA)
+      .orchestrationMode(OrchestrationMode.FULL)
       .action(MigrationAction.EXPORT)
       .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))
       .creationDate(CREATION_DATE)
@@ -116,11 +117,11 @@ class OrchestrateMigrationServiceImplTest {
     assertEquals(migrationId, response.getMigrationId());
     assertEquals(MigrationAction.EXPORT, response.getAction());
     assertEquals(MigrationExecutionStatus.RUNNING, response.getStatus());
-    assertEquals(OrchestrationMode.DELTA, response.getOrchestrationMode());
+    assertEquals(OrchestrationMode.FULL, response.getOrchestrationMode());
   }
 
   @Test
-  void rejectsOnlyExportLinksPreviousMigration() {
+  void rejectsOnlyCompleteLinksPreviousMigration() {
     UUID previousMigrationId = UUID.randomUUID();
     MigrationExecution previousExecution = MigrationExecution.builder()
       .id(previousMigrationId)
@@ -128,7 +129,7 @@ class OrchestrateMigrationServiceImplTest {
       .action(MigrationAction.COMPLETE)
       .build();
     MigrationRequestDto request = new MigrationRequestDto();
-    request.setAction(MigrationAction.EXPORT);
+    request.setAction(MigrationAction.COMPLETE);
     request.setOrchestrationMode(OrchestrationMode.REJECTS_ONLY);
     request.setMigrationId(previousMigrationId);
     request.setIpaCodes(List.of("80000000000"));
@@ -137,18 +138,15 @@ class OrchestrateMigrationServiceImplTest {
     when(migrationExecutionRepositoryMock.save(org.mockito.ArgumentMatchers.argThat(
       execution -> previousMigrationId.equals(execution.getParentExecutionId())
     ))).thenAnswer(invocation -> invocation.getArgument(0));
-    when(exportPhaseCoordinatorMock.start(org.mockito.ArgumentMatchers.argThat(
-      execution -> previousMigrationId.equals(execution.getParentExecutionId())
-    ))).thenReturn(CompletableFuture.completedFuture(null));
 
     MigrationResponseDto response = service.startMigration(request);
 
-    assertEquals(MigrationAction.EXPORT, response.getAction());
+    assertEquals(MigrationAction.COMPLETE, response.getAction());
     verify(migrationExecutionRepositoryMock).findById(previousMigrationId);
     verify(migrationExecutionRepositoryMock).save(org.mockito.ArgumentMatchers.argThat(
       execution -> previousMigrationId.equals(execution.getParentExecutionId())
     ));
-    verify(exportPhaseCoordinatorMock).start(org.mockito.ArgumentMatchers.argThat(
+    verify(completeMigrationPhaseCoordinatorMock).start(org.mockito.ArgumentMatchers.argThat(
       execution -> previousMigrationId.equals(execution.getParentExecutionId())
     ));
   }
