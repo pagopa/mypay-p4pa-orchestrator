@@ -11,7 +11,6 @@ import it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.ExtractorService;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
@@ -29,11 +28,9 @@ public class MigrationExportOperationExecutor {
   private final MigrationFileExecutionService migrationFileExecutionService;
   private final ExtractionPollingProperties pollingProperties;
 
-  public MigrationExportOperationExecutor(
-    ExtractorService extractorService,
-    MigrationFileExecutionService migrationFileExecutionService,
-    ExtractionPollingProperties pollingProperties
-  ) {
+  public MigrationExportOperationExecutor(ExtractorService extractorService,
+                                          MigrationFileExecutionService migrationFileExecutionService,
+                                          ExtractionPollingProperties pollingProperties) {
     this.extractorService = extractorService;
     this.migrationFileExecutionService = migrationFileExecutionService;
     this.pollingProperties = pollingProperties;
@@ -53,7 +50,7 @@ public class MigrationExportOperationExecutor {
         migrationId,
         fileType,
         archiveNames(completed.getArchiveFiles()),
-        toUtcLocalDateTime(completed.getUpdatedAt())
+        completed.getUpdatedAt().toLocalDateTime()
       );
     } catch (RuntimeException failure) {
       markFailed(migrationId, fileType, EXTRACTOR_ERROR, failure.getMessage(), failure);
@@ -155,13 +152,6 @@ public class MigrationExportOperationExecutor {
       .map(String::trim)
       .filter(name -> !name.isEmpty())
       .collect(Collectors.joining(","));
-  }
-
-  private LocalDateTime toUtcLocalDateTime(OffsetDateTime updatedAt) {
-    if (updatedAt == null) {
-      throw new IllegalStateException("Extractor completed without an updatedAt timestamp");
-    }
-    return updatedAt.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
   }
 
   private void markFailed(UUID migrationId,
