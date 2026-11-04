@@ -11,6 +11,10 @@ import java.util.UUID;
 import java.util.function.Consumer;
 import org.springframework.stereotype.Service;
 
+/**
+ * Persists file execution updates after lifecycle validation.
+ */
+//TODO: Currently handles Export without modifying upload data.
 @Service
 public class MigrationFileExecutionService {
 
@@ -37,6 +41,9 @@ public class MigrationFileExecutionService {
         .build()));
   }
 
+  /**
+   * Starts export and records the extraction start time.
+   */
   public MigrationFileExecution markExporting(UUID migrationId,
                                               MigrationFileType fileType,
                                               LocalDateTime startedAt) {
@@ -47,18 +54,24 @@ public class MigrationFileExecutionService {
     });
   }
 
-  public MigrationFileExecution recordAccepted(UUID migrationId,
+  /**
+   * Records the accepted Extractor job ID without treating acceptance as completion.
+   */
+  public MigrationFileExecution recordExtractionAccepted(UUID migrationId,
                                                MigrationFileType fileType,
                                                String extractionId) {
-    migrationFileExecutionValidator.validateAcceptedInput(extractionId);
+    migrationFileExecutionValidator.validateAcceptedExtractionId(extractionId);
     return update(migrationId, fileType, fileExecution -> {
       MigrationFileExecutionStatus targetStatus =
-        migrationFileExecutionValidator.validateRecordAccepted(fileExecution, extractionId);
+        migrationFileExecutionValidator.validateRecordExtractionAccepted(fileExecution, extractionId);
       fileExecution.setStatus(targetStatus);
       fileExecution.setExtractionId(extractionId);
     });
   }
 
+  /**
+   * Records the completed extraction's file path and completion time.
+   */
   public MigrationFileExecution markExported(UUID migrationId,
                                              MigrationFileType fileType,
                                              String filePath,
@@ -72,13 +85,16 @@ public class MigrationFileExecutionService {
     });
   }
 
-  public MigrationFileExecution markFailed(UUID migrationId,
+  /**
+   * Records extraction failure details, not Transfer or PU errors.
+   */
+  public MigrationFileExecution markExtractionFailed(UUID migrationId,
                                            MigrationFileType fileType,
                                            String errorCode,
                                            String errorMessage) {
     return update(migrationId, fileType, fileExecution -> {
       MigrationFileExecutionStatus targetStatus =
-        migrationFileExecutionValidator.validateMarkFailed(fileExecution, errorCode, errorMessage);
+        migrationFileExecutionValidator.validateMarkExtractionFailed(fileExecution, errorCode, errorMessage);
       fileExecution.setStatus(targetStatus);
       fileExecution.setExtractionErrorCode(errorCode);
       fileExecution.setExtractionErrorMsg(errorMessage);

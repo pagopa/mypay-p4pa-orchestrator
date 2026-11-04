@@ -49,14 +49,14 @@ class MigrationFileExecutionValidatorTest {
 
   @ParameterizedTest
   @EnumSource(MigrationFileExecutionStatus.class)
-  void givenFileExecutionStatusWhenValidateRecordAcceptedThenAllowsOnlyExporting(MigrationFileExecutionStatus status) {
+  void givenFileExecutionStatusWhenValidateRecordExtractionAcceptedThenAllowsOnlyExporting(MigrationFileExecutionStatus status) {
     MigrationFileExecution execution = fileExecution(status);
 
     if (status == MigrationFileExecutionStatus.EXPORTING) {
-      assertEquals(MigrationFileExecutionStatus.EXPORTING, validator.validateRecordAccepted(execution, "extractor-123"));
+      assertEquals(MigrationFileExecutionStatus.EXPORTING, validator.validateRecordExtractionAccepted(execution, "extractor-123"));
     } else {
       ConflictException exception = assertThrows(
-        ConflictException.class, () -> validator.validateRecordAccepted(execution, "extractor-123")
+        ConflictException.class, () -> validator.validateRecordExtractionAccepted(execution, "extractor-123")
       );
       assertEquals("INVALID_MIGRATION_FILE_EXECUTION_TRANSITION", exception.getCode());
     }
@@ -85,7 +85,7 @@ class MigrationFileExecutionValidatorTest {
 
   @ParameterizedTest
   @EnumSource(MigrationFileExecutionStatus.class)
-  void givenFileExecutionStatusWhenValidateMarkFailedThenAllowsOnlyPendingExportingOrFailed(
+  void givenFileExecutionStatusWhenValidateMarkExtractionFailedThenAllowsOnlyPendingExportingOrFailed(
     MigrationFileExecutionStatus status
   ) {
     MigrationFileExecution execution = fileExecution(status);
@@ -94,11 +94,11 @@ class MigrationFileExecutionValidatorTest {
       || status == MigrationFileExecutionStatus.EXPORTING
       || status == MigrationFileExecutionStatus.FAILED) {
       assertEquals(
-        MigrationFileExecutionStatus.FAILED, validator.validateMarkFailed(execution, "ERROR", "Extraction failed")
+        MigrationFileExecutionStatus.FAILED, validator.validateMarkExtractionFailed(execution, "ERROR", "Extraction failed")
       );
     } else {
       ConflictException exception = assertThrows(
-        ConflictException.class, () -> validator.validateMarkFailed(execution, "ERROR", "Extraction failed")
+        ConflictException.class, () -> validator.validateMarkExtractionFailed(execution, "ERROR", "Extraction failed")
       );
       assertEquals("INVALID_MIGRATION_FILE_EXECUTION_TRANSITION", exception.getCode());
     }
@@ -121,9 +121,9 @@ class MigrationFileExecutionValidatorTest {
   @ParameterizedTest
   @NullAndEmptySource
   @ValueSource(strings = {" ", "\t"})
-  void givenInvalidExtractionIdWhenValidateAcceptedInputThenThrowsInvalidValueException(String extractionId) {
+  void givenInvalidExtractionIdWhenValidateAcceptedExtractionIdThenThrowsInvalidValueException(String extractionId) {
     InvalidValueException exception = assertThrows(
-      InvalidValueException.class, () -> validator.validateAcceptedInput(extractionId)
+      InvalidValueException.class, () -> validator.validateAcceptedExtractionId(extractionId)
     );
 
     assertEquals("INVALID_MIGRATION_REQUEST", exception.getCode());
@@ -131,25 +131,25 @@ class MigrationFileExecutionValidatorTest {
   }
 
   @Test
-  void givenValidExtractionIdWhenValidateAcceptedInputThenAcceptsInput() {
-    assertDoesNotThrow(() -> validator.validateAcceptedInput("extractor-123"));
+  void givenValidExtractionIdWhenValidateAcceptedExtractionIdThenAcceptsInput() {
+    assertDoesNotThrow(() -> validator.validateAcceptedExtractionId("extractor-123"));
   }
 
   @Test
-  void givenNoAcceptedJobWhenValidateRecordAcceptedThenAllowsFirstId() {
+  void givenNoAcceptedJobWhenValidateRecordExtractionAcceptedThenAllowsFirstId() {
     MigrationFileExecution execution = fileExecution(MigrationFileExecutionStatus.EXPORTING);
     execution.setExtractionId(null);
 
-    assertEquals(MigrationFileExecutionStatus.EXPORTING, validator.validateRecordAccepted(execution, "extractor-123"));
+    assertEquals(MigrationFileExecutionStatus.EXPORTING, validator.validateRecordExtractionAccepted(execution, "extractor-123"));
     assertNull(execution.getExtractionId());
   }
 
   @Test
-  void givenAcceptedJobWhenValidateRecordAcceptedThenRejectsDifferentId() {
+  void givenAcceptedJobWhenValidateRecordExtractionAcceptedThenRejectsDifferentId() {
     MigrationFileExecution execution = fileExecution(MigrationFileExecutionStatus.EXPORTING);
 
     ConflictException exception = assertThrows(
-      ConflictException.class, () -> validator.validateRecordAccepted(execution, "extractor-456")
+      ConflictException.class, () -> validator.validateRecordExtractionAccepted(execution, "extractor-456")
     );
 
     assertEquals("IMMUTABLE_FIELD", exception.getCode());
@@ -200,13 +200,13 @@ class MigrationFileExecutionValidatorTest {
     ", Extraction failed, extractionErrorCode",
     "ERROR, , extractionErrorMsg"
   })
-  void givenChangedFailureDetailsWhenValidateMarkFailedThenRejectsImmutableField(
+  void givenChangedFailureDetailsWhenValidateMarkExtractionFailedThenRejectsImmutableField(
     String errorCode, String errorMessage, String fieldName
   ) {
     MigrationFileExecution execution = fileExecution(MigrationFileExecutionStatus.FAILED);
 
     ConflictException exception = assertThrows(
-      ConflictException.class, () -> validator.validateMarkFailed(execution, errorCode, errorMessage)
+      ConflictException.class, () -> validator.validateMarkExtractionFailed(execution, errorCode, errorMessage)
     );
 
     assertEquals("IMMUTABLE_FIELD", exception.getCode());
@@ -216,12 +216,12 @@ class MigrationFileExecutionValidatorTest {
   }
 
   @Test
-  void givenFailedExecutionWithNullDetailsWhenValidateMarkFailedThenAcceptsIdenticalRetry() {
+  void givenFailedExecutionWithNullDetailsWhenValidateMarkExtractionFailedThenAcceptsIdenticalRetry() {
     MigrationFileExecution execution = fileExecution(MigrationFileExecutionStatus.FAILED);
     execution.setExtractionErrorCode(null);
     execution.setExtractionErrorMsg(null);
 
-    assertEquals(MigrationFileExecutionStatus.FAILED, validator.validateMarkFailed(execution, null, null));
+    assertEquals(MigrationFileExecutionStatus.FAILED, validator.validateMarkExtractionFailed(execution, null, null));
   }
 
   private MigrationFileExecution fileExecution(MigrationFileExecutionStatus status) {
