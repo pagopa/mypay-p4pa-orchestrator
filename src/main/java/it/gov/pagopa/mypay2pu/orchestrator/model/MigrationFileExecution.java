@@ -9,6 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.experimental.FieldNameConstants;
 import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
@@ -19,6 +20,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @Data
 @SuperBuilder
+@FieldNameConstants
 @EqualsAndHashCode(callSuper = false)
 public class MigrationFileExecution extends BaseEntity {
 
