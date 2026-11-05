@@ -27,7 +27,7 @@ public class MigrationActionExecutor {
   public CompletableFuture<Void> execute(MigrationRequestWithMigrationExecutionModelDto request) {
     MigrationExecution execution = request.getMigrationExecution();
     try {
-      migrationFacadeService.execute(request);
+      migrationFacadeService.execute(request.getMigrationRequest());
       execution.setStatus(MigrationExecutionStatus.COMPLETED);
       execution.setFileTypeCountCompleted(execution.getFileTypes().size());
       execution.setErrorCode(null);

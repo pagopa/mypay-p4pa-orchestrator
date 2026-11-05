@@ -60,7 +60,7 @@ class MigrationActionExecutorTest {
     assertEquals(1, execution.getFileTypeCountCompleted());
     assertNull(execution.getErrorCode());
     assertNull(execution.getErrorMsg());
-    verify(migrationFacadeServiceMock).execute(request);
+    verify(migrationFacadeServiceMock).execute(request.getMigrationRequest());
     verify(migrationExecutionRepositoryMock).save(execution);
   }
 
@@ -69,14 +69,14 @@ class MigrationActionExecutorTest {
   void givenActionFailureWhenExecuteThenPersistsFailureAndPropagates(MigrationAction action) {
     MigrationRequestWithMigrationExecutionModelDto request = request(action);
     IllegalStateException failure = new IllegalStateException("operation failed");
-    doThrow(failure).when(migrationFacadeServiceMock).execute(request);
+    doThrow(failure).when(migrationFacadeServiceMock).execute(request.getMigrationRequest());
 
     assertSame(failure, assertThrows(IllegalStateException.class, () -> executor.execute(request)));
 
     assertEquals(MigrationExecutionStatus.FAILED, request.getMigrationExecution().getStatus());
     assertEquals(action + "_FAILED", request.getMigrationExecution().getErrorCode());
     assertEquals("operation failed", request.getMigrationExecution().getErrorMsg());
-    verify(migrationFacadeServiceMock).execute(request);
+    verify(migrationFacadeServiceMock).execute(request.getMigrationRequest());
     verify(migrationExecutionRepositoryMock).save(request.getMigrationExecution());
   }
 
@@ -87,7 +87,7 @@ class MigrationActionExecutorTest {
     MigrationRequestWithMigrationExecutionModelDto request = request(MigrationAction.EXPORT);
     IllegalStateException failure = new IllegalStateException(message);
     IllegalArgumentException persistenceFailure = new IllegalArgumentException("database unavailable");
-    doThrow(failure).when(migrationFacadeServiceMock).execute(request);
+    doThrow(failure).when(migrationFacadeServiceMock).execute(request.getMigrationRequest());
     when(migrationExecutionRepositoryMock.save(request.getMigrationExecution())).thenThrow(persistenceFailure);
 
     IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> executor.execute(request));
@@ -95,20 +95,19 @@ class MigrationActionExecutorTest {
     assertSame(failure, thrown);
     assertEquals(List.of(persistenceFailure), List.of(thrown.getSuppressed()));
     assertEquals("IllegalStateException", request.getMigrationExecution().getErrorMsg());
-    verify(migrationFacadeServiceMock).execute(request);
+    verify(migrationFacadeServiceMock).execute(request.getMigrationRequest());
     verify(migrationExecutionRepositoryMock).save(request.getMigrationExecution());
   }
 
   private MigrationRequestWithMigrationExecutionModelDto request(MigrationAction action) {
-    return MigrationRequestWithMigrationExecutionModelDto.builder()
-      .migrationRequest(new MigrationRequestDto().action(action))
-      .migrationExecution(MigrationExecution.builder()
+    return new MigrationRequestWithMigrationExecutionModelDto(
+      new MigrationRequestDto().action(action),
+      MigrationExecution.builder()
         .action(action)
         .status(MigrationExecutionStatus.RUNNING)
         .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))
         .errorCode("previous error")
         .errorMsg("previous message")
-        .build())
-      .build();
+        .build());
   }
 }

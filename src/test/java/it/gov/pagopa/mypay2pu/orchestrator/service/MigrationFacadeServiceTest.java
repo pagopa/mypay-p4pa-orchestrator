@@ -80,44 +80,41 @@ class MigrationFacadeServiceTest {
 
   @Test
   void givenTransferSelectionWhenExecuteThenInvokeOnlySelectedTransferOperation() {
-    MigrationRequestWithMigrationExecutionModelDto request = request(MigrationAction.TRANSFER,
+    MigrationRequestDto request = request(MigrationAction.TRANSFER,
       MigrationFileType.DEBT_POSITIONS);
 
     facade.execute(request);
 
-    verify(debtPositionsTransferMock).execute(same(request.getMigrationRequest()));
+    verify(debtPositionsTransferMock).execute(same(request));
   }
 
   @Test
   void givenExportSelectionWhenExecuteThenInvokeOnlySelectedExportOperation() {
-    MigrationRequestWithMigrationExecutionModelDto request = request(MigrationAction.EXPORT,
+    MigrationRequestDto request = request(MigrationAction.EXPORT,
       MigrationFileType.ORG_SIL_SERVICES);
 
     facade.execute(request);
 
-    verify(orgSilServicesExportMock).execute(same(request.getMigrationRequest()));
+    verify(orgSilServicesExportMock).execute(same(request));
   }
 
   @Test
   void givenCompleteSelectionWhenExecuteThenInvokeOnlySelectedExportAndTransferOperations() {
-    MigrationRequestWithMigrationExecutionModelDto request = request(MigrationAction.COMPLETE,
+    MigrationRequestDto request = request(MigrationAction.COMPLETE,
       MigrationFileType.ORGANIZATIONS,
       MigrationFileType.ORG_SIL_SERVICES);
 
     facade.execute(request);
 
-    verify(organizationsExportMock).execute(same(request.getMigrationRequest()));
-    verify(organizationsTransferMock).execute(same(request.getMigrationRequest()));
-    verify(orgSilServicesExportMock).execute(same(request.getMigrationRequest()));
-    verify(orgSilServicesTransferMock).execute(same(request.getMigrationRequest()));
+    verify(organizationsExportMock).execute(same(request));
+    verify(organizationsTransferMock).execute(same(request));
+    verify(orgSilServicesExportMock).execute(same(request));
+    verify(orgSilServicesTransferMock).execute(same(request));
   }
 
-  private MigrationRequestWithMigrationExecutionModelDto request(MigrationAction action, MigrationFileType... fileTypes) {
-    MigrationRequestWithMigrationExecutionModelDto request = new MigrationRequestWithMigrationExecutionModelDto();
-    request.setMigrationRequest(new MigrationRequestDto()
+  private MigrationRequestDto request(MigrationAction action, MigrationFileType... fileTypes) {
+    return new MigrationRequestDto()
       .action(action)
-      .fileTypesToInclude(List.of(fileTypes)));
-    request.setMigrationExecution(MigrationExecution.builder().action(action).fileTypes(List.of(fileTypes)).build());
-    return request;
+      .fileTypesToInclude(List.of(fileTypes));
   }
 }
