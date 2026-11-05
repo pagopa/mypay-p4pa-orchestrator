@@ -5,7 +5,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionS
 import it.gov.pagopa.mypay2pu.orchestrator.exception.NotFoundException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
-import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionValidator;
+import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionExportValidator;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -19,12 +19,12 @@ import org.springframework.stereotype.Service;
 public class MigrationFileExecutionService {
 
   private final MigrationFileExecutionRepository migrationFileExecutionRepository;
-  private final MigrationFileExecutionValidator migrationFileExecutionValidator;
+  private final MigrationFileExecutionExportValidator migrationFileExecutionExportValidator;
 
   public MigrationFileExecutionService(MigrationFileExecutionRepository migrationFileExecutionRepository,
-                                        MigrationFileExecutionValidator migrationFileExecutionValidator) {
+                                        MigrationFileExecutionExportValidator migrationFileExecutionExportValidator) {
     this.migrationFileExecutionRepository = migrationFileExecutionRepository;
-    this.migrationFileExecutionValidator = migrationFileExecutionValidator;
+    this.migrationFileExecutionExportValidator = migrationFileExecutionExportValidator;
   }
 
   /**
@@ -48,8 +48,8 @@ public class MigrationFileExecutionService {
                                               MigrationFileType fileType,
                                               LocalDateTime startedAt) {
     return update(migrationId, fileType, fileExecution -> {
-      MigrationFileExecutionStatus targetStatus = migrationFileExecutionValidator.validateMarkExporting(fileExecution);
-      fileExecution.setStatus(targetStatus);
+      migrationFileExecutionExportValidator.validateMarkExporting(fileExecution);
+      fileExecution.setStatus(MigrationFileExecutionStatus.EXPORTING);
       fileExecution.setExtractionStartedAt(startedAt);
     });
   }
@@ -60,11 +60,9 @@ public class MigrationFileExecutionService {
   public MigrationFileExecution recordExtractionAccepted(UUID migrationId,
                                                MigrationFileType fileType,
                                                String extractionId) {
-    migrationFileExecutionValidator.validateAcceptedExtractionId(extractionId);
+    migrationFileExecutionExportValidator.validateAcceptedExtractionId(extractionId);
     return update(migrationId, fileType, fileExecution -> {
-      MigrationFileExecutionStatus targetStatus =
-        migrationFileExecutionValidator.validateRecordExtractionAccepted(fileExecution, extractionId);
-      fileExecution.setStatus(targetStatus);
+      migrationFileExecutionExportValidator.validateRecordExtractionAccepted(fileExecution, extractionId);
       fileExecution.setExtractionId(extractionId);
     });
   }
@@ -77,9 +75,8 @@ public class MigrationFileExecutionService {
                                              String filePath,
                                              LocalDateTime completedAt) {
     return update(migrationId, fileType, fileExecution -> {
-      MigrationFileExecutionStatus targetStatus =
-        migrationFileExecutionValidator.validateMarkExported(fileExecution, filePath, completedAt);
-      fileExecution.setStatus(targetStatus);
+      migrationFileExecutionExportValidator.validateMarkExported(fileExecution, filePath, completedAt);
+      fileExecution.setStatus(MigrationFileExecutionStatus.EXPORTED);
       fileExecution.setFilePath(filePath);
       fileExecution.setExtractionCompletedAt(completedAt);
     });
@@ -93,9 +90,8 @@ public class MigrationFileExecutionService {
                                            String errorCode,
                                            String errorMessage) {
     return update(migrationId, fileType, fileExecution -> {
-      MigrationFileExecutionStatus targetStatus =
-        migrationFileExecutionValidator.validateMarkExtractionFailed(fileExecution, errorCode, errorMessage);
-      fileExecution.setStatus(targetStatus);
+      migrationFileExecutionExportValidator.validateMarkExtractionFailed(fileExecution, errorCode, errorMessage);
+      fileExecution.setStatus(MigrationFileExecutionStatus.FAILED);
       fileExecution.setExtractionErrorCode(errorCode);
       fileExecution.setExtractionErrorMsg(errorMessage);
     });

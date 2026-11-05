@@ -7,7 +7,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.NotFoundException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
-import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionValidator;
+import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionExportValidator;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.util.Optional;
@@ -43,7 +43,7 @@ class MigrationFileExecutionServiceTest {
   @BeforeEach
   void setUp() {
     service = new MigrationFileExecutionService(
-      migrationFileExecutionRepositoryMock, new MigrationFileExecutionValidator()
+      migrationFileExecutionRepositoryMock, new MigrationFileExecutionExportValidator()
     );
   }
 
