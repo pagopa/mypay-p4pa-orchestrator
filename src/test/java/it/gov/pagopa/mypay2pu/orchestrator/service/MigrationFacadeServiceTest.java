@@ -2,7 +2,8 @@ package it.gov.pagopa.mypay2pu.orchestrator.service;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.MigrationRequestWithMigrationExecutionModelDto;
+import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationExportOperation;
 import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationTransferOperation;
 import org.junit.jupiter.api.AfterEach;
@@ -19,6 +20,7 @@ import java.util.Map;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.same;
 
 @ExtendWith(MockitoExtension.class)
 class MigrationFacadeServiceTest {
@@ -77,42 +79,43 @@ class MigrationFacadeServiceTest {
 
   @Test
   void givenTransferSelectionWhenExecuteThenInvokeOnlySelectedTransferOperation() {
-    MigrationRequestDto request = request(MigrationAction.TRANSFER,
+    MigrationRequestWithMigrationExecutionModelDto request = request(MigrationAction.TRANSFER,
       MigrationFileType.DEBT_POSITIONS);
 
     facade.execute(request);
 
-    verify(debtPositionsTransferMock).execute(request);
+    verify(debtPositionsTransferMock).execute(same(request));
   }
 
   @Test
   void givenExportSelectionWhenExecuteThenInvokeOnlySelectedExportOperation() {
-    MigrationRequestDto request = request(MigrationAction.EXPORT,
+    MigrationRequestWithMigrationExecutionModelDto request = request(MigrationAction.EXPORT,
       MigrationFileType.ORG_SIL_SERVICES);
 
     facade.execute(request);
 
-    verify(orgSilServicesExportMock).execute(request);
+    verify(orgSilServicesExportMock).execute(same(request));
   }
 
   @Test
   void givenCompleteSelectionWhenExecuteThenInvokeOnlySelectedExportAndTransferOperations() {
-    MigrationRequestDto request = request(MigrationAction.COMPLETE,
+    MigrationRequestWithMigrationExecutionModelDto request = request(MigrationAction.COMPLETE,
       MigrationFileType.ORGANIZATIONS,
       MigrationFileType.ORG_SIL_SERVICES);
 
     facade.execute(request);
 
-    verify(organizationsExportMock).execute(request);
-    verify(organizationsTransferMock).execute(request);
-    verify(orgSilServicesExportMock).execute(request);
-    verify(orgSilServicesTransferMock).execute(request);
+    verify(organizationsExportMock).execute(same(request));
+    verify(organizationsTransferMock).execute(same(request));
+    verify(orgSilServicesExportMock).execute(same(request));
+    verify(orgSilServicesTransferMock).execute(same(request));
   }
 
-  private MigrationRequestDto request(MigrationAction action, MigrationFileType... fileTypes) {
-    MigrationRequestDto request = new MigrationRequestDto();
+  private MigrationRequestWithMigrationExecutionModelDto request(MigrationAction action, MigrationFileType... fileTypes) {
+    MigrationRequestWithMigrationExecutionModelDto request = new MigrationRequestWithMigrationExecutionModelDto();
     request.setAction(action);
     request.setFileTypesToInclude(List.of(fileTypes));
+    request.setMigrationExecution(MigrationExecution.builder().action(action).fileTypes(List.of(fileTypes)).build());
     return request;
   }
 }
