@@ -1,7 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.MigrationRequestWithMigrationExecutionModelDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationOperation;
 import org.junit.jupiter.api.Test;
@@ -73,7 +72,7 @@ class MigrationPlanExecutorServiceTest {
       executed.add(failedParent);
       throw failure;
     }));
-    MigrationRequestWithMigrationExecutionModelDto request = request(
+    MigrationRequestDto request = request(
       MigrationFileType.DEBT_POSITIONS_TYPE,
       MigrationFileType.ORGANIZATIONS,
       failedParent,
@@ -122,9 +121,7 @@ class MigrationPlanExecutorServiceTest {
     };
   }
 
-  private MigrationRequestWithMigrationExecutionModelDto request(MigrationFileType... fileTypes) {
-    MigrationRequestWithMigrationExecutionModelDto request = new MigrationRequestWithMigrationExecutionModelDto();
-    request.setFileTypesToInclude(List.of(fileTypes));
-    return request;
+  private MigrationRequestDto request(MigrationFileType... fileTypes) {
+    return new MigrationRequestDto().fileTypesToInclude(List.of(fileTypes));
   }
 }

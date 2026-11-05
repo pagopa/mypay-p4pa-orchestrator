@@ -40,7 +40,7 @@ public class MigrationPlanExecutorService {
     ))
   );
 
-  public void execute(MigrationRequestWithMigrationExecutionModelDto request,
+  public void execute(MigrationRequestDto request,
                       Map<MigrationFileType, ? extends MigrationOperation> operationMap) {
     Set<MigrationFileType> selectedFileTypes = Set.copyOf(request.getFileTypesToInclude());
     try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -56,7 +56,6 @@ public class MigrationPlanExecutorService {
     }
   }
 
-  //TODO: next step integration -> move from MigrationRequestDto to MigrationRequestWithMigrationExecutionModelDto
   private CompletableFuture<Void> executePlan(MigrationRequestDto request,
                                               MigrationFileType migrationFileType,
                                               Set<MigrationFileType> selectedFileTypes,

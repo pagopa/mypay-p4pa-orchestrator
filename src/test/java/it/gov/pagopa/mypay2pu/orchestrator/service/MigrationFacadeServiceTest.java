@@ -2,6 +2,7 @@ package it.gov.pagopa.mypay2pu.orchestrator.service;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.MigrationRequestWithMigrationExecutionModelDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationExportOperation;
@@ -84,7 +85,7 @@ class MigrationFacadeServiceTest {
 
     facade.execute(request);
 
-    verify(debtPositionsTransferMock).execute(same(request));
+    verify(debtPositionsTransferMock).execute(same(request.getMigrationRequest()));
   }
 
   @Test
@@ -94,7 +95,7 @@ class MigrationFacadeServiceTest {
 
     facade.execute(request);
 
-    verify(orgSilServicesExportMock).execute(same(request));
+    verify(orgSilServicesExportMock).execute(same(request.getMigrationRequest()));
   }
 
   @Test
@@ -105,16 +106,17 @@ class MigrationFacadeServiceTest {
 
     facade.execute(request);
 
-    verify(organizationsExportMock).execute(same(request));
-    verify(organizationsTransferMock).execute(same(request));
-    verify(orgSilServicesExportMock).execute(same(request));
-    verify(orgSilServicesTransferMock).execute(same(request));
+    verify(organizationsExportMock).execute(same(request.getMigrationRequest()));
+    verify(organizationsTransferMock).execute(same(request.getMigrationRequest()));
+    verify(orgSilServicesExportMock).execute(same(request.getMigrationRequest()));
+    verify(orgSilServicesTransferMock).execute(same(request.getMigrationRequest()));
   }
 
   private MigrationRequestWithMigrationExecutionModelDto request(MigrationAction action, MigrationFileType... fileTypes) {
     MigrationRequestWithMigrationExecutionModelDto request = new MigrationRequestWithMigrationExecutionModelDto();
-    request.setAction(action);
-    request.setFileTypesToInclude(List.of(fileTypes));
+    request.setMigrationRequest(new MigrationRequestDto()
+      .action(action)
+      .fileTypesToInclude(List.of(fileTypes)));
     request.setMigrationExecution(MigrationExecution.builder().action(action).fileTypes(List.of(fileTypes)).build());
     return request;
   }

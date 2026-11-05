@@ -13,6 +13,7 @@ import lombok.experimental.SuperBuilder;
 @Data
 @SuperBuilder
 @EqualsAndHashCode(callSuper = false)
-public class MigrationRequestWithMigrationExecutionModelDto extends MigrationRequestDto {
+public class MigrationRequestWithMigrationExecutionModelDto {
+  MigrationRequestDto migrationRequest;
   MigrationExecution migrationExecution;
 }

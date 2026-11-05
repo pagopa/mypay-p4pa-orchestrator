@@ -103,10 +103,10 @@ class OrchestrateMigrationServiceImplTest {
       ArgumentCaptor.forClass(MigrationRequestWithMigrationExecutionModelDto.class);
     calls.verify(migrationActionExecutorMock).execute(requestCaptor.capture());
     assertSame(saved, requestCaptor.getValue().getMigrationExecution());
-    assertEquals(saved.getId(), requestCaptor.getValue().getMigrationId());
-    assertEquals(action, requestCaptor.getValue().getAction());
-    assertEquals(saved.getFileTypes(), requestCaptor.getValue().getFileTypesToInclude());
-    assertEquals(saved.getIpacodes(), requestCaptor.getValue().getIpaCodes());
+    assertEquals(saved.getId(), requestCaptor.getValue().getMigrationRequest().getMigrationId());
+    assertEquals(action, requestCaptor.getValue().getMigrationRequest().getAction());
+    assertEquals(saved.getFileTypes(), requestCaptor.getValue().getMigrationRequest().getFileTypesToInclude());
+    assertEquals(saved.getIpacodes(), requestCaptor.getValue().getMigrationRequest().getIpaCodes());
   }
 
   @Test
@@ -130,7 +130,7 @@ class OrchestrateMigrationServiceImplTest {
       ArgumentCaptor.forClass(MigrationRequestWithMigrationExecutionModelDto.class);
     verify(migrationActionExecutorMock).execute(captor.capture());
     assertEquals(parentId, captor.getValue().getMigrationExecution().getParentExecutionId());
-    assertEquals(response.getMigrationId(), captor.getValue().getMigrationId());
+    assertEquals(response.getMigrationId(), captor.getValue().getMigrationRequest().getMigrationId());
     assertEquals(parentId, request.getMigrationId());
     verify(migrationExecutionRepositoryMock).findById(parentId);
     verify(migrationExecutionRepositoryMock).save(captor.getValue().getMigrationExecution());
