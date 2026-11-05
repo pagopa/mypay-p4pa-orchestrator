@@ -7,9 +7,6 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationResponseDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
-import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.CompleteMigrationPhaseCoordinator;
-import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.ExportPhaseCoordinator;
-import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.TransferPhaseCoordinator;
 import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationExecutionMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationResponseMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationRequestValidator;
@@ -23,26 +20,20 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationService {
 
-  private final ExportPhaseCoordinator exportPhaseCoordinator;
-  private final TransferPhaseCoordinator transferPhaseCoordinator;
-  private final CompleteMigrationPhaseCoordinator completeMigrationPhaseCoordinator;
+  private final MigrationActionExecutor migrationActionExecutor;
   private final MigrationRequestValidator migrationRequestValidator;
   private final MigrationExecutionRepository migrationExecutionRepository;
   private final MigrationExecutionMapper migrationExecutionMapper;
   private final MigrationResponseMapper migrationResponseMapper;
 
   public OrchestrateMigrationServiceImpl(
-    ExportPhaseCoordinator exportPhaseCoordinator,
-    TransferPhaseCoordinator transferPhaseCoordinator,
-    CompleteMigrationPhaseCoordinator completeMigrationPhaseCoordinator,
+    MigrationActionExecutor migrationActionExecutor,
     MigrationRequestValidator migrationRequestValidator,
     MigrationExecutionRepository migrationExecutionRepository,
     MigrationExecutionMapper migrationExecutionMapper,
     MigrationResponseMapper migrationResponseMapper
   ) {
-    this.exportPhaseCoordinator = exportPhaseCoordinator;
-    this.transferPhaseCoordinator = transferPhaseCoordinator;
-    this.completeMigrationPhaseCoordinator = completeMigrationPhaseCoordinator;
+    this.migrationActionExecutor = migrationActionExecutor;
     this.migrationRequestValidator = migrationRequestValidator;
     this.migrationExecutionRepository = migrationExecutionRepository;
     this.migrationExecutionMapper = migrationExecutionMapper;
@@ -61,24 +52,13 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
     UUID migrationId = savedExecution.getId();
     MigrationResponseDto response = migrationResponseMapper.toMigrationResponseDto(savedExecution);
 
-    switch (action) {
-      // ExportPhaseCoordinator persists the terminal migration status itself.
-      case EXPORT -> exportPhaseCoordinator.start(savedExecution)
-        .whenComplete((ignored, error) -> {
-          if (error != null) {
-            log.error("EXPORT coordinator failed for migration {}", migrationId, error);
-          }
-        });
-      case TRANSFER -> transferPhaseCoordinator.start(savedExecution)
-        .whenComplete((ignored, error) -> {
-          if (error != null) {
-            // TODO: Persist asynchronous coordinator failures in the migration status.
-            log.error("Failed to start TRANSFER coordinator for migration {}", migrationId, error);
-          }
-        });
-      case COMPLETE -> completeMigrationPhaseCoordinator.start(savedExecution);
-      default -> throw new UnsupportedOperationException("Unsupported migration phase");
-    }
+    migrationActionExecutor.execute(
+      migrationExecutionMapper.toMigrationRequestWithMigrationExecutionModelDto(request, savedExecution)
+    ).whenComplete((ignored, error) -> {
+      if (error != null) {
+        log.error("{} action failed for migration {}", action, migrationId, error);
+      }
+    });
 
     return response;
   }

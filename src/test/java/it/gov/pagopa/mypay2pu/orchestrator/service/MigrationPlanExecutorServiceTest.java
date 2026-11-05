@@ -1,12 +1,10 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.MigrationRequestWithMigrationExecutionModelDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationOperation;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -14,17 +12,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@ExtendWith(MockitoExtension.class)
 class MigrationPlanExecutorServiceTest {
 
-  @InjectMocks
-  private MigrationPlanExecutorService planExecutor;
+  private final MigrationPlanExecutorService planExecutor = new MigrationPlanExecutorService();
 
   @Test
   void givenMigrationPlanWhenValidateThenVisitEveryFileTypeOnceWithoutCycles() {
@@ -39,7 +36,10 @@ class MigrationPlanExecutorServiceTest {
   void givenSelectedDescendantWhenExecuteThenSkipUnselectedAncestors() {
     Set<MigrationFileType> executed = ConcurrentHashMap.newKeySet();
 
-    planExecutor.execute(request(MigrationFileType.ASSESSMENTS), operations(executed));
+    planExecutor.execute(
+      request(MigrationFileType.ASSESSMENTS),
+      operations(executed, MigrationFileType.ASSESSMENTS)
+    );
 
     assertEquals(Set.of(MigrationFileType.ASSESSMENTS), executed);
   }
@@ -47,17 +47,10 @@ class MigrationPlanExecutorServiceTest {
   @Test
   void givenSelectedRootWhenExecuteThenRunsOperationOnCallingThread() {
     Thread callingThread = Thread.currentThread();
-    MigrationOperation operation = new MigrationOperation() {
-      @Override
-      public MigrationFileType getMigrationFileType() {
-        return MigrationFileType.DEBT_POSITIONS_TYPE;
-      }
-
-      @Override
-      public void execute(MigrationRequestDto request) {
-        assertSame(callingThread, Thread.currentThread());
-      }
-    };
+    MigrationOperation operation = operation(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      request -> assertSame(callingThread, Thread.currentThread())
+    );
 
     planExecutor.execute(request(MigrationFileType.DEBT_POSITIONS_TYPE), Map.of(
       MigrationFileType.DEBT_POSITIONS_TYPE, operation
@@ -69,9 +62,18 @@ class MigrationPlanExecutorServiceTest {
     Set<MigrationFileType> executed = ConcurrentHashMap.newKeySet();
     MigrationFileType failedParent = MigrationFileType.DEBT_POSITIONS_TYPE_ORG;
     IllegalStateException failure = new IllegalStateException("parent failed");
-    Map<MigrationFileType, MigrationOperation> operations = operations(executed);
-    operations.put(failedParent, operation(failedParent, executed, failure));
-    MigrationRequestDto request = request(
+    Map<MigrationFileType, MigrationOperation> operations = operations(
+      executed,
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileType.ORGANIZATIONS,
+      failedParent,
+      MigrationFileType.DEBT_POSITIONS_TYPE_ORG_OPERATORS
+    );
+    operations.put(failedParent, operation(failedParent, request -> {
+      executed.add(failedParent);
+      throw failure;
+    }));
+    MigrationRequestWithMigrationExecutionModelDto request = request(
       MigrationFileType.DEBT_POSITIONS_TYPE,
       MigrationFileType.ORGANIZATIONS,
       failedParent,
@@ -97,17 +99,16 @@ class MigrationPlanExecutorServiceTest {
       .forEach(child -> visitPlan(child, visited));
   }
 
-  private Map<MigrationFileType, MigrationOperation> operations(Set<MigrationFileType> executed) {
+  private Map<MigrationFileType, MigrationOperation> operations(Set<MigrationFileType> executed,
+                                                                MigrationFileType... fileTypes) {
     Map<MigrationFileType, MigrationOperation> operations = new EnumMap<>(MigrationFileType.class);
-    for (MigrationFileType fileType : MigrationFileType.values()) {
-      operations.put(fileType, operation(fileType, executed, null));
+    for (MigrationFileType fileType : fileTypes) {
+      operations.put(fileType, operation(fileType, request -> executed.add(fileType)));
     }
     return operations;
   }
 
-  private MigrationOperation operation(MigrationFileType fileType,
-                                       Set<MigrationFileType> executed,
-                                       RuntimeException failure) {
+  private MigrationOperation operation(MigrationFileType fileType, Consumer<MigrationRequestDto> action) {
     return new MigrationOperation() {
       @Override
       public MigrationFileType getMigrationFileType() {
@@ -116,16 +117,13 @@ class MigrationPlanExecutorServiceTest {
 
       @Override
       public void execute(MigrationRequestDto request) {
-        executed.add(fileType);
-        if (failure != null) {
-          throw failure;
-        }
+        action.accept(request);
       }
     };
   }
 
-  private MigrationRequestDto request(MigrationFileType... fileTypes) {
-    MigrationRequestDto request = new MigrationRequestDto();
+  private MigrationRequestWithMigrationExecutionModelDto request(MigrationFileType... fileTypes) {
+    MigrationRequestWithMigrationExecutionModelDto request = new MigrationRequestWithMigrationExecutionModelDto();
     request.setFileTypesToInclude(List.of(fileTypes));
     return request;
   }
