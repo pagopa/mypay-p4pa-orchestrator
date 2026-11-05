@@ -2,11 +2,9 @@ package it.gov.pagopa.mypay2pu.orchestrator.validation;
 
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -15,7 +13,7 @@ import org.springframework.util.StringUtils;
  * Validates Export transitions and immutable extraction data without changing the entity.
  */
 @Component
-public class MigrationFileExecutionExportValidator {
+public class MigrationFileExecutionExportValidator extends BaseMigrationFileExecutionValidator {
 
   private static final Map<MigrationFileExecutionStatus, Set<MigrationFileExecutionStatus>>
     TRANSITIONS = Map.of(
@@ -26,6 +24,10 @@ public class MigrationFileExecutionExportValidator {
     MigrationFileExecutionStatus.EXPORTED, Set.of(MigrationFileExecutionStatus.EXPORTED),
     MigrationFileExecutionStatus.FAILED, Set.of(MigrationFileExecutionStatus.FAILED)
   );
+
+  public MigrationFileExecutionExportValidator() {
+    super(TRANSITIONS);
+  }
 
   /**
    * Requires a pending execution without an accepted Extractor job.
@@ -40,32 +42,23 @@ public class MigrationFileExecutionExportValidator {
    * Rejects null, empty or whitespace-only Extractor job IDs.
    */
   public void validateAcceptedExtractionId(String extractionId) {
-    if (!StringUtils.hasText(extractionId)) {
-      throw new InvalidValueException(
-        "INVALID_MIGRATION_REQUEST", "extractionId must not be blank"
-      );
-    }
+    requireText(extractionId, "extractionId");
   }
 
   /**
-   * Allows recording an Extractor job ID while exporting, but not replacing an existing ID.
+   * Records acceptance without a state transition: ACCEPTED is not a file execution status.
+   * Repeated acceptance is allowed only with the same ID while exporting.
    */
   public void validateRecordExtractionAccepted(MigrationFileExecution fileExecution, String extractionId) {
-    if (fileExecution.getStatus() != MigrationFileExecutionStatus.EXPORTING) {
-      throw new ConflictException(
-        "INVALID_MIGRATION_FILE_EXECUTION_TRANSITION",
-        "Cannot record an accepted Extractor job ID for file execution %s in status %s".formatted(
-          fileExecution.getId(), fileExecution.getStatus()
-        )
-      );
-    }
+    requireStatus(fileExecution, MigrationFileExecutionStatus.EXPORTING);
     if (fileExecution.getExtractionId() != null) {
       checkImmutableField(fileExecution, "extractionId", fileExecution.getExtractionId(), extractionId);
     }
   }
 
   /**
-   * Requires an accepted extraction before completion; repeated completion must have identical values.
+   * Requires an accepted extraction before completion; only identical completion notifications
+   * may be repeated. Starting another extraction on the same execution remains forbidden.
    */
   public void validateMarkExported(MigrationFileExecution fileExecution,
                                    String filePath,
@@ -98,30 +91,4 @@ public class MigrationFileExecutionExportValidator {
       checkImmutableField(fileExecution, "extractionErrorMsg", fileExecution.getExtractionErrorMsg(), errorMessage);
     }
   }
-
-  private void requireTransition(MigrationFileExecution fileExecution, MigrationFileExecutionStatus targetStatus) {
-    if (!TRANSITIONS.getOrDefault(fileExecution.getStatus(), Set.of()).contains(targetStatus)) {
-      throw new ConflictException(
-        "INVALID_MIGRATION_FILE_EXECUTION_TRANSITION",
-        "Cannot transition file execution %s from %s to %s".formatted(
-          fileExecution.getId(), fileExecution.getStatus(), targetStatus
-        )
-      );
-    }
-  }
-
-  private void checkImmutableField(MigrationFileExecution fileExecution,
-                                   String fieldName,
-                                   Object original,
-                                   Object updated) {
-    if (!Objects.equals(original, updated)) {
-      throw new ConflictException(
-        "IMMUTABLE_FIELD",
-        "Field %s cannot be updated for file execution %s in status %s".formatted(
-          fieldName, fileExecution.getId(), fileExecution.getStatus()
-        )
-      );
-    }
-  }
-
 }

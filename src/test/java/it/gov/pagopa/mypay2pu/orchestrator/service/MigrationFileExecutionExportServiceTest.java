@@ -28,7 +28,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class MigrationFileExecutionServiceTest {
+class MigrationFileExecutionExportServiceTest {
 
   private static final UUID MIGRATION_ID = UUID.randomUUID();
   private static final MigrationFileType FILE_TYPE = MigrationFileType.ORGANIZATIONS;
@@ -38,11 +38,11 @@ class MigrationFileExecutionServiceTest {
   @Mock
   private MigrationFileExecutionRepository migrationFileExecutionRepositoryMock;
 
-  private MigrationFileExecutionService service;
+  private MigrationFileExecutionExportService service;
 
   @BeforeEach
   void setUp() {
-    service = new MigrationFileExecutionService(
+    service = new MigrationFileExecutionExportService(
       migrationFileExecutionRepositoryMock, new MigrationFileExecutionExportValidator()
     );
   }
@@ -50,6 +50,39 @@ class MigrationFileExecutionServiceTest {
   @AfterEach
   void verifyMocks() {
     verifyNoMoreInteractions(migrationFileExecutionRepositoryMock);
+  }
+
+  @Test
+  void givenExportedExecutionWhenMarkExportingThenRejectsRestartWithoutChangingResult() {
+    MigrationFileExecution execution = newMigrationFileExecution(MigrationFileExecutionStatus.EXPORTED);
+    execution.setExtractionId("extractor-123");
+    execution.setFilePath("archive/organizations.zip");
+    execution.setExtractionCompletedAt(COMPLETED_AT);
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
+      .thenReturn(Optional.of(execution));
+
+    assertThrows(ConflictException.class, () -> service.markExporting(MIGRATION_ID, FILE_TYPE, STARTED_AT));
+
+    assertEquals(MigrationFileExecutionStatus.EXPORTED, execution.getStatus());
+    assertEquals("extractor-123", execution.getExtractionId());
+    assertEquals("archive/organizations.zip", execution.getFilePath());
+    assertEquals(COMPLETED_AT, execution.getExtractionCompletedAt());
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
+  }
+
+  @Test
+  void givenExportingExecutionWhenRecordExtractionAcceptedThenKeepsExportingStatus() {
+    MigrationFileExecution execution = newMigrationFileExecution(MigrationFileExecutionStatus.EXPORTING);
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
+      .thenReturn(Optional.of(execution));
+    when(migrationFileExecutionRepositoryMock.save(execution)).thenReturn(execution);
+
+    MigrationFileExecution result = service.recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, "extractor-123");
+
+    assertEquals(MigrationFileExecutionStatus.EXPORTING, result.getStatus());
+    assertEquals("extractor-123", result.getExtractionId());
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
+    verify(migrationFileExecutionRepositoryMock).save(execution);
   }
 
   @Test
