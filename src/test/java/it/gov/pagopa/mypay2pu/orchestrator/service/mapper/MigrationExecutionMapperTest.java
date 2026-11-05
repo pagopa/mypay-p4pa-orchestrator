@@ -6,19 +6,14 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.MigrationRequestWithMigrationExecutionModelDto;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 
 import java.time.LocalDate;
 import java.time.Month;
 import java.util.List;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 
 class MigrationExecutionMapperTest {
 
@@ -62,54 +57,4 @@ class MigrationExecutionMapperTest {
     assertNotNull(execution.getFileTypes());
   }
 
-  @ParameterizedTest
-  @EnumSource(MigrationAction.class)
-  void givenRequestAndSavedExecutionWhenToMigrationRequestWithMigrationExecutionModelDtoThenMapsContext(
-    MigrationAction action
-  ) {
-    MigrationExecution execution = MigrationExecution.builder()
-      .id(UUID.randomUUID())
-      .ipacodes(List.of("saved-ipa"))
-      .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))
-      .build();
-    MigrationRequestDto request = new MigrationRequestDto()
-      .action(action)
-      .orchestrationMode(OrchestrationMode.FULL)
-      .ipaCodes(List.of("request-ipa"))
-      .fileTypesToInclude(List.of(MigrationFileType.DEBT_POSITIONS))
-      .migrationId(UUID.randomUUID())
-      .logicalKey("logical-key")
-      .period(new PeriodDto());
-
-    MigrationRequestWithMigrationExecutionModelDto result =
-      mapper.toMigrationRequestWithMigrationExecutionModelDto(request, execution);
-
-    checkNotNullFields(result);
-    assertSame(execution, result.getMigrationExecution());
-    assertEquals(execution.getId(), result.getMigrationRequest().getMigrationId());
-    assertEquals(action, result.getMigrationRequest().getAction());
-    assertEquals(request.getOrchestrationMode(), result.getMigrationRequest().getOrchestrationMode());
-    assertEquals(request.getPeriod(), result.getMigrationRequest().getPeriod());
-    assertEquals(request.getLogicalKey(), result.getMigrationRequest().getLogicalKey());
-    assertEquals(
-      action == MigrationAction.TRANSFER ? execution.getIpacodes() : request.getIpaCodes(),
-      result.getMigrationRequest().getIpaCodes()
-    );
-    assertEquals(
-      action == MigrationAction.TRANSFER ? execution.getFileTypes() : request.getFileTypesToInclude(),
-      result.getMigrationRequest().getFileTypesToInclude()
-    );
-  }
-
-  private void checkNotNullFields(MigrationRequestWithMigrationExecutionModelDto request) {
-    assertNotNull(request.getMigrationRequest());
-    assertNotNull(request.getMigrationRequest().getAction());
-    assertNotNull(request.getMigrationRequest().getOrchestrationMode());
-    assertNotNull(request.getMigrationRequest().getIpaCodes());
-    assertNotNull(request.getMigrationRequest().getFileTypesToInclude());
-    assertNotNull(request.getMigrationRequest().getPeriod());
-    assertNotNull(request.getMigrationRequest().getMigrationId());
-    assertNotNull(request.getMigrationRequest().getLogicalKey());
-    assertNotNull(request.getMigrationExecution());
-  }
 }

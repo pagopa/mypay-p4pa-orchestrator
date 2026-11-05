@@ -1,7 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.MigrationRequestWithMigrationExecutionModelDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationCompleteOperation;
 import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationExportOperation;
@@ -50,15 +49,14 @@ public class MigrationFacadeService {
       ));
   }
 
-  public void execute(MigrationRequestWithMigrationExecutionModelDto request) {
-    MigrationRequestDto migrationRequest = request.getMigrationRequest();
-    Map<MigrationFileType, ? extends MigrationOperation> migrationOperations = switch (migrationRequest.getAction()) {
+  public void execute(MigrationRequestDto request) {
+    Map<MigrationFileType, ? extends MigrationOperation> migrationOperations = switch (request.getAction()) {
       case EXPORT -> migrationExportOperations;
       case TRANSFER -> migrationTransferOperations;
       case COMPLETE -> migrationCompleteOperations;
     };
 
-    planExecutor.execute(migrationRequest, migrationOperations);
+    planExecutor.execute(request, migrationOperations);
   }
 
 }

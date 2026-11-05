@@ -1,5 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
+import it.gov.pagopa.mypay2pu.orchestrator.dto.MigrationRequestWithMigrationExecutionModelDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
@@ -53,7 +54,7 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
     MigrationResponseDto response = migrationResponseMapper.toMigrationResponseDto(savedExecution);
 
     migrationActionExecutor.execute(
-      migrationExecutionMapper.toMigrationRequestWithMigrationExecutionModelDto(request, savedExecution)
+      new MigrationRequestWithMigrationExecutionModelDto(request, savedExecution)
     ).whenComplete((ignored, error) -> {
       if (error != null) {
         log.error("{} action failed for migration {}", action, migrationId, error);
