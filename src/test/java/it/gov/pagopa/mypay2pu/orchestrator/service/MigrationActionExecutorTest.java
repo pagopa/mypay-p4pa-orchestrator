@@ -4,6 +4,7 @@ import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.MigrationRequestWithMigrationExecutionModelDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
 import java.util.List;
@@ -100,7 +101,7 @@ class MigrationActionExecutorTest {
 
   private MigrationRequestWithMigrationExecutionModelDto request(MigrationAction action) {
     return MigrationRequestWithMigrationExecutionModelDto.builder()
-      .action(action)
+      .migrationRequest(new MigrationRequestDto().action(action))
       .migrationExecution(MigrationExecution.builder()
         .action(action)
         .status(MigrationExecutionStatus.RUNNING)

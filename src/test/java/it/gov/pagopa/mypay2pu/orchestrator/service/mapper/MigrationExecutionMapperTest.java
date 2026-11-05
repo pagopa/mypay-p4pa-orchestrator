@@ -86,29 +86,30 @@ class MigrationExecutionMapperTest {
 
     checkNotNullFields(result);
     assertSame(execution, result.getMigrationExecution());
-    assertEquals(execution.getId(), result.getMigrationId());
-    assertEquals(action, result.getAction());
-    assertEquals(request.getOrchestrationMode(), result.getOrchestrationMode());
-    assertEquals(request.getPeriod(), result.getPeriod());
-    assertEquals(request.getLogicalKey(), result.getLogicalKey());
+    assertEquals(execution.getId(), result.getMigrationRequest().getMigrationId());
+    assertEquals(action, result.getMigrationRequest().getAction());
+    assertEquals(request.getOrchestrationMode(), result.getMigrationRequest().getOrchestrationMode());
+    assertEquals(request.getPeriod(), result.getMigrationRequest().getPeriod());
+    assertEquals(request.getLogicalKey(), result.getMigrationRequest().getLogicalKey());
     assertEquals(
       action == MigrationAction.TRANSFER ? execution.getIpacodes() : request.getIpaCodes(),
-      result.getIpaCodes()
+      result.getMigrationRequest().getIpaCodes()
     );
     assertEquals(
       action == MigrationAction.TRANSFER ? execution.getFileTypes() : request.getFileTypesToInclude(),
-      result.getFileTypesToInclude()
+      result.getMigrationRequest().getFileTypesToInclude()
     );
   }
 
   private void checkNotNullFields(MigrationRequestWithMigrationExecutionModelDto request) {
-    assertNotNull(request.getAction());
-    assertNotNull(request.getOrchestrationMode());
-    assertNotNull(request.getIpaCodes());
-    assertNotNull(request.getFileTypesToInclude());
-    assertNotNull(request.getPeriod());
-    assertNotNull(request.getMigrationId());
-    assertNotNull(request.getLogicalKey());
+    assertNotNull(request.getMigrationRequest());
+    assertNotNull(request.getMigrationRequest().getAction());
+    assertNotNull(request.getMigrationRequest().getOrchestrationMode());
+    assertNotNull(request.getMigrationRequest().getIpaCodes());
+    assertNotNull(request.getMigrationRequest().getFileTypesToInclude());
+    assertNotNull(request.getMigrationRequest().getPeriod());
+    assertNotNull(request.getMigrationRequest().getMigrationId());
+    assertNotNull(request.getMigrationRequest().getLogicalKey());
     assertNotNull(request.getMigrationExecution());
   }
 }

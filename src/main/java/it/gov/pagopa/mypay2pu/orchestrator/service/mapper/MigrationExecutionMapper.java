@@ -15,13 +15,14 @@ public class MigrationExecutionMapper {
                                                                                                          MigrationExecution execution) {
     boolean transfer = request.getAction() == MigrationAction.TRANSFER;
     return MigrationRequestWithMigrationExecutionModelDto.builder()
-      .action(request.getAction())
-      .orchestrationMode(request.getOrchestrationMode())
-      .ipaCodes(List.copyOf(transfer ? execution.getIpacodes() : request.getIpaCodes()))
-      .fileTypesToInclude(List.copyOf(transfer ? execution.getFileTypes() : request.getFileTypesToInclude()))
-      .period(request.getPeriod())
-      .migrationId(execution.getId())
-      .logicalKey(request.getLogicalKey())
+      .migrationRequest(new MigrationRequestDto()
+        .action(request.getAction())
+        .orchestrationMode(request.getOrchestrationMode())
+        .ipaCodes(List.copyOf(transfer ? execution.getIpacodes() : request.getIpaCodes()))
+        .fileTypesToInclude(List.copyOf(transfer ? execution.getFileTypes() : request.getFileTypesToInclude()))
+        .period(request.getPeriod())
+        .migrationId(execution.getId())
+        .logicalKey(request.getLogicalKey()))
       .migrationExecution(execution)
       .build();
   }

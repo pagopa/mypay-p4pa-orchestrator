@@ -35,7 +35,7 @@ public class MigrationActionExecutor {
       migrationExecutionRepository.save(execution);
     } catch (RuntimeException failure) {
       execution.setStatus(MigrationExecutionStatus.FAILED);
-      execution.setErrorCode(request.getAction() + "_FAILED");
+      execution.setErrorCode(request.getMigrationRequest().getAction() + "_FAILED");
       execution.setErrorMsg(
         failure.getMessage() == null || failure.getMessage().isBlank()
           ? failure.getClass().getSimpleName()
