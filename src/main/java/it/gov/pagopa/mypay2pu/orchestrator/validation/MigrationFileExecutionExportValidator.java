@@ -35,14 +35,14 @@ public class MigrationFileExecutionExportValidator extends BaseMigrationFileExec
   public void validateMarkExporting(MigrationFileExecution fileExecution) {
     requireTransition(fileExecution, MigrationFileExecutionStatus.EXPORTING);
     // extractionId identifies the accepted Extractor job, not the file execution row.
-    checkImmutableField(fileExecution, "extractionId", null, fileExecution.getExtractionId());
+    checkImmutableField(fileExecution, MigrationFileExecution.Fields.extractionId, null, fileExecution.getExtractionId());
   }
 
   /**
    * Rejects null, empty or whitespace-only Extractor job IDs.
    */
   public void validateAcceptedExtractionId(String extractionId) {
-    requireText(extractionId, "extractionId");
+    requireText(extractionId, MigrationFileExecution.Fields.extractionId);
   }
 
   /**
@@ -52,7 +52,9 @@ public class MigrationFileExecutionExportValidator extends BaseMigrationFileExec
   public void validateRecordExtractionAccepted(MigrationFileExecution fileExecution, String extractionId) {
     requireStatus(fileExecution, MigrationFileExecutionStatus.EXPORTING);
     if (fileExecution.getExtractionId() != null) {
-      checkImmutableField(fileExecution, "extractionId", fileExecution.getExtractionId(), extractionId);
+      checkImmutableField(
+        fileExecution, MigrationFileExecution.Fields.extractionId, fileExecution.getExtractionId(), extractionId
+      );
     }
   }
 
@@ -65,9 +67,10 @@ public class MigrationFileExecutionExportValidator extends BaseMigrationFileExec
                                    LocalDateTime completedAt) {
     requireTransition(fileExecution, MigrationFileExecutionStatus.EXPORTED);
     if (fileExecution.getStatus() == MigrationFileExecutionStatus.EXPORTED) {
-      checkImmutableField(fileExecution, "filePath", fileExecution.getFilePath(), filePath);
+      checkImmutableField(fileExecution, MigrationFileExecution.Fields.filePath, fileExecution.getFilePath(), filePath);
       checkImmutableField(
-        fileExecution, "extractionCompletedAt", fileExecution.getExtractionCompletedAt(), completedAt
+        fileExecution, MigrationFileExecution.Fields.extractionCompletedAt,
+        fileExecution.getExtractionCompletedAt(), completedAt
       );
     } else if (!StringUtils.hasText(fileExecution.getExtractionId())) {
       throw new ConflictException(
@@ -87,8 +90,12 @@ public class MigrationFileExecutionExportValidator extends BaseMigrationFileExec
                                            String errorMessage) {
     requireTransition(fileExecution, MigrationFileExecutionStatus.FAILED);
     if (fileExecution.getStatus() == MigrationFileExecutionStatus.FAILED) {
-      checkImmutableField(fileExecution, "extractionErrorCode", fileExecution.getExtractionErrorCode(), errorCode);
-      checkImmutableField(fileExecution, "extractionErrorMsg", fileExecution.getExtractionErrorMsg(), errorMessage);
+      checkImmutableField(
+        fileExecution, MigrationFileExecution.Fields.extractionErrorCode, fileExecution.getExtractionErrorCode(), errorCode
+      );
+      checkImmutableField(
+        fileExecution, MigrationFileExecution.Fields.extractionErrorMsg, fileExecution.getExtractionErrorMsg(), errorMessage
+      );
     }
   }
 }

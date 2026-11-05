@@ -165,7 +165,12 @@ class MigrationFileExecutionExportValidatorTest {
     );
 
     assertEquals("INVALID_MIGRATION_FILE_EXECUTION_TRANSITION", exception.getCode());
-    assertTrue(exception.getMessage().contains("accepted Extractor job ID"));
+    assertEquals(
+      "Cannot complete file execution %s before an accepted Extractor job ID is persisted".formatted(EXECUTION_ID),
+      exception.getMessage()
+    );
+    assertEquals(extractionId, execution.getExtractionId());
+    assertEquals(MigrationFileExecutionStatus.EXPORTING, execution.getStatus());
   }
 
   @ParameterizedTest
