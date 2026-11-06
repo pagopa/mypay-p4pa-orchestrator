@@ -15,7 +15,7 @@ import java.util.function.Function;
 
 @Service
 public class MigrationPlanExecutorService {
-  private static final MigrationFileType PLAN_ROOT = MigrationFileType.DEBT_POSITIONS_TYPE;
+  public static final MigrationFileType PLAN_ROOT = MigrationFileType.DEBT_POSITIONS_TYPE;
 
   static final Map<MigrationFileType, Set<MigrationFileType>> MIGRATION_PLAN = Map.ofEntries(
     Map.entry(PLAN_ROOT, Set.of(
@@ -38,6 +38,10 @@ public class MigrationPlanExecutorService {
       MigrationFileType.ASSESSMENTS
     ))
   );
+
+  public Set<MigrationFileType> getChildren(MigrationFileType migrationFileType) {
+    return MIGRATION_PLAN.getOrDefault(migrationFileType, Set.of());
+  }
 
   public void execute(MigrationRequestDto request, Map<MigrationFileType, ? extends MigrationOperation> operationMap) {
     Set<MigrationFileType> selectedFileTypes = Set.copyOf(request.getFileTypesToInclude());
