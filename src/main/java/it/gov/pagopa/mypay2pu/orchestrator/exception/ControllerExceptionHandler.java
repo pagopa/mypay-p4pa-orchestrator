@@ -44,6 +44,11 @@ public class ControllerExceptionHandler {
     return handleException(ex, request, HttpStatus.CONFLICT, ErrorDTO.CategoryEnum.CONFLICT);
   }
 
+  @ExceptionHandler(NotFoundException.class)
+  public ResponseEntity<ErrorDTO> handleNotFoundException(NotFoundException ex, HttpServletRequest request) {
+    return handleException(ex, request, HttpStatus.NOT_FOUND, ErrorDTO.CategoryEnum.NOT_FOUND);
+  }
+
   @ExceptionHandler(ForbiddenException.class)
   public ResponseEntity<ErrorDTO> handleForbiddenException(ForbiddenException ex, HttpServletRequest request) {
     return handleException(ex, request, HttpStatus.FORBIDDEN, ErrorDTO.CategoryEnum.FORBIDDEN);

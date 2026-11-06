@@ -30,7 +30,8 @@ public class MigrationPlanExecutorService {
       MigrationFileType.DEBT_POSITIONS,
       MigrationFileType.DEBT_POSITIONS_PAID,
       MigrationFileType.PAYMENT_NOTIFICATION,
-      MigrationFileType.PAYMENTS_REPORTING,
+      MigrationFileType.PAYMENTS_REPORTING_MYPAY,
+      MigrationFileType.PAYMENTS_REPORTING_MYPIVOT,
       MigrationFileType.TREASURY_CSV_COMPLETE,
       MigrationFileType.ASSESSMENTS_REGISTRY
     )),
