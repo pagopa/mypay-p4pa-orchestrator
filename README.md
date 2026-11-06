@@ -140,6 +140,8 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | ASYNC_CORE_POOL_SIZE          | Extraction coordinator core thread pool size              | 4                    |
 | ASYNC_MAX_POOL_SIZE           | Extraction coordinator maximum thread pool size           | 8                    |
 | ASYNC_QUEUE_CAPACITY          | Extraction coordinator task queue capacity                | 100                  |
+| `EXTRACTION_STATUS_POLL_INTERVAL` | Delay between Extractor status checks (Spring duration format) | `30s`          |
+| `EXTRACTION_STATUS_TIMEOUT`       | Maximum wait for an Extractor operation (Spring duration format) | `PT4H`        |
 
 #### 🔑 keys
 | ENV                   | DESCRIPTION                                                                         | DEFAULT |
