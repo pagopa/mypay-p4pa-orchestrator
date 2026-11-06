@@ -18,7 +18,7 @@
       "post" : {
         "tags" : [ "OrchestrateMigration" ],
         "summary" : "Start a migration orchestration",
-        "description" : "Start an EXPORT, TRANSFER or COMPLETE migration action. EXPORT and COMPLETE actions require non-empty ipaCodes and fileTypesToInclude; all actions require orchestrationMode. TRANSFER actions require migrationId for an existing completed EXPORT migration and do not support REJECTS_ONLY mode. For REJECTS_ONLY EXPORT and COMPLETE actions, migrationId identifies the previous migration; rejected records are assembled by the orchestrator. FULL mode requires period for EXPORT and COMPLETE actions.",
+        "description" : "Start an EXPORT, TRANSFER or COMPLETE migration action. EXPORT and COMPLETE actions require non-empty ipaCodes and fileTypesToInclude; all actions require orchestrationMode. fileTypesToInclude must not contain both PAYMENTS_REPORTING_MYPAY and PAYMENTS_REPORTING_MYPIVOT. TRANSFER actions require migrationId for an existing completed EXPORT migration and do not support REJECTS_ONLY mode. For REJECTS_ONLY EXPORT and COMPLETE actions, migrationId identifies the previous migration; rejected records are assembled by the orchestrator. FULL mode requires period for EXPORT and COMPLETE actions.",
         "operationId" : "orchestrateMigration",
         "requestBody" : {
           "content" : {
@@ -279,7 +279,7 @@
       },
       "MigrationFileType" : {
         "type" : "string",
-        "enum" : [ "ORGANIZATIONS", "ORG_SIL_SERVICES", "DEBT_POSITIONS_TYPE", "DEBT_POSITIONS_TYPE_ORG", "DEBT_POSITIONS_TYPE_ORG_OPERATORS", "DEBT_POSITIONS", "DEBT_POSITIONS_PAID", "PAYMENT_NOTIFICATION", "PAYMENTS_REPORTING", "TREASURY_CSV_COMPLETE", "ASSESSMENTS", "ASSESSMENTS_REGISTRY" ]
+        "enum" : [ "ORGANIZATIONS", "ORG_SIL_SERVICES", "DEBT_POSITIONS_TYPE", "DEBT_POSITIONS_TYPE_ORG", "DEBT_POSITIONS_TYPE_ORG_OPERATORS", "DEBT_POSITIONS", "DEBT_POSITIONS_PAID", "PAYMENT_NOTIFICATION", "PAYMENTS_REPORTING_MYPAY", "PAYMENTS_REPORTING_MYPIVOT", "TREASURY_CSV_COMPLETE", "ASSESSMENTS", "ASSESSMENTS_REGISTRY" ]
       },
       "MigrationRequestDto" : {
         "type" : "object",
@@ -300,7 +300,7 @@
           },
           "fileTypesToInclude" : {
             "type" : "array",
-            "description" : "Required and non-empty for EXPORT and COMPLETE actions",
+            "description" : "Required and non-empty for EXPORT and COMPLETE actions; must not contain both PAYMENTS_REPORTING_MYPAY and PAYMENTS_REPORTING_MYPIVOT",
             "items" : {
               "$ref" : "#/components/schemas/MigrationFileType"
             }

@@ -16,6 +16,7 @@ paths:
       description: |-
         Start an EXPORT, TRANSFER or COMPLETE migration action.
         EXPORT and COMPLETE actions require non-empty ipaCodes and fileTypesToInclude; all actions require orchestrationMode.
+        fileTypesToInclude must not contain both PAYMENTS_REPORTING_MYPAY and PAYMENTS_REPORTING_MYPIVOT.
         TRANSFER actions require migrationId for an existing completed EXPORT migration and do not support REJECTS_ONLY mode.
         For REJECTS_ONLY EXPORT and COMPLETE actions, migrationId identifies the previous migration; rejected records are assembled by the orchestrator.
         FULL mode requires period for EXPORT and COMPLETE actions.
@@ -149,6 +150,22 @@ paths:
                 $ref: '#/components/schemas/ErrorDTO'
 components:
   schemas:
+    MigrationFileType:
+      type: string
+      enum:
+        - ORGANIZATIONS
+        - ORG_SIL_SERVICES
+        - DEBT_POSITIONS_TYPE
+        - DEBT_POSITIONS_TYPE_ORG
+        - DEBT_POSITIONS_TYPE_ORG_OPERATORS
+        - DEBT_POSITIONS
+        - DEBT_POSITIONS_PAID
+        - PAYMENT_NOTIFICATION
+        - PAYMENTS_REPORTING_MYPAY
+        - PAYMENTS_REPORTING_MYPIVOT
+        - TREASURY_CSV_COMPLETE
+        - ASSESSMENTS
+        - ASSESSMENTS_REGISTRY
     MigrationRequestDto:
       type: object
       required:
@@ -166,10 +183,10 @@ components:
           description: Required for all migration actions; REJECTS_ONLY is not supported for TRANSFER
           $ref: '#/components/schemas/OrchestrationMode'
         fileTypesToInclude:
-          description: Required and non-empty for EXPORT and COMPLETE actions
+          description: Required and non-empty for EXPORT and COMPLETE actions; must not contain both PAYMENTS_REPORTING_MYPAY and PAYMENTS_REPORTING_MYPIVOT
           type: array
           items:
-            type: 'MigrationFileType'
+            type: MigrationFileType
         period:
           description: Required when orchestrationMode is FULL for EXPORT and COMPLETE actions
           $ref: '#/components/schemas/PeriodDto'
