@@ -2,8 +2,12 @@ package it.gov.pagopa.mypay2pu.orchestrator.service;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.NotFoundException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
+import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionExportValidator;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.util.Optional;
@@ -24,7 +28,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class MigrationFileExecutionServiceTest {
+class MigrationFileExecutionExportServiceTest {
 
   private static final UUID MIGRATION_ID = UUID.randomUUID();
   private static final MigrationFileType FILE_TYPE = MigrationFileType.ORGANIZATIONS;
@@ -34,11 +38,13 @@ class MigrationFileExecutionServiceTest {
   @Mock
   private MigrationFileExecutionRepository migrationFileExecutionRepositoryMock;
 
-  private MigrationFileExecutionService service;
+  private MigrationFileExecutionExportService service;
 
   @BeforeEach
   void setUp() {
-    service = new MigrationFileExecutionService(migrationFileExecutionRepositoryMock);
+    service = new MigrationFileExecutionExportService(
+      migrationFileExecutionRepositoryMock, new MigrationFileExecutionExportValidator()
+    );
   }
 
   @AfterEach
@@ -47,11 +53,48 @@ class MigrationFileExecutionServiceTest {
   }
 
   @Test
+  void givenExportedExecutionWhenMarkExportingThenRejectsRestartWithoutChangingResult() {
+    MigrationFileExecution execution = newMigrationFileExecution(MigrationFileExecutionStatus.EXPORTED);
+    execution.setExtractionId("extractor-123");
+    execution.setFilePath("archive/organizations.zip");
+    execution.setExtractionCompletedAt(COMPLETED_AT);
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
+      .thenReturn(Optional.of(execution));
+
+    assertThrows(ConflictException.class, () -> service.markExporting(MIGRATION_ID, FILE_TYPE, STARTED_AT));
+
+    assertEquals(MigrationFileExecutionStatus.EXPORTED, execution.getStatus());
+    assertEquals("extractor-123", execution.getExtractionId());
+    assertEquals("archive/organizations.zip", execution.getFilePath());
+    assertEquals(COMPLETED_AT, execution.getExtractionCompletedAt());
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
+  }
+
+  @Test
+  void givenExportingExecutionWhenRecordExtractionAcceptedThenKeepsExportingStatus() {
+    MigrationFileExecution execution = newMigrationFileExecution(MigrationFileExecutionStatus.EXPORTING);
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
+      .thenReturn(Optional.of(execution));
+    when(migrationFileExecutionRepositoryMock.save(execution)).thenReturn(execution);
+
+    MigrationFileExecution result = service.recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, "extractor-123");
+
+    assertEquals(MigrationFileExecutionStatus.EXPORTING, result.getStatus());
+    assertEquals("extractor-123", result.getExtractionId());
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
+    verify(migrationFileExecutionRepositoryMock).save(execution);
+  }
+
+  @Test
   void givenNoFileExecutionWhenEnsurePendingThenCreatesPendingRow() {
+    MigrationFileExecution pending = MigrationFileExecution.builder()
+      .migrationId(MIGRATION_ID)
+      .fileType(FILE_TYPE)
+      .status(MigrationFileExecutionStatus.PENDING)
+      .build();
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
       .thenReturn(Optional.empty());
-    when(migrationFileExecutionRepositoryMock.save(org.mockito.ArgumentMatchers.isA(MigrationFileExecution.class)))
-      .thenAnswer(invocation -> invocation.getArgument(0));
+    when(migrationFileExecutionRepositoryMock.save(pending)).thenReturn(pending);
 
     MigrationFileExecution result = service.ensurePending(MIGRATION_ID, FILE_TYPE);
 
@@ -59,13 +102,14 @@ class MigrationFileExecutionServiceTest {
     assertEquals(FILE_TYPE, result.getFileType());
     assertEquals(MigrationFileExecutionStatus.PENDING, result.getStatus());
     verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
-    verify(migrationFileExecutionRepositoryMock)
-      .save(org.mockito.ArgumentMatchers.isA(MigrationFileExecution.class));
+    verify(migrationFileExecutionRepositoryMock).save(pending);
   }
 
   @Test
   void givenExistingFileExecutionWhenEnsurePendingThenReturnsExistingRow() {
     MigrationFileExecution existing = newMigrationFileExecution(MigrationFileExecutionStatus.EXPORTING);
+    existing.setExtractionId("extractor-123");
+    existing.setExtractionStartedAt(STARTED_AT);
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
       .thenReturn(Optional.of(existing));
 
@@ -73,18 +117,25 @@ class MigrationFileExecutionServiceTest {
 
     assertSame(existing, result);
     assertEquals(MigrationFileExecutionStatus.EXPORTING, result.getStatus());
+    assertEquals("extractor-123", result.getExtractionId());
+    assertEquals(STARTED_AT, result.getExtractionStartedAt());
     verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
   }
 
   @Test
   void givenPendingFileExecutionWhenExportLifecycleCompletesThenPersistsEachTransition() {
     MigrationFileExecution execution = newMigrationFileExecution(MigrationFileExecutionStatus.PENDING);
+    execution.setUploadId(42L);
+    execution.setUploadErrorCode("UPLOAD_ERROR");
+    execution.setUploadErrorMsg("Previous upload failure");
+    execution.setUploadStartedAt(STARTED_AT);
+    execution.setUploadCompletedAt(COMPLETED_AT);
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
       .thenReturn(Optional.of(execution));
     when(migrationFileExecutionRepositoryMock.save(execution)).thenReturn(execution);
 
     MigrationFileExecution exporting = service.markExporting(MIGRATION_ID, FILE_TYPE, STARTED_AT);
-    MigrationFileExecution accepted = service.recordAccepted(MIGRATION_ID, FILE_TYPE, "extractor-123");
+    MigrationFileExecution accepted = service.recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, "extractor-123");
     MigrationFileExecution exported = service.markExported(
       MIGRATION_ID, FILE_TYPE, "archive/organizations.zip", COMPLETED_AT
     );
@@ -97,6 +148,11 @@ class MigrationFileExecutionServiceTest {
     assertEquals("archive/organizations.zip", exported.getFilePath());
     assertEquals(STARTED_AT, exported.getExtractionStartedAt());
     assertEquals(COMPLETED_AT, exported.getExtractionCompletedAt());
+    assertEquals(42L, exported.getUploadId());
+    assertEquals("UPLOAD_ERROR", exported.getUploadErrorCode());
+    assertEquals("Previous upload failure", exported.getUploadErrorMsg());
+    assertEquals(STARTED_AT, exported.getUploadStartedAt());
+    assertEquals(COMPLETED_AT, exported.getUploadCompletedAt());
     verify(migrationFileExecutionRepositoryMock, times(3)).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
     verify(migrationFileExecutionRepositoryMock, times(3)).save(execution);
   }
@@ -109,20 +165,21 @@ class MigrationFileExecutionServiceTest {
       .thenReturn(Optional.of(execution));
 
     assertThrows(
-      IllegalStateException.class,
+      ConflictException.class,
       () -> service.markExporting(MIGRATION_ID, FILE_TYPE, STARTED_AT)
     );
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
   }
 
   @Test
-  void givenExportingFileExecutionWhenRecordAcceptedThenKeepsSameExtractionId() {
+  void givenExportingFileExecutionWhenRecordExtractionAcceptedThenKeepsSameExtractionId() {
     MigrationFileExecution execution = newMigrationFileExecution(MigrationFileExecutionStatus.EXPORTING);
     execution.setExtractionId("extractor-123");
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
       .thenReturn(Optional.of(execution));
     when(migrationFileExecutionRepositoryMock.save(execution)).thenReturn(execution);
 
-    MigrationFileExecution result = service.recordAccepted(MIGRATION_ID, FILE_TYPE, "extractor-123");
+    MigrationFileExecution result = service.recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, "extractor-123");
 
     assertSame(execution, result);
     assertEquals("extractor-123", result.getExtractionId());
@@ -131,23 +188,24 @@ class MigrationFileExecutionServiceTest {
   }
 
   @Test
-  void givenExportingFileExecutionWithExtractionIdWhenRecordAcceptedThenRejectsDifferentId() {
+  void givenExportingFileExecutionWithExtractionIdWhenRecordExtractionAcceptedThenRejectsDifferentId() {
     MigrationFileExecution execution = newMigrationFileExecution(MigrationFileExecutionStatus.EXPORTING);
     execution.setExtractionId("extractor-123");
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
       .thenReturn(Optional.of(execution));
 
     assertThrows(
-      IllegalStateException.class,
-      () -> service.recordAccepted(MIGRATION_ID, FILE_TYPE, "extractor-456")
+      ConflictException.class,
+      () -> service.recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, "extractor-456")
     );
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
   }
 
   @Test
-  void givenNullExtractionIdWhenRecordAcceptedThenRejectsBeforeRepositoryLookup() {
+  void givenNullExtractionIdWhenRecordExtractionAcceptedThenRejectsBeforeRepositoryLookup() {
     assertThrows(
-      IllegalArgumentException.class,
-      () -> service.recordAccepted(MIGRATION_ID, FILE_TYPE, null)
+      InvalidValueException.class,
+      () -> service.recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, null)
     );
   }
 
@@ -180,9 +238,10 @@ class MigrationFileExecutionServiceTest {
       .thenReturn(Optional.of(execution));
 
     assertThrows(
-      IllegalStateException.class,
+      ConflictException.class,
       () -> service.markExported(MIGRATION_ID, FILE_TYPE, "archive/organizations.zip", COMPLETED_AT)
     );
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
   }
 
   @Test
@@ -194,9 +253,10 @@ class MigrationFileExecutionServiceTest {
       .thenReturn(Optional.of(execution));
 
     assertThrows(
-      IllegalStateException.class,
+      ConflictException.class,
       () -> service.markExported(MIGRATION_ID, FILE_TYPE, "archive/organizations.zip", COMPLETED_AT)
     );
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
   }
 
   @Test
@@ -206,9 +266,10 @@ class MigrationFileExecutionServiceTest {
       .thenReturn(Optional.of(execution));
 
     assertThrows(
-      IllegalStateException.class,
+      ConflictException.class,
       () -> service.markExported(MIGRATION_ID, FILE_TYPE, "archive/organizations.zip", COMPLETED_AT)
     );
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
   }
 
   @Test
@@ -219,20 +280,21 @@ class MigrationFileExecutionServiceTest {
       .thenReturn(Optional.of(execution));
 
     assertThrows(
-      IllegalStateException.class,
+      ConflictException.class,
       () -> service.markExported(MIGRATION_ID, FILE_TYPE, "archive/organizations.zip", COMPLETED_AT)
     );
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
   }
 
   @Test
-  void givenAcceptedExtractionWhenMarkFailedThenPersistsFailureDetails() {
+  void givenAcceptedExtractionWhenMarkExtractionFailedThenPersistsFailureDetails() {
     MigrationFileExecution execution = newMigrationFileExecution(MigrationFileExecutionStatus.EXPORTING);
     execution.setExtractionId("extractor-123");
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
       .thenReturn(Optional.of(execution));
     when(migrationFileExecutionRepositoryMock.save(execution)).thenReturn(execution);
 
-    MigrationFileExecution result = service.markFailed(MIGRATION_ID, FILE_TYPE, "EXTRACTOR_ERROR", "Extraction failed");
+    MigrationFileExecution result = service.markExtractionFailed(MIGRATION_ID, FILE_TYPE, "EXTRACTOR_ERROR", "Extraction failed");
 
     assertEquals(MigrationFileExecutionStatus.FAILED, result.getStatus());
     assertEquals("EXTRACTOR_ERROR", result.getExtractionErrorCode());
@@ -242,7 +304,7 @@ class MigrationFileExecutionServiceTest {
   }
 
   @Test
-  void givenFailedFileExecutionWithMatchingErrorsWhenMarkFailedThenKeepsExistingFailure() {
+  void givenFailedFileExecutionWithMatchingErrorsWhenMarkExtractionFailedThenKeepsExistingFailure() {
     MigrationFileExecution execution = newMigrationFileExecution(MigrationFileExecutionStatus.FAILED);
     execution.setExtractionErrorCode("EXTRACTOR_ERROR");
     execution.setExtractionErrorMsg("Extraction failed");
@@ -250,7 +312,7 @@ class MigrationFileExecutionServiceTest {
       .thenReturn(Optional.of(execution));
     when(migrationFileExecutionRepositoryMock.save(execution)).thenReturn(execution);
 
-    MigrationFileExecution result = service.markFailed(
+    MigrationFileExecution result = service.markExtractionFailed(
       MIGRATION_ID, FILE_TYPE, "EXTRACTOR_ERROR", "Extraction failed"
     );
 
@@ -261,13 +323,13 @@ class MigrationFileExecutionServiceTest {
   }
 
   @Test
-  void givenPendingFileExecutionWhenMarkFailedThenPersistsFailureDetails() {
+  void givenPendingFileExecutionWhenMarkExtractionFailedThenPersistsFailureDetails() {
     MigrationFileExecution execution = newMigrationFileExecution(MigrationFileExecutionStatus.PENDING);
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
       .thenReturn(Optional.of(execution));
     when(migrationFileExecutionRepositoryMock.save(execution)).thenReturn(execution);
 
-    MigrationFileExecution result = service.markFailed(
+    MigrationFileExecution result = service.markExtractionFailed(
       MIGRATION_ID, FILE_TYPE, "EXTRACTOR_ERROR", "Extraction failed"
     );
 
@@ -279,7 +341,7 @@ class MigrationFileExecutionServiceTest {
   }
 
   @Test
-  void givenFailedFileExecutionWithDifferentErrorCodeWhenMarkFailedThenRejectsTransition() {
+  void givenFailedFileExecutionWithDifferentErrorCodeWhenMarkExtractionFailedThenRejectsTransition() {
     MigrationFileExecution execution = newMigrationFileExecution(MigrationFileExecutionStatus.FAILED);
     execution.setExtractionErrorCode("PREVIOUS_ERROR");
     execution.setExtractionErrorMsg("Extraction failed");
@@ -287,13 +349,14 @@ class MigrationFileExecutionServiceTest {
       .thenReturn(Optional.of(execution));
 
     assertThrows(
-      IllegalStateException.class,
-      () -> service.markFailed(MIGRATION_ID, FILE_TYPE, "EXTRACTOR_ERROR", "Extraction failed")
+      ConflictException.class,
+      () -> service.markExtractionFailed(MIGRATION_ID, FILE_TYPE, "EXTRACTOR_ERROR", "Extraction failed")
     );
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
   }
 
   @Test
-  void givenFailedFileExecutionWithDifferentErrorMessageWhenMarkFailedThenRejectsTransition() {
+  void givenFailedFileExecutionWithDifferentErrorMessageWhenMarkExtractionFailedThenRejectsTransition() {
     MigrationFileExecution execution = newMigrationFileExecution(MigrationFileExecutionStatus.FAILED);
     execution.setExtractionErrorCode("EXTRACTOR_ERROR");
     execution.setExtractionErrorMsg("Previous message");
@@ -301,21 +364,23 @@ class MigrationFileExecutionServiceTest {
       .thenReturn(Optional.of(execution));
 
     assertThrows(
-      IllegalStateException.class,
-      () -> service.markFailed(MIGRATION_ID, FILE_TYPE, "EXTRACTOR_ERROR", "Extraction failed")
+      ConflictException.class,
+      () -> service.markExtractionFailed(MIGRATION_ID, FILE_TYPE, "EXTRACTOR_ERROR", "Extraction failed")
     );
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
   }
 
   @Test
-  void givenExportedFileExecutionWhenMarkFailedThenRejectsInvalidTransition() {
+  void givenExportedFileExecutionWhenMarkExtractionFailedThenRejectsInvalidTransition() {
     MigrationFileExecution execution = newMigrationFileExecution(MigrationFileExecutionStatus.EXPORTED);
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
       .thenReturn(Optional.of(execution));
 
     assertThrows(
-      IllegalStateException.class,
-      () -> service.markFailed(MIGRATION_ID, FILE_TYPE, "EXTRACTOR_ERROR", "Extraction failed")
+      ConflictException.class,
+      () -> service.markExtractionFailed(MIGRATION_ID, FILE_TYPE, "EXTRACTOR_ERROR", "Extraction failed")
     );
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
   }
 
   @Test
@@ -325,27 +390,30 @@ class MigrationFileExecutionServiceTest {
       .thenReturn(Optional.of(execution));
 
     assertThrows(
-      IllegalStateException.class,
+      ConflictException.class,
       () -> service.markExporting(MIGRATION_ID, FILE_TYPE, STARTED_AT)
     );
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
   }
 
   @Test
-  void givenMissingFileExecutionWhenMarkExportingThenThrowsNotFoundState() {
+  void givenMissingFileExecutionWhenMarkExportingThenThrowsNotFoundException() {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
       .thenReturn(Optional.empty());
 
-    assertThrows(
-      IllegalStateException.class,
+    NotFoundException exception = assertThrows(
+      NotFoundException.class,
       () -> service.markExporting(MIGRATION_ID, FILE_TYPE, STARTED_AT)
     );
+    assertEquals("MIGRATION_FILE_EXECUTION_NOT_FOUND", exception.getCode());
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
   }
 
   @Test
-  void givenBlankExtractionIdWhenRecordAcceptedThenRejectsWithoutTransaction() {
+  void givenBlankExtractionIdWhenRecordExtractionAcceptedThenRejectsBeforeRepositoryLookup() {
     assertThrows(
-      IllegalArgumentException.class,
-      () -> service.recordAccepted(MIGRATION_ID, FILE_TYPE, " ")
+      InvalidValueException.class,
+      () -> service.recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, " ")
     );
   }
 

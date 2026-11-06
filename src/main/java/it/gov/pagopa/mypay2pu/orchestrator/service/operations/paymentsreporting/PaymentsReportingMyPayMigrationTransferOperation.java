@@ -6,11 +6,11 @@ import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationTransferO
 import org.springframework.stereotype.Service;
 
 @Service
-public class PaymentsReportingMigrationTransferOperation implements MigrationTransferOperation {
+public class PaymentsReportingMyPayMigrationTransferOperation implements MigrationTransferOperation {
 
   @Override
   public MigrationFileType getMigrationFileType() {
-    return MigrationFileType.PAYMENTS_REPORTING;
+    return MigrationFileType.PAYMENTS_REPORTING_MYPAY;
   }
 
   @Override

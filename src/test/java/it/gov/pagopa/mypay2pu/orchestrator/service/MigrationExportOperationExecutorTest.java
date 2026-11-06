@@ -64,7 +64,7 @@ class MigrationExportOperationExecutorTest {
   @Mock
   private ExtractorService extractorServiceMock;
   @Mock
-  private MigrationFileExecutionService migrationFileExecutionServiceMock;
+  private MigrationFileExecutionExportService migrationFileExecutionServiceMock;
 
   private MigrationExportOperationExecutor operationExecutor;
 
@@ -105,7 +105,7 @@ class MigrationExportOperationExecutorTest {
       eq(MIGRATION_ID), eq(FILE_TYPE), isA(LocalDateTime.class)
     );
     calls.verify(extractorServiceMock).createExtraction(EXTRACTION_REQUEST);
-    calls.verify(migrationFileExecutionServiceMock).recordAccepted(MIGRATION_ID, FILE_TYPE, EXTRACTION_ID);
+    calls.verify(migrationFileExecutionServiceMock).recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, EXTRACTION_ID);
     calls.verify(extractorServiceMock, times(2)).getExtractionStatus(EXTRACTION_ID);
     calls.verify(migrationFileExecutionServiceMock).markExported(
       MIGRATION_ID,
@@ -189,7 +189,7 @@ class MigrationExportOperationExecutorTest {
       eq(MIGRATION_ID), eq(FILE_TYPE), isA(LocalDateTime.class)
     );
     verify(extractorServiceMock).createExtraction(EXTRACTION_REQUEST);
-    verify(migrationFileExecutionServiceMock).markFailed(
+    verify(migrationFileExecutionServiceMock).markExtractionFailed(
       MIGRATION_ID, FILE_TYPE, EXTRACTOR_ERROR, failure.getMessage()
     );
   }
@@ -212,7 +212,7 @@ class MigrationExportOperationExecutorTest {
       eq(MIGRATION_ID), eq(FILE_TYPE), isA(LocalDateTime.class)
     );
     verify(extractorServiceMock).createExtraction(EXTRACTION_REQUEST);
-    verify(migrationFileExecutionServiceMock).markFailed(
+    verify(migrationFileExecutionServiceMock).markExtractionFailed(
       MIGRATION_ID, FILE_TYPE, EXTRACTOR_ERROR, failure.getMessage()
     );
   }
@@ -236,7 +236,7 @@ class MigrationExportOperationExecutorTest {
     }
     verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
     verify(extractorServiceMock).getExtractionStatus(EXTRACTION_ID);
-    verify(migrationFileExecutionServiceMock).markFailed(
+    verify(migrationFileExecutionServiceMock).markExtractionFailed(
       MIGRATION_ID,
       FILE_TYPE,
       EXTRACTOR_ERROR,
@@ -259,7 +259,7 @@ class MigrationExportOperationExecutorTest {
 
     verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
     verify(extractorServiceMock).getExtractionStatus(EXTRACTION_ID);
-    verify(migrationFileExecutionServiceMock).markFailed(
+    verify(migrationFileExecutionServiceMock).markExtractionFailed(
       MIGRATION_ID, FILE_TYPE, EXTRACTOR_ERROR, failure.getMessage()
     );
   }
@@ -287,7 +287,7 @@ class MigrationExportOperationExecutorTest {
     assertEquals("Timed out waiting for extraction " + EXTRACTION_ID, failure.getMessage());
     verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
     verify(extractorServiceMock).getExtractionStatus(EXTRACTION_ID);
-    verify(migrationFileExecutionServiceMock).markFailed(
+    verify(migrationFileExecutionServiceMock).markExtractionFailed(
       MIGRATION_ID, FILE_TYPE, EXTRACTOR_ERROR, failure.getMessage()
     );
   }
@@ -316,7 +316,7 @@ class MigrationExportOperationExecutorTest {
 
     verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
     verify(extractorServiceMock).getExtractionStatus(EXTRACTION_ID);
-    verify(migrationFileExecutionServiceMock).markFailed(
+    verify(migrationFileExecutionServiceMock).markExtractionFailed(
       MIGRATION_ID,
       FILE_TYPE,
       EXTRACTOR_ERROR,
@@ -334,7 +334,7 @@ class MigrationExportOperationExecutorTest {
 
     givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
     when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenThrow(failure);
-    doThrow(persistenceFailure).when(migrationFileExecutionServiceMock).markFailed(
+    doThrow(persistenceFailure).when(migrationFileExecutionServiceMock).markExtractionFailed(
       MIGRATION_ID, FILE_TYPE, EXTRACTOR_ERROR, IllegalArgumentException.class.getSimpleName()
     );
 
@@ -347,7 +347,7 @@ class MigrationExportOperationExecutorTest {
     assertEquals(List.of(persistenceFailure), List.of(thrown.getSuppressed()));
     verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
     verify(extractorServiceMock).getExtractionStatus(EXTRACTION_ID);
-    verify(migrationFileExecutionServiceMock).markFailed(
+    verify(migrationFileExecutionServiceMock).markExtractionFailed(
       MIGRATION_ID, FILE_TYPE, EXTRACTOR_ERROR, IllegalArgumentException.class.getSimpleName()
     );
   }

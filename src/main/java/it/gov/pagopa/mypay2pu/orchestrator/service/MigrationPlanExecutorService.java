@@ -30,7 +30,8 @@ public class MigrationPlanExecutorService {
       MigrationFileType.DEBT_POSITIONS,
       MigrationFileType.DEBT_POSITIONS_PAID,
       MigrationFileType.PAYMENT_NOTIFICATION,
-      MigrationFileType.PAYMENTS_REPORTING,
+      MigrationFileType.PAYMENTS_REPORTING_MYPAY,
+      MigrationFileType.PAYMENTS_REPORTING_MYPIVOT,
       MigrationFileType.TREASURY_CSV_COMPLETE,
       MigrationFileType.ASSESSMENTS_REGISTRY
     )),
@@ -39,7 +40,8 @@ public class MigrationPlanExecutorService {
     ))
   );
 
-  public void execute(MigrationRequestDto request, Map<MigrationFileType, ? extends MigrationOperation> operationMap) {
+  public void execute(MigrationRequestDto request,
+                      Map<MigrationFileType, ? extends MigrationOperation> operationMap) {
     Set<MigrationFileType> selectedFileTypes = Set.copyOf(request.getFileTypesToInclude());
     try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
       executePlan(request, PLAN_ROOT, selectedFileTypes, operationMap, executor).join();

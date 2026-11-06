@@ -1,15 +1,18 @@
 package it.gov.pagopa.mypay2pu.orchestrator.validation;
 
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 /** Validates migration requests and resolves referenced migration executions. */
@@ -66,6 +69,7 @@ public class MigrationRequestValidator {
   }
 
   protected void validateAction(MigrationRequestDto request) {
+    validateExclusivePaymentsReportingFileTypes(request);
     switch (request.getAction()) {
       case EXPORT, COMPLETE -> {
         if (CollectionUtils.isEmpty(request.getIpaCodes())) {
@@ -95,6 +99,17 @@ public class MigrationRequestValidator {
     }
   }
 
+  private void validateExclusivePaymentsReportingFileTypes(MigrationRequestDto request) {
+    if (!CollectionUtils.isEmpty(request.getFileTypesToInclude())
+      && request.getFileTypesToInclude().contains(MigrationFileType.PAYMENTS_REPORTING_MYPAY)
+      && request.getFileTypesToInclude().contains(MigrationFileType.PAYMENTS_REPORTING_MYPIVOT)) {
+      throw new InvalidValueException(
+        "INVALID_MIGRATION_REQUEST",
+        "fileTypesToInclude must not contain both PAYMENTS_REPORTING_MYPAY and PAYMENTS_REPORTING_MYPIVOT"
+      );
+    }
+  }
+
   protected void validateOrchestrationMode(MigrationRequestDto request) {
     if (request.getAction() == MigrationAction.TRANSFER) {
       return;
@@ -106,12 +121,13 @@ public class MigrationRequestValidator {
       );
     }
     if (request.getOrchestrationMode() == OrchestrationMode.FULL) {
-      if (request.getPeriod() == null) {
+      PeriodDto period = request.getPeriod();
+      if (period == null) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "period is required when orchestrationMode is FULL");
       }
-      if (request.getPeriod().getFromDate() != null
-        && request.getPeriod().getToDate() != null
-        && request.getPeriod().getFromDate().isAfter(request.getPeriod().getToDate())) {
+      LocalDate fromDate = period.getFromDate();
+      LocalDate toDate = period.getToDate();
+      if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
         throw new InvalidValueException(
           "INVALID_MIGRATION_REQUEST",
           "period.fromDate must not be after period.toDate"

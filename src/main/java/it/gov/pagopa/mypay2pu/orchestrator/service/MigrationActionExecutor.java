@@ -1,25 +1,21 @@
-package it.gov.pagopa.mypay2pu.orchestrator.service.coordinator;
+package it.gov.pagopa.mypay2pu.orchestrator.service;
 
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.MigrationRequestWithMigrationExecutionModelDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
-import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFacadeService;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
-/** Starts export coordination for a persisted migration. */
+/** Executes a migration action asynchronously and persists its terminal outcome. */
 @Component
-public class ExportPhaseCoordinator {
+public class MigrationActionExecutor {
 
   private final MigrationFacadeService migrationFacadeService;
   private final MigrationExecutionRepository migrationExecutionRepository;
 
-  public ExportPhaseCoordinator(
+  public MigrationActionExecutor(
     MigrationFacadeService migrationFacadeService,
     MigrationExecutionRepository migrationExecutionRepository
   ) {
@@ -28,9 +24,12 @@ public class ExportPhaseCoordinator {
   }
 
   @Async("orchestratorTaskExecutor")
-  public CompletableFuture<Void> start(MigrationExecution execution) {
+  public CompletableFuture<Void> execute(MigrationRequestWithMigrationExecutionModelDto request) {
+    MigrationExecution execution = request.getMigrationExecution();
+    // Operations persist file executions under the current execution, not the client-supplied migrationId.
+    request.getMigrationRequest().setMigrationId(execution.getId());
     try {
-      migrationFacadeService.execute(toRequest(execution));
+      migrationFacadeService.execute(request.getMigrationRequest());
       execution.setStatus(MigrationExecutionStatus.COMPLETED);
       execution.setFileTypeCountCompleted(execution.getFileTypes().size());
       execution.setErrorCode(null);
@@ -38,7 +37,7 @@ public class ExportPhaseCoordinator {
       migrationExecutionRepository.save(execution);
     } catch (RuntimeException failure) {
       execution.setStatus(MigrationExecutionStatus.FAILED);
-      execution.setErrorCode("EXPORT_FAILED");
+      execution.setErrorCode(request.getMigrationRequest().getAction() + "_FAILED");
       execution.setErrorMsg(
         failure.getMessage() == null || failure.getMessage().isBlank()
           ? failure.getClass().getSimpleName()
@@ -52,20 +51,5 @@ public class ExportPhaseCoordinator {
       throw failure;
     }
     return CompletableFuture.completedFuture(null);
-  }
-
-  private MigrationRequestDto toRequest(MigrationExecution execution) {
-    PeriodDto period = execution.getDateFrom() == null && execution.getDateTo() == null
-      ? null
-      : new PeriodDto(execution.getDateFrom(), execution.getDateTo());
-
-    return new MigrationRequestDto()
-      .action(MigrationAction.EXPORT)
-      .orchestrationMode(execution.getOrchestrationMode())
-      .ipaCodes(List.copyOf(execution.getIpacodes()))
-      .fileTypesToInclude(List.copyOf(execution.getFileTypes()))
-      .period(period)
-      .migrationId(execution.getId())
-      .logicalKey(execution.getLogicalKeys());
   }
 }

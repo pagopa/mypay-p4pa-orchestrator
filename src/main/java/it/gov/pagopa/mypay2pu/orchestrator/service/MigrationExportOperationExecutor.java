@@ -25,20 +25,20 @@ public class MigrationExportOperationExecutor {
   private static final String EXTRACTOR_ERROR = "EXTRACTOR_ERROR";
 
   private final ExtractorService extractorService;
-  private final MigrationFileExecutionService migrationFileExecutionService;
+  private final MigrationFileExecutionExportService migrationFileExecutionExportService;
   private final ExtractionPollingProperties pollingProperties;
 
   public MigrationExportOperationExecutor(ExtractorService extractorService,
-                                          MigrationFileExecutionService migrationFileExecutionService,
+                                          MigrationFileExecutionExportService migrationFileExecutionExportService,
                                           ExtractionPollingProperties pollingProperties) {
     this.extractorService = extractorService;
-    this.migrationFileExecutionService = migrationFileExecutionService;
+    this.migrationFileExecutionExportService = migrationFileExecutionExportService;
     this.pollingProperties = pollingProperties;
   }
 
   public void execute(MigrationRequestDto request, MigrationFileType fileType) {
     UUID migrationId = request.getMigrationId();
-    MigrationFileExecution fileExecution = migrationFileExecutionService.ensurePending(migrationId, fileType);
+    MigrationFileExecution fileExecution = migrationFileExecutionExportService.ensurePending(migrationId, fileType);
     String extractionId = prepareExtraction(request, fileType, fileExecution);
     if (extractionId == null) {
       return;
@@ -46,7 +46,7 @@ public class MigrationExportOperationExecutor {
 
     try {
       ExtractionStatusResponse completed = waitForCompletion(extractionId);
-      migrationFileExecutionService.markExported(
+      migrationFileExecutionExportService.markExported(
         migrationId,
         fileType,
         archiveNames(completed.getArchiveFiles()),
@@ -91,7 +91,7 @@ public class MigrationExportOperationExecutor {
 
   private String submitExtraction(MigrationRequestDto request, MigrationFileType fileType) {
     UUID migrationId = request.getMigrationId();
-    migrationFileExecutionService.markExporting(migrationId, fileType, LocalDateTime.now(ZoneOffset.UTC));
+    migrationFileExecutionExportService.markExporting(migrationId, fileType, LocalDateTime.now(ZoneOffset.UTC));
     try {
       ExtractionAcceptedResponse accepted = extractorService.createExtraction(
         new ExtractionRequest(List.copyOf(request.getIpaCodes()), fileType, null, null)
@@ -99,7 +99,7 @@ public class MigrationExportOperationExecutor {
       if (accepted == null || accepted.getExtractionId().isBlank()) {
         throw new IllegalStateException("Extractor returned an invalid accepted extraction ID");
       }
-      migrationFileExecutionService.recordAccepted(migrationId, fileType, accepted.getExtractionId());
+      migrationFileExecutionExportService.recordExtractionAccepted(migrationId, fileType, accepted.getExtractionId());
       return accepted.getExtractionId();
     } catch (RuntimeException failure) {
       markFailed(migrationId, fileType, EXTRACTOR_ERROR, failure.getMessage(), failure);
@@ -160,7 +160,7 @@ public class MigrationExportOperationExecutor {
                           String errorMessage,
                           RuntimeException originalFailure) {
     try {
-      migrationFileExecutionService.markFailed(
+      migrationFileExecutionExportService.markExtractionFailed(
         migrationId,
         fileType,
         errorCode,
