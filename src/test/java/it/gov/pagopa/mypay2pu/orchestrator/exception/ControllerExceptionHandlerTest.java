@@ -126,6 +126,18 @@ class ControllerExceptionHandlerTest {
   }
 
   @Test
+  void handleNotFoundException() throws Exception {
+    doThrow(new NotFoundException("ERRORCODE", "Error")).when(testControllerSpy).testEndpoint(DATA, BODY);
+
+    performRequest(DATA, MediaType.APPLICATION_JSON)
+      .andExpect(MockMvcResultMatchers.status().isNotFound())
+      .andExpect(MockMvcResultMatchers.jsonPath("$.category").value("NOT_FOUND"))
+      .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("ERRORCODE"))
+      .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("[ERRORCODE] Error"))
+      .andExpect(MockMvcResultMatchers.jsonPath("$.traceId").value(traceId));
+  }
+
+  @Test
   void handleInvalidValueException() throws Exception {
     doThrow(new InvalidValueException("ERRORCODE", "Error")).when(testControllerSpy).testEndpoint(DATA, BODY);
 
