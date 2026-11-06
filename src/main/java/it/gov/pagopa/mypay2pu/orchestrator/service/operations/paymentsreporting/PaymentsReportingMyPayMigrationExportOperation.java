@@ -6,15 +6,15 @@ import it.gov.pagopa.mypay2pu.orchestrator.service.operations.AbstractMigrationE
 import org.springframework.stereotype.Service;
 
 @Service
-public class PaymentsReportingMigrationExportOperation extends AbstractMigrationExportOperation {
+public class PaymentsReportingMyPayMigrationExportOperation extends AbstractMigrationExportOperation {
 
-  public PaymentsReportingMigrationExportOperation(MigrationExportOperationExecutor operationExecutor) {
+  protected PaymentsReportingMyPayMigrationExportOperation(MigrationExportOperationExecutor operationExecutor) {
     super(operationExecutor);
   }
 
   @Override
   public MigrationFileType getMigrationFileType() {
-    return MigrationFileType.PAYMENTS_REPORTING;
+    return MigrationFileType.PAYMENTS_REPORTING_MYPAY;
   }
 
 }
