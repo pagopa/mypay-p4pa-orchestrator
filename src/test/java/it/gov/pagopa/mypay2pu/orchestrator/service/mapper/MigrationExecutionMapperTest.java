@@ -56,4 +56,5 @@ class MigrationExecutionMapperTest {
     assertNotNull(execution.getLogicalKeys());
     assertNotNull(execution.getFileTypes());
   }
+
 }

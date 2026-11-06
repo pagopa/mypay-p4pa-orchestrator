@@ -40,7 +40,8 @@ public class MigrationPlanExecutorService {
     ))
   );
 
-  public void execute(MigrationRequestDto request, Map<MigrationFileType, ? extends MigrationOperation> operationMap) {
+  public void execute(MigrationRequestDto request,
+                      Map<MigrationFileType, ? extends MigrationOperation> operationMap) {
     Set<MigrationFileType> selectedFileTypes = Set.copyOf(request.getFileTypesToInclude());
     try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
       executePlan(request, PLAN_ROOT, selectedFileTypes, operationMap, executor).join();

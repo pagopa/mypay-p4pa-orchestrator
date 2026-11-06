@@ -19,6 +19,7 @@ import java.util.Map;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.same;
 
 @ExtendWith(MockitoExtension.class)
 class MigrationFacadeServiceTest {
@@ -82,7 +83,7 @@ class MigrationFacadeServiceTest {
 
     facade.execute(request);
 
-    verify(debtPositionsTransferMock).execute(request);
+    verify(debtPositionsTransferMock).execute(same(request));
   }
 
   @Test
@@ -92,7 +93,7 @@ class MigrationFacadeServiceTest {
 
     facade.execute(request);
 
-    verify(orgSilServicesExportMock).execute(request);
+    verify(orgSilServicesExportMock).execute(same(request));
   }
 
   @Test
@@ -103,16 +104,15 @@ class MigrationFacadeServiceTest {
 
     facade.execute(request);
 
-    verify(organizationsExportMock).execute(request);
-    verify(organizationsTransferMock).execute(request);
-    verify(orgSilServicesExportMock).execute(request);
-    verify(orgSilServicesTransferMock).execute(request);
+    verify(organizationsExportMock).execute(same(request));
+    verify(organizationsTransferMock).execute(same(request));
+    verify(orgSilServicesExportMock).execute(same(request));
+    verify(orgSilServicesTransferMock).execute(same(request));
   }
 
   private MigrationRequestDto request(MigrationAction action, MigrationFileType... fileTypes) {
-    MigrationRequestDto request = new MigrationRequestDto();
-    request.setAction(action);
-    request.setFileTypesToInclude(List.of(fileTypes));
-    return request;
+    return new MigrationRequestDto()
+      .action(action)
+      .fileTypesToInclude(List.of(fileTypes));
   }
 }
