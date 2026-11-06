@@ -8,6 +8,8 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
 import java.util.List;
+import java.util.UUID;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -60,6 +62,7 @@ class MigrationActionExecutorTest {
     assertEquals(1, execution.getFileTypeCountCompleted());
     assertNull(execution.getErrorCode());
     assertNull(execution.getErrorMsg());
+    assertEquals(execution.getId(), request.getMigrationRequest().getMigrationId());
     verify(migrationFacadeServiceMock).execute(request.getMigrationRequest());
     verify(migrationExecutionRepositoryMock).save(execution);
   }
@@ -103,6 +106,7 @@ class MigrationActionExecutorTest {
     return new MigrationRequestWithMigrationExecutionModelDto(
       new MigrationRequestDto().action(action),
       MigrationExecution.builder()
+        .id(UUID.randomUUID())
         .action(action)
         .status(MigrationExecutionStatus.RUNNING)
         .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))

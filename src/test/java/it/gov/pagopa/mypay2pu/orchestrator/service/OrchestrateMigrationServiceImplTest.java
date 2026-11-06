@@ -136,8 +136,9 @@ class OrchestrateMigrationServiceImplTest {
 
   @Test
   void givenMissingActionWhenStartMigrationThenRejectsRequest() {
+    MigrationRequestDto request = new MigrationRequestDto();
     InvalidValueException failure = assertThrows(
-      InvalidValueException.class, () -> service.startMigration(new MigrationRequestDto())
+      InvalidValueException.class, () -> service.startMigration(request)
     );
     assertEquals("action is required", failure.getMessage());
   }

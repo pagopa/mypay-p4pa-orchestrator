@@ -26,6 +26,8 @@ public class MigrationActionExecutor {
   @Async("orchestratorTaskExecutor")
   public CompletableFuture<Void> execute(MigrationRequestWithMigrationExecutionModelDto request) {
     MigrationExecution execution = request.getMigrationExecution();
+    // Operations persist file executions under the current execution, not the client-supplied migrationId.
+    request.getMigrationRequest().setMigrationId(execution.getId());
     try {
       migrationFacadeService.execute(request.getMigrationRequest());
       execution.setStatus(MigrationExecutionStatus.COMPLETED);
