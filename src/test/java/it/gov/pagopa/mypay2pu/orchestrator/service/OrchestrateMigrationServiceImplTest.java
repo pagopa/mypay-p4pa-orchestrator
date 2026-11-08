@@ -1,7 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.MigrationRequestWithMigrationExecutionModelDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
@@ -33,9 +32,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.isA;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -79,7 +78,7 @@ class OrchestrateMigrationServiceImplTest {
       when(migrationExecutionRepositoryMock.findById(request.getMigrationId())).thenReturn(Optional.of(existing));
     }
     when(migrationExecutionRepositoryMock.save(isA(MigrationExecution.class))).thenReturn(saved);
-    when(migrationActionExecutorMock.execute(isA(MigrationRequestWithMigrationExecutionModelDto.class)))
+    when(migrationActionExecutorMock.execute(same(request), same(saved)))
       .thenAnswer(invocation -> {
         saved.setStatus(MigrationExecutionStatus.COMPLETED);
         return CompletableFuture.completedFuture(null);
@@ -99,11 +98,7 @@ class OrchestrateMigrationServiceImplTest {
     assertEquals(action, modelCaptor.getValue().getAction());
     assertEquals(MigrationExecutionStatus.RUNNING, modelCaptor.getValue().getStatus());
     assertNotNull(modelCaptor.getValue().getCreationDate());
-    ArgumentCaptor<MigrationRequestWithMigrationExecutionModelDto> requestCaptor =
-      ArgumentCaptor.forClass(MigrationRequestWithMigrationExecutionModelDto.class);
-    calls.verify(migrationActionExecutorMock).execute(requestCaptor.capture());
-    assertSame(saved, requestCaptor.getValue().getMigrationExecution());
-    assertSame(request, requestCaptor.getValue().getMigrationRequest());
+    calls.verify(migrationActionExecutorMock).execute(same(request), same(saved));
   }
 
   @Test
@@ -118,20 +113,18 @@ class OrchestrateMigrationServiceImplTest {
       saved.setId(UUID.randomUUID());
       return saved;
     });
-    when(migrationActionExecutorMock.execute(isA(MigrationRequestWithMigrationExecutionModelDto.class)))
+    when(migrationActionExecutorMock.execute(same(request), isA(MigrationExecution.class)))
       .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("action failed")));
 
     MigrationResponseDto response = service.startMigration(request);
 
-    ArgumentCaptor<MigrationRequestWithMigrationExecutionModelDto> captor =
-      ArgumentCaptor.forClass(MigrationRequestWithMigrationExecutionModelDto.class);
-    verify(migrationActionExecutorMock).execute(captor.capture());
-    assertEquals(parentId, captor.getValue().getMigrationExecution().getParentExecutionId());
-    assertSame(request, captor.getValue().getMigrationRequest());
-    assertEquals(response.getMigrationId(), captor.getValue().getMigrationExecution().getId());
+    ArgumentCaptor<MigrationExecution> captor = ArgumentCaptor.forClass(MigrationExecution.class);
+    verify(migrationActionExecutorMock).execute(same(request), captor.capture());
+    assertEquals(parentId, captor.getValue().getParentExecutionId());
+    assertEquals(response.getMigrationId(), captor.getValue().getId());
     assertEquals(parentId, request.getMigrationId());
     verify(migrationExecutionRepositoryMock).findById(parentId);
-    verify(migrationExecutionRepositoryMock).save(captor.getValue().getMigrationExecution());
+    verify(migrationExecutionRepositoryMock).save(same(captor.getValue()));
   }
 
   @Test

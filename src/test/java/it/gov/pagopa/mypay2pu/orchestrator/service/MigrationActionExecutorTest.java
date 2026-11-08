@@ -1,7 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.MigrationRequestWithMigrationExecutionModelDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
@@ -25,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -53,65 +53,65 @@ class MigrationActionExecutorTest {
   @ParameterizedTest
   @EnumSource(MigrationAction.class)
   void givenSuccessfulActionWhenExecuteThenPersistsCompletedMigration(MigrationAction action) {
-    MigrationRequestWithMigrationExecutionModelDto request = request(action);
-    MigrationExecution execution = request.getMigrationExecution();
+    MigrationRequestDto request = new MigrationRequestDto().action(action);
+    MigrationExecution execution = execution(action);
 
-    assertTrue(executor.execute(request).isDone());
+    assertTrue(executor.execute(request, execution).isDone());
 
     assertEquals(MigrationExecutionStatus.COMPLETED, execution.getStatus());
     assertEquals(1, execution.getFileTypeCountCompleted());
     assertNull(execution.getErrorCode());
     assertNull(execution.getErrorMsg());
-    assertEquals(execution.getId(), request.getMigrationRequest().getMigrationId());
-    verify(migrationFacadeServiceMock).execute(request.getMigrationRequest());
-    verify(migrationExecutionRepositoryMock).save(execution);
+    assertEquals(execution.getId(), request.getMigrationId());
+    verify(migrationFacadeServiceMock).execute(same(request));
+    verify(migrationExecutionRepositoryMock).save(same(execution));
   }
 
   @ParameterizedTest
   @EnumSource(MigrationAction.class)
   void givenActionFailureWhenExecuteThenPersistsFailureAndPropagates(MigrationAction action) {
-    MigrationRequestWithMigrationExecutionModelDto request = request(action);
+    MigrationRequestDto request = new MigrationRequestDto().action(action);
+    MigrationExecution execution = execution(action);
     IllegalStateException failure = new IllegalStateException("operation failed");
-    doThrow(failure).when(migrationFacadeServiceMock).execute(request.getMigrationRequest());
+    doThrow(failure).when(migrationFacadeServiceMock).execute(same(request));
 
-    assertSame(failure, assertThrows(IllegalStateException.class, () -> executor.execute(request)));
+    assertSame(failure, assertThrows(IllegalStateException.class, () -> executor.execute(request, execution)));
 
-    assertEquals(MigrationExecutionStatus.FAILED, request.getMigrationExecution().getStatus());
-    assertEquals(action + "_FAILED", request.getMigrationExecution().getErrorCode());
-    assertEquals("operation failed", request.getMigrationExecution().getErrorMsg());
-    verify(migrationFacadeServiceMock).execute(request.getMigrationRequest());
-    verify(migrationExecutionRepositoryMock).save(request.getMigrationExecution());
+    assertEquals(MigrationExecutionStatus.FAILED, execution.getStatus());
+    assertEquals(action + "_FAILED", execution.getErrorCode());
+    assertEquals("operation failed", execution.getErrorMsg());
+    verify(migrationFacadeServiceMock).execute(same(request));
+    verify(migrationExecutionRepositoryMock).save(same(execution));
   }
 
   @ParameterizedTest
   @NullAndEmptySource
   @ValueSource(strings = " ")
   void givenFailurePersistenceErrorWhenExecuteThenPreservesOriginalFailure(String message) {
-    MigrationRequestWithMigrationExecutionModelDto request = request(MigrationAction.EXPORT);
+    MigrationRequestDto request = new MigrationRequestDto().action(MigrationAction.EXPORT);
+    MigrationExecution execution = execution(MigrationAction.EXPORT);
     IllegalStateException failure = new IllegalStateException(message);
     IllegalArgumentException persistenceFailure = new IllegalArgumentException("database unavailable");
-    doThrow(failure).when(migrationFacadeServiceMock).execute(request.getMigrationRequest());
-    when(migrationExecutionRepositoryMock.save(request.getMigrationExecution())).thenThrow(persistenceFailure);
+    doThrow(failure).when(migrationFacadeServiceMock).execute(same(request));
+    when(migrationExecutionRepositoryMock.save(same(execution))).thenThrow(persistenceFailure);
 
-    IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> executor.execute(request));
+    IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> executor.execute(request, execution));
 
     assertSame(failure, thrown);
     assertEquals(List.of(persistenceFailure), List.of(thrown.getSuppressed()));
-    assertEquals("IllegalStateException", request.getMigrationExecution().getErrorMsg());
-    verify(migrationFacadeServiceMock).execute(request.getMigrationRequest());
-    verify(migrationExecutionRepositoryMock).save(request.getMigrationExecution());
+    assertEquals("IllegalStateException", execution.getErrorMsg());
+    verify(migrationFacadeServiceMock).execute(same(request));
+    verify(migrationExecutionRepositoryMock).save(same(execution));
   }
 
-  private MigrationRequestWithMigrationExecutionModelDto request(MigrationAction action) {
-    return new MigrationRequestWithMigrationExecutionModelDto(
-      new MigrationRequestDto().action(action),
-      MigrationExecution.builder()
+  private MigrationExecution execution(MigrationAction action) {
+    return MigrationExecution.builder()
         .id(UUID.randomUUID())
         .action(action)
         .status(MigrationExecutionStatus.RUNNING)
         .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))
         .errorCode("previous error")
         .errorMsg("previous message")
-        .build());
+        .build();
   }
 }

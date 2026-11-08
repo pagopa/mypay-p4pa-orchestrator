@@ -1,6 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
-import it.gov.pagopa.mypay2pu.orchestrator.dto.MigrationRequestWithMigrationExecutionModelDto;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
@@ -24,12 +24,11 @@ public class MigrationActionExecutor {
   }
 
   @Async("orchestratorTaskExecutor")
-  public CompletableFuture<Void> execute(MigrationRequestWithMigrationExecutionModelDto request) {
-    MigrationExecution execution = request.getMigrationExecution();
+  public CompletableFuture<Void> execute(MigrationRequestDto request, MigrationExecution execution) {
     // Operations persist file executions under the current execution, not the client-supplied migrationId.
-    request.getMigrationRequest().setMigrationId(execution.getId());
+    request.setMigrationId(execution.getId());
     try {
-      migrationFacadeService.execute(request.getMigrationRequest());
+      migrationFacadeService.execute(request);
       execution.setStatus(MigrationExecutionStatus.COMPLETED);
       execution.setFileTypeCountCompleted(execution.getFileTypes().size());
       execution.setErrorCode(null);
@@ -37,7 +36,7 @@ public class MigrationActionExecutor {
       migrationExecutionRepository.save(execution);
     } catch (RuntimeException failure) {
       execution.setStatus(MigrationExecutionStatus.FAILED);
-      execution.setErrorCode(request.getMigrationRequest().getAction() + "_FAILED");
+      execution.setErrorCode(request.getAction() + "_FAILED");
       execution.setErrorMsg(
         failure.getMessage() == null || failure.getMessage().isBlank()
           ? failure.getClass().getSimpleName()
