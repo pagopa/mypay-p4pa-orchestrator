@@ -1,4 +1,4 @@
-package it.gov.pagopa.mypay2pu.orchestrator.service;
+package it.gov.pagopa.mypay2pu.orchestrator.service.operations;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ArchiveFile;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionAcceptedResponse;
@@ -13,6 +13,8 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionS
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
+import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionExportService;
+import it.gov.pagopa.mypay2pu.orchestrator.service.operations.organizations.OrganizationsMigrationExportOperation;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.Month;
@@ -34,6 +36,7 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.client.ResourceAccessException;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -49,7 +52,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class MigrationExportOperationExecutorTest {
+class AbstractMigrationExportOperationTest {
 
   private static final UUID MIGRATION_ID = UUID.randomUUID();
   private static final MigrationFileType FILE_TYPE = MigrationFileType.DEBT_POSITIONS_TYPE;
@@ -66,20 +69,42 @@ class MigrationExportOperationExecutorTest {
   @Mock
   private MigrationFileExecutionExportService migrationFileExecutionServiceMock;
 
-  private MigrationExportOperationExecutor operationExecutor;
+  private AbstractMigrationExportOperation operation;
 
   @BeforeEach
   void setUp() {
-    operationExecutor = new MigrationExportOperationExecutor(
+    operation = new AbstractMigrationExportOperation(
+      FILE_TYPE,
       extractorServiceMock,
       migrationFileExecutionServiceMock,
       new ExtractionPollingProperties(Duration.ofMillis(1), Duration.ofSeconds(1))
-    );
+    ) { };
   }
 
   @AfterEach
   void verifyMocks() {
     verifyNoMoreInteractions(extractorServiceMock, migrationFileExecutionServiceMock);
+  }
+
+  @Test
+  void givenOrganizationBeanWhenExecuteThenUsesConfiguredFileType() {
+    ExtractionPollingProperties properties = new ExtractionPollingProperties(Duration.ofMillis(1), Duration.ofSeconds(1));
+    try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+      context.registerBean(ExtractorService.class, () -> extractorServiceMock);
+      context.registerBean(MigrationFileExecutionExportService.class, () -> migrationFileExecutionServiceMock);
+      context.registerBean(ExtractionPollingProperties.class, () -> properties);
+      context.register(OrganizationsMigrationExportOperation.class);
+      context.refresh();
+
+      MigrationExportOperation organization = context.getBean(OrganizationsMigrationExportOperation.class);
+      assertEquals(MigrationFileType.ORGANIZATIONS, organization.getMigrationFileType());
+      when(migrationFileExecutionServiceMock.ensurePending(MIGRATION_ID, MigrationFileType.ORGANIZATIONS))
+        .thenReturn(MigrationFileExecution.builder().status(MigrationFileExecutionStatus.EXPORTED).build());
+
+      organization.execute(request());
+
+      verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
+    }
   }
 
   @Test
@@ -97,7 +122,7 @@ class MigrationExportOperationExecutorTest {
       ))
     );
 
-    operationExecutor.execute(request(), FILE_TYPE);
+    operation.execute(request());
 
     InOrder calls = inOrder(migrationFileExecutionServiceMock, extractorServiceMock);
     calls.verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
@@ -119,7 +144,7 @@ class MigrationExportOperationExecutorTest {
   void givenExportedFileWhenExecuteThenDoesNotSubmitOrPoll() {
     givenFileExecution(MigrationFileExecutionStatus.EXPORTED, EXTRACTION_ID);
 
-    operationExecutor.execute(request(), FILE_TYPE);
+    operation.execute(request());
 
     verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
   }
@@ -134,7 +159,7 @@ class MigrationExportOperationExecutorTest {
 
     IllegalStateException failure = assertThrows(
       IllegalStateException.class,
-      () -> operationExecutor.execute(request, FILE_TYPE)
+      () -> operation.execute(request)
     );
 
     assertTrue(failure.getMessage().contains(message));
@@ -148,7 +173,7 @@ class MigrationExportOperationExecutorTest {
       newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.COMPLETED, List.of())
     );
 
-    operationExecutor.execute(request(), FILE_TYPE);
+    operation.execute(request());
 
     verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
     verify(extractorServiceMock).getExtractionStatus(EXTRACTION_ID);
@@ -165,7 +190,7 @@ class MigrationExportOperationExecutorTest {
 
     givenFileExecution(MigrationFileExecutionStatus.EXPORTING, extractionId);
 
-    assertThrows(IllegalStateException.class, () -> operationExecutor.execute(request, FILE_TYPE));
+    assertThrows(IllegalStateException.class, () -> operation.execute(request));
 
     verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
   }
@@ -180,7 +205,7 @@ class MigrationExportOperationExecutorTest {
 
     IllegalStateException failure = assertThrows(
       IllegalStateException.class,
-      () -> operationExecutor.execute(request, FILE_TYPE)
+      () -> operation.execute(request)
     );
 
     assertEquals("Extractor returned an invalid accepted extraction ID", failure.getMessage());
@@ -204,7 +229,7 @@ class MigrationExportOperationExecutorTest {
 
     assertSame(failure, assertThrows(
       ResourceAccessException.class,
-      () -> operationExecutor.execute(request, FILE_TYPE)
+      () -> operation.execute(request)
     ));
 
     verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
@@ -228,7 +253,7 @@ class MigrationExportOperationExecutorTest {
 
     RuntimeException failure = assertThrows(
       exceptionType,
-      () -> operationExecutor.execute(request(), FILE_TYPE)
+      () -> operation.execute(request())
     );
 
     if (expectedExceptionMessage != null) {
@@ -254,7 +279,7 @@ class MigrationExportOperationExecutorTest {
 
     assertSame(failure, assertThrows(
       ResourceAccessException.class,
-      () -> operationExecutor.execute(request, FILE_TYPE)
+      () -> operation.execute(request)
     ));
 
     verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
@@ -270,18 +295,20 @@ class MigrationExportOperationExecutorTest {
     MigrationRequestDto request = request();
 
     givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
-    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenReturn(
-      newExtractionStatusResponse(EXTRACTION_ID, status, List.of())
-    );
-    operationExecutor = new MigrationExportOperationExecutor(
+    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenAnswer(invocation -> {
+      Thread.sleep(10);
+      return newExtractionStatusResponse(EXTRACTION_ID, status, List.of());
+    });
+    operation = new AbstractMigrationExportOperation(
+      FILE_TYPE,
       extractorServiceMock,
       migrationFileExecutionServiceMock,
-      new ExtractionPollingProperties(Duration.ofMillis(1), Duration.ZERO)
-    );
+      new ExtractionPollingProperties(Duration.ofMillis(1), Duration.ofMillis(1))
+    ) { };
 
     IllegalStateException failure = assertThrows(
       IllegalStateException.class,
-      () -> operationExecutor.execute(request, FILE_TYPE)
+      () -> operation.execute(request)
     );
 
     assertEquals("Timed out waiting for extraction " + EXTRACTION_ID, failure.getMessage());
@@ -305,7 +332,7 @@ class MigrationExportOperationExecutorTest {
     try {
       IllegalStateException failure = assertThrows(
         IllegalStateException.class,
-        () -> operationExecutor.execute(request, FILE_TYPE)
+        () -> operation.execute(request)
       );
 
       assertEquals("Interrupted while waiting for extraction " + EXTRACTION_ID, failure.getMessage());
@@ -340,7 +367,7 @@ class MigrationExportOperationExecutorTest {
 
     IllegalArgumentException thrown = assertThrows(
       IllegalArgumentException.class,
-      () -> operationExecutor.execute(request, FILE_TYPE)
+      () -> operation.execute(request)
     );
 
     assertSame(failure, thrown);
