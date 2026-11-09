@@ -143,6 +143,21 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | `EXTRACTION_STATUS_POLL_INTERVAL` | Delay between Extractor status checks (Spring duration format) | `30s`          |
 | `EXTRACTION_STATUS_TIMEOUT`       | Maximum wait for an Extractor operation (Spring duration format) | `PT4H`        |
 
+The polling interval and timeouts must be whole seconds. The interval must be at least `10s`; each
+timeout must be at least `30m`, no shorter than the interval, and at most `9223372036s` (the
+monotonic clock limit). An optional timeout per file type can be configured using Spring properties,
+for example:
+
+```yaml
+orchestrator:
+  extraction:
+    status-timeout-by-file-type:
+      ORGANIZATIONS: 1h
+```
+
+Types without an override use `EXTRACTION_STATUS_TIMEOUT`. Timeouts are checked between requests and
+do not interrupt an HTTP request already in progress.
+
 #### 🔑 keys
 | ENV                   | DESCRIPTION                                                                         | DEFAULT |
 |-----------------------|-------------------------------------------------------------------------------------|---------|

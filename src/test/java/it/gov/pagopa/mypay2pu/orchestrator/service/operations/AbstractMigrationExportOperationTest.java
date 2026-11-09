@@ -14,14 +14,17 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionExportService;
-import it.gov.pagopa.mypay2pu.orchestrator.service.operations.organizations.OrganizationsMigrationExportOperation;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +39,6 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.client.ResourceAccessException;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -44,7 +46,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isA;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
@@ -71,41 +72,19 @@ class AbstractMigrationExportOperationTest {
   private MigrationFileExecutionExportService migrationFileExecutionServiceMock;
 
   private AbstractMigrationExportOperation operation;
+  private AtomicLong elapsedNanos;
+  private List<Long> waits;
 
   @BeforeEach
   void setUp() {
-    operation = new AbstractMigrationExportOperation(
-      FILE_TYPE,
-      extractorServiceMock,
-      migrationFileExecutionServiceMock,
-      new ExtractionPollingProperties(Duration.ofMillis(1), Duration.ofSeconds(1))
-    ) { };
+    elapsedNanos = new AtomicLong();
+    waits = new ArrayList<>();
+    operation = operation(Duration.ofSeconds(10), Duration.ofMinutes(30), Map.of());
   }
 
   @AfterEach
   void verifyMocks() {
     verifyNoMoreInteractions(extractorServiceMock, migrationFileExecutionServiceMock);
-  }
-
-  @Test
-  void givenOrganizationBeanWhenExecuteThenUsesConfiguredFileType() {
-    ExtractionPollingProperties properties = new ExtractionPollingProperties(Duration.ofMillis(1), Duration.ofSeconds(1));
-    try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
-      context.registerBean(ExtractorService.class, () -> extractorServiceMock);
-      context.registerBean(MigrationFileExecutionExportService.class, () -> migrationFileExecutionServiceMock);
-      context.registerBean(ExtractionPollingProperties.class, () -> properties);
-      context.register(OrganizationsMigrationExportOperation.class);
-      context.refresh();
-
-      MigrationExportOperation organization = context.getBean(OrganizationsMigrationExportOperation.class);
-      assertEquals(MigrationFileType.ORGANIZATIONS, organization.getMigrationFileType());
-      when(migrationFileExecutionServiceMock.ensurePending(MIGRATION_ID, MigrationFileType.ORGANIZATIONS))
-        .thenReturn(MigrationFileExecution.builder().status(MigrationFileExecutionStatus.EXPORTED).build());
-
-      organization.execute(request());
-
-      verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
-    }
   }
 
   @Test
@@ -125,6 +104,7 @@ class AbstractMigrationExportOperationTest {
 
     operation.execute(request());
 
+    assertEquals(List.of(10L), waits);
     InOrder calls = inOrder(migrationFileExecutionServiceMock, extractorServiceMock);
     calls.verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
     calls.verify(migrationFileExecutionServiceMock).markExporting(
@@ -298,12 +278,7 @@ class AbstractMigrationExportOperationTest {
     givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
     when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID))
       .thenReturn(newExtractionStatusResponse(EXTRACTION_ID, status, List.of()));
-    operation = new AbstractMigrationExportOperation(
-      FILE_TYPE,
-      extractorServiceMock,
-      migrationFileExecutionServiceMock,
-      new ExtractionPollingProperties(Duration.ofMillis(1), Duration.ofMillis(1))
-    ) { };
+    operation = operation(Duration.ofSeconds(1100), Duration.ofMinutes(30), Map.of());
 
     IllegalStateException failure = assertThrows(
       IllegalStateException.class,
@@ -311,8 +286,27 @@ class AbstractMigrationExportOperationTest {
     );
 
     assertEquals("Timed out waiting for extraction " + EXTRACTION_ID, failure.getMessage());
+    assertEquals(List.of(1100L, 700L), waits);
     verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
-    verify(extractorServiceMock, atLeastOnce()).getExtractionStatus(EXTRACTION_ID);
+    verify(extractorServiceMock, times(3)).getExtractionStatus(EXTRACTION_ID);
+    verify(migrationFileExecutionServiceMock).markExtractionFailed(
+      MIGRATION_ID, FILE_TYPE, EXTRACTOR_ERROR, failure.getMessage()
+    );
+  }
+
+  @Test
+  void givenFileTypeTimeoutWhenExecuteThenUsesOverrideInsteadOfGlobalTimeout() {
+    givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
+    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID))
+      .thenReturn(newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.RUNNING, List.of()));
+    operation = operation(Duration.ofSeconds(1100), Duration.ofHours(4), Map.of(FILE_TYPE, Duration.ofMinutes(30)));
+
+    IllegalStateException failure = assertThrows(IllegalStateException.class, () -> operation.execute(request()));
+
+    assertEquals("Timed out waiting for extraction " + EXTRACTION_ID, failure.getMessage());
+    assertEquals(List.of(1100L, 700L), waits);
+    verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
+    verify(extractorServiceMock, times(3)).getExtractionStatus(EXTRACTION_ID);
     verify(migrationFileExecutionServiceMock).markExtractionFailed(
       MIGRATION_ID, FILE_TYPE, EXTRACTOR_ERROR, failure.getMessage()
     );
@@ -432,6 +426,21 @@ class AbstractMigrationExportOperationTest {
 
   private static Stream<ExtractionStatus> nonTerminalStatuses() {
     return Stream.of(ExtractionStatus.RUNNING, null);
+  }
+
+  private AbstractMigrationExportOperation operation(Duration interval, Duration timeout,
+                                                     Map<MigrationFileType, Duration> overrides) {
+    return new AbstractMigrationExportOperation(
+      FILE_TYPE, extractorServiceMock, migrationFileExecutionServiceMock,
+      new ExtractionPollingProperties(interval, timeout, overrides), elapsedNanos::get,
+      seconds -> {
+        if (Thread.currentThread().isInterrupted()) {
+          throw new InterruptedException();
+        }
+        waits.add(seconds);
+        elapsedNanos.addAndGet(TimeUnit.SECONDS.toNanos(seconds));
+      }
+    ) { };
   }
 
   private void givenFileExecution(MigrationFileExecutionStatus status, String extractionId) {

@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /**
@@ -34,6 +35,13 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
   private final ExtractorService extractorService;
   private final MigrationFileExecutionExportService migrationFileExecutionExportService;
   private final ExtractionPollingProperties pollingProperties;
+  private final LongSupplier monotonicClock;
+  private final PollSleeper pollSleeper;
+
+  @FunctionalInterface
+  interface PollSleeper {
+    void sleep(long seconds) throws InterruptedException;
+  }
 
   /**
    * Configures the file type and services used by this export operation.
@@ -48,10 +56,22 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
                                              ExtractorService extractorService,
                                              MigrationFileExecutionExportService migrationFileExecutionExportService,
                                              ExtractionPollingProperties pollingProperties) {
+    this(fileType, extractorService, migrationFileExecutionExportService, pollingProperties,
+      System::nanoTime, TimeUnit.SECONDS::sleep);
+  }
+
+  AbstractMigrationExportOperation(MigrationFileType fileType,
+                                   ExtractorService extractorService,
+                                   MigrationFileExecutionExportService migrationFileExecutionExportService,
+                                   ExtractionPollingProperties pollingProperties,
+                                   LongSupplier monotonicClock,
+                                   PollSleeper pollSleeper) {
     this.fileType = Objects.requireNonNull(fileType, "fileType");
     this.extractorService = extractorService;
     this.migrationFileExecutionExportService = migrationFileExecutionExportService;
     this.pollingProperties = pollingProperties;
+    this.monotonicClock = monotonicClock;
+    this.pollSleeper = pollSleeper;
   }
 
   /**
@@ -179,7 +199,7 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
    * @throws IllegalStateException if a response is invalid, extraction fails, or polling times out
    */
   private ExtractionStatusResponse waitForCompletion(String extractionId) {
-    long startedAt = System.nanoTime();
+    long startedAtNanos = monotonicClock.getAsLong();
     while (true) {
       ExtractionStatusResponse response = extractorService.getExtractionStatus(extractionId);
       if (response == null) {
@@ -197,25 +217,25 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
             .formatted(extractionId, response.getStatus(), response.getError())
         );
       }
-      sleepUntilNextPoll(startedAt, extractionId);
+      sleepUntilNextPoll(startedAtNanos, extractionId);
     }
   }
 
   /**
    * Waits for the configured interval, bounded by the remaining polling timeout.
    *
-   * @param startedAt monotonic polling start time from {@link System#nanoTime()}
+   * @param startedAtNanos monotonic polling start time from {@link System#nanoTime()}
    * @param extractionId extraction ID used in error messages
    * @throws IllegalStateException if the timeout expires or the wait is interrupted
    */
-  private void sleepUntilNextPoll(long startedAt, String extractionId) {
-    long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
-    long remainingMillis = pollingProperties.statusTimeout().toMillis() - elapsedMillis;
-    if (remainingMillis <= 0) {
+  private void sleepUntilNextPoll(long startedAtNanos, String extractionId) {
+    long elapsedSeconds = TimeUnit.NANOSECONDS.toSeconds(monotonicClock.getAsLong() - startedAtNanos);
+    long remainingSeconds = pollingProperties.resolveFileTypeConfigurationStatusTimeout(fileType).toSeconds() - elapsedSeconds;
+    if (remainingSeconds <= 0) {
       throw new IllegalStateException("Timed out waiting for extraction " + extractionId);
     }
     try {
-      Thread.sleep(Math.min(pollingProperties.statusPollInterval().toMillis(), remainingMillis));
+      pollSleeper.sleep(Math.min(pollingProperties.statusPollInterval().toSeconds(), remainingSeconds));
     } catch (InterruptedException interrupted) {
       Thread.currentThread().interrupt();
       throw new IllegalStateException("Interrupted while waiting for extraction " + extractionId, interrupted);
