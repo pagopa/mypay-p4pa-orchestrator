@@ -303,7 +303,8 @@ class AbstractMigrationExportOperationTest {
       .thenReturn(newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.RUNNING, List.of()));
     operation = operation(Duration.ofSeconds(1100), Duration.ofHours(4), Map.of(FILE_TYPE, Duration.ofMinutes(30)));
 
-    IllegalStateException failure = assertThrows(IllegalStateException.class, () -> operation.execute(request()));
+    MigrationRequestDto request = request();
+    IllegalStateException failure = assertThrows(IllegalStateException.class, () -> operation.execute(request));
 
     assertEquals("Timed out waiting for extraction " + EXTRACTION_ID, failure.getMessage());
     assertEquals(List.of(1100L, 700L), waits);
