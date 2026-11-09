@@ -44,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isA;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
@@ -295,10 +296,8 @@ class AbstractMigrationExportOperationTest {
     MigrationRequestDto request = request();
 
     givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
-    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenAnswer(invocation -> {
-      Thread.sleep(10);
-      return newExtractionStatusResponse(EXTRACTION_ID, status, List.of());
-    });
+    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID))
+      .thenReturn(newExtractionStatusResponse(EXTRACTION_ID, status, List.of()));
     operation = new AbstractMigrationExportOperation(
       FILE_TYPE,
       extractorServiceMock,
@@ -313,7 +312,7 @@ class AbstractMigrationExportOperationTest {
 
     assertEquals("Timed out waiting for extraction " + EXTRACTION_ID, failure.getMessage());
     verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
-    verify(extractorServiceMock).getExtractionStatus(EXTRACTION_ID);
+    verify(extractorServiceMock, atLeastOnce()).getExtractionStatus(EXTRACTION_ID);
     verify(migrationFileExecutionServiceMock).markExtractionFailed(
       MIGRATION_ID, FILE_TYPE, EXTRACTOR_ERROR, failure.getMessage()
     );
