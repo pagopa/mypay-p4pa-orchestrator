@@ -8,8 +8,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "orchestrator.extraction", ignoreUnknownFields = false)
 public record ExtractionPollingProperties(Duration statusPollInterval, Duration statusTimeout,
                                           Timeouts timeouts) {
+  private static final Duration MIN_POLL_INTERVAL = Duration.ofSeconds(10);
+  private static final Duration MIN_TIMEOUT = Duration.ofMinutes(30);
+
   public ExtractionPollingProperties {
-    validate("status-poll-interval", statusPollInterval, Duration.ofSeconds(10));
+    validate("status-poll-interval", statusPollInterval, MIN_POLL_INTERVAL);
     validateTimeout("status-timeout", statusTimeout, statusPollInterval);
     if (timeouts == null || timeouts.defaults() == null) {
       throw new IllegalArgumentException("timeouts.defaults must define short-running and long-running");
@@ -38,12 +41,9 @@ public record ExtractionPollingProperties(Duration statusPollInterval, Duration 
   }
 
   private static void validateTimeout(String name, Duration timeout, Duration interval) {
-    validate(name, timeout, Duration.ofMinutes(30));
+    validate(name, timeout, MIN_TIMEOUT);
     if (timeout.compareTo(interval) < 0) {
       throw new IllegalArgumentException(name + " must be at least status-poll-interval");
-    }
-    if (timeout.getSeconds() > Long.MAX_VALUE / 1_000_000_000L) {
-      throw new IllegalArgumentException(name + " exceeds the maximum monotonic clock interval");
     }
   }
 

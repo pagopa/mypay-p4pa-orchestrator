@@ -146,9 +146,8 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | `EXTRACTION_TIMEOUT_LONG_RUNNING` | Timeout for the long-running profile | `1h` |
 
 The polling interval and timeouts must be whole seconds. The interval must be at least `10s`; each
-timeout must be at least `30m`, no shorter than the interval, and at most `9223372036s` (the
-monotonic clock limit). Assign file types to one of the two timeout profiles using Spring properties,
-for example:
+timeout must be at least `30m` and no shorter than the interval. Assign file types to one of the two
+timeout profiles using Spring properties, for example:
 
 ```yaml
 orchestrator:
@@ -161,7 +160,8 @@ orchestrator:
 
 Types without an assignment use `EXTRACTION_STATUS_TIMEOUT`. Assigned durations must equal one of the
 two configured defaults; use property references to keep them in sync. Timeouts are checked between
-requests and do not interrupt an HTTP request already in progress.
+requests and do not interrupt an HTTP request already in progress. The timeout uses the system clock,
+so adjustments to the clock can shorten or extend the effective wait.
 
 #### 🔑 keys
 | ENV                   | DESCRIPTION                                                                         | DEFAULT |

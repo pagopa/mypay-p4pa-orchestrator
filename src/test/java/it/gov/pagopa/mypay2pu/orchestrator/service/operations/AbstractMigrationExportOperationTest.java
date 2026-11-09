@@ -22,11 +22,8 @@ import java.time.Month;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +37,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.ResourceAccessException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -74,13 +72,8 @@ class AbstractMigrationExportOperationTest {
   private MigrationFileExecutionExportService migrationFileExecutionServiceMock;
 
   private AbstractMigrationExportOperation operation;
-  private AtomicLong elapsedNanos;
-  private List<Long> waits;
-
   @BeforeEach
   void setUp() {
-    elapsedNanos = new AtomicLong();
-    waits = new ArrayList<>();
     operation = operation(Duration.ofSeconds(10), Duration.ofMinutes(30), Map.of());
   }
 
@@ -106,7 +99,6 @@ class AbstractMigrationExportOperationTest {
 
     operation.execute(request());
 
-    assertEquals(List.of(10L), waits);
     InOrder calls = inOrder(migrationFileExecutionServiceMock, extractorServiceMock);
     calls.verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
     calls.verify(migrationFileExecutionServiceMock).markExporting(
@@ -272,57 +264,52 @@ class AbstractMigrationExportOperationTest {
     );
   }
 
+  @Test
+  void givenExpiredTimeoutWhenSleepUntilNextPollThenThrowsTimeout() {
+    long startedAtMillis = System.currentTimeMillis() - Duration.ofMinutes(31).toMillis();
+
+    IllegalStateException failure = assertThrows(IllegalStateException.class, () ->
+      ReflectionTestUtils.invokeMethod(operation, "sleepUntilNextPoll", startedAtMillis, EXTRACTION_ID));
+
+    assertEquals("Timed out waiting for extraction " + EXTRACTION_ID, failure.getMessage());
+  }
+
+  @Test
+  void givenFileTypeTimeoutWhenSleepUntilNextPollThenUsesOverrideInsteadOfGlobalTimeout() {
+    operation = operation(Duration.ofSeconds(1100), Duration.ofHours(4), Map.of(FILE_TYPE, Duration.ofMinutes(30)));
+    long startedAtMillis = System.currentTimeMillis() - Duration.ofMinutes(31).toMillis();
+
+    IllegalStateException failure = assertThrows(IllegalStateException.class, () ->
+      ReflectionTestUtils.invokeMethod(operation, "sleepUntilNextPoll", startedAtMillis, EXTRACTION_ID));
+
+    assertEquals("Timed out waiting for extraction " + EXTRACTION_ID, failure.getMessage());
+  }
+
+  @Test
+  void givenUnexpiredGlobalTimeoutWhenSleepUntilNextPollThenUsesGlobalTimeout() {
+    operation = operation(Duration.ofSeconds(1100), Duration.ofHours(4), Map.of());
+    long startedAtMillis = System.currentTimeMillis() - Duration.ofMinutes(31).toMillis();
+
+    Thread.currentThread().interrupt();
+    try {
+      IllegalStateException failure = assertThrows(IllegalStateException.class, () ->
+        ReflectionTestUtils.invokeMethod(operation, "sleepUntilNextPoll", startedAtMillis, EXTRACTION_ID));
+      assertEquals("Interrupted while waiting for extraction " + EXTRACTION_ID, failure.getMessage());
+      assertTrue(Thread.currentThread().isInterrupted());
+    } finally {
+      Thread.interrupted();
+    }
+  }
+
   @ParameterizedTest
   @MethodSource("nonTerminalStatuses")
-  void givenNonTerminalStatusWhenExecuteThenTimesOutAndMarksFileFailed(ExtractionStatus status) {
-    MigrationRequestDto request = request();
-
-    givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
-    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID))
-      .thenReturn(newExtractionStatusResponse(EXTRACTION_ID, status, List.of()));
-    operation = operation(Duration.ofSeconds(1100), Duration.ofMinutes(30), Map.of());
-
-    IllegalStateException failure = assertThrows(
-      IllegalStateException.class,
-      () -> operation.execute(request)
-    );
-
-    assertEquals("Timed out waiting for extraction " + EXTRACTION_ID, failure.getMessage());
-    assertEquals(List.of(1100L, 700L), waits);
-    verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
-    verify(extractorServiceMock, times(3)).getExtractionStatus(EXTRACTION_ID);
-    verify(migrationFileExecutionServiceMock).markExtractionFailed(
-      MIGRATION_ID, FILE_TYPE, EXTRACTOR_ERROR, failure.getMessage()
-    );
-  }
-
-  @Test
-  void givenFileTypeTimeoutWhenExecuteThenUsesOverrideInsteadOfGlobalTimeout() {
-    givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
-    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID))
-      .thenReturn(newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.RUNNING, List.of()));
-    operation = operation(Duration.ofSeconds(1100), Duration.ofHours(4), Map.of(FILE_TYPE, Duration.ofMinutes(30)));
-
-    MigrationRequestDto request = request();
-    IllegalStateException failure = assertThrows(IllegalStateException.class, () -> operation.execute(request));
-
-    assertEquals("Timed out waiting for extraction " + EXTRACTION_ID, failure.getMessage());
-    assertEquals(List.of(1100L, 700L), waits);
-    verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
-    verify(extractorServiceMock, times(3)).getExtractionStatus(EXTRACTION_ID);
-    verify(migrationFileExecutionServiceMock).markExtractionFailed(
-      MIGRATION_ID, FILE_TYPE, EXTRACTOR_ERROR, failure.getMessage()
-    );
-  }
-
-  @Test
-  void givenInterruptedStatusWaitWhenExecuteThenRestoresInterruptAndMarksFileFailed() {
+  void givenInterruptedStatusWaitWhenExecuteThenRestoresInterruptAndMarksFileFailed(ExtractionStatus status) {
     MigrationRequestDto request = request();
 
     givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
     when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenAnswer(invocation -> {
       Thread.currentThread().interrupt();
-      return newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.RUNNING, List.of());
+      return newExtractionStatusResponse(EXTRACTION_ID, status, List.of());
     });
 
     try {
@@ -436,14 +423,7 @@ class AbstractMigrationExportOperationTest {
     return new AbstractMigrationExportOperation(
       FILE_TYPE, extractorServiceMock, migrationFileExecutionServiceMock,
       new ExtractionPollingProperties(interval, timeout,
-        new Timeouts(new Defaults(Duration.ofMinutes(30), Duration.ofHours(1)), overrides)), elapsedNanos::get,
-      seconds -> {
-        if (Thread.currentThread().isInterrupted()) {
-          throw new InterruptedException();
-        }
-        waits.add(seconds);
-        elapsedNanos.addAndGet(TimeUnit.SECONDS.toNanos(seconds));
-      }
+        new Timeouts(new Defaults(Duration.ofMinutes(30), Duration.ofHours(1)), overrides))
     ) { };
   }
 

@@ -252,9 +252,7 @@ class ExtractionPollingPropertiesTest {
       Arguments.of(Duration.ofSeconds(10), Duration.ofSeconds(1799), timeoutMessage),
       Arguments.of(Duration.ofSeconds(10), Duration.ofMillis(1800500), timeoutMessage),
       Arguments.of(Duration.ofSeconds(1801), Duration.ofSeconds(1800),
-        "status-timeout must be at least status-poll-interval"),
-      Arguments.of(Duration.ofSeconds(10), Duration.ofSeconds(Long.MAX_VALUE / 1_000_000_000L + 1),
-        "status-timeout exceeds the maximum monotonic clock interval")
+        "status-timeout must be at least status-poll-interval")
     );
   }
 
@@ -265,9 +263,7 @@ class ExtractionPollingPropertiesTest {
       Arguments.of(Duration.ofSeconds(10), Duration.ofMillis(1800500), false,
         "must be a whole number of seconds and at least 1800 seconds"),
       Arguments.of(Duration.ofSeconds(1801), Duration.ofSeconds(1800), true,
-        "must be at least status-poll-interval"),
-      Arguments.of(Duration.ofSeconds(10), Duration.ofSeconds(Long.MAX_VALUE / 1_000_000_000L + 1), false,
-        "exceeds the maximum monotonic clock interval")
+        "must be at least status-poll-interval")
     );
   }
 
