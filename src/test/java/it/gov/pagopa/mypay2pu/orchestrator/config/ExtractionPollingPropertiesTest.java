@@ -190,11 +190,13 @@ class ExtractionPollingPropertiesTest {
 
   @Test
   void givenOtherDurationWhenConstructThenRejectsConfiguration() {
-    Defaults defaults = new Defaults(Duration.ofMinutes(30), Duration.ofHours(1));
+    Duration statusPollInterval = Duration.ofSeconds(30);
+    Defaults defaults = new Defaults(statusPollInterval, Duration.ofHours(1));
     Timeouts timeouts = new Timeouts(defaults,
       Map.of(MigrationFileType.ORGANIZATIONS, Duration.ofMinutes(45)));
+    Duration statusTimeout = Duration.ofHours(4);
     IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-      () -> new ExtractionPollingProperties(Duration.ofSeconds(30), Duration.ofHours(4), timeouts)
+      () -> new ExtractionPollingProperties(statusPollInterval, statusTimeout, timeouts)
     );
     assertEquals("timeouts.status-timeout-by-file-type[ORGANIZATIONS] must equal short-running or long-running",
       exception.getMessage());
