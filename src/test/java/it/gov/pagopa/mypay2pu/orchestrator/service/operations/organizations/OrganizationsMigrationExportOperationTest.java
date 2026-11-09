@@ -2,6 +2,8 @@ package it.gov.pagopa.mypay2pu.orchestrator.service.operations.organizations;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.config.ExtractionPollingProperties;
+import it.gov.pagopa.mypay2pu.orchestrator.config.ExtractionPollingProperties.Defaults;
+import it.gov.pagopa.mypay2pu.orchestrator.config.ExtractionPollingProperties.Timeouts;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.ExtractorService;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
@@ -41,7 +43,8 @@ class OrganizationsMigrationExportOperationTest {
       context.registerBean(ExtractorService.class, () -> extractorServiceMock);
       context.registerBean(MigrationFileExecutionExportService.class, () -> fileExecutionServiceMock);
       context.registerBean(ExtractionPollingProperties.class,
-        () -> new ExtractionPollingProperties(Duration.ofSeconds(10), Duration.ofMinutes(30), null));
+        () -> new ExtractionPollingProperties(Duration.ofSeconds(10), Duration.ofMinutes(30),
+          new Timeouts(new Defaults(Duration.ofMinutes(30), Duration.ofHours(1)), null)));
       context.register(OrganizationsMigrationExportOperation.class);
       context.refresh();
 

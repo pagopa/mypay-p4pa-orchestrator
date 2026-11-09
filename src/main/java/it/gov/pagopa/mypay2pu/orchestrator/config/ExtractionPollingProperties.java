@@ -5,19 +5,36 @@ import java.time.Duration;
 import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "orchestrator.extraction")
+@ConfigurationProperties(prefix = "orchestrator.extraction", ignoreUnknownFields = false)
 public record ExtractionPollingProperties(Duration statusPollInterval, Duration statusTimeout,
-                                          Map<MigrationFileType, Duration> statusTimeoutByFileType) {
+                                          Timeouts timeouts) {
   public ExtractionPollingProperties {
     validate("status-poll-interval", statusPollInterval, Duration.ofSeconds(10));
     validateTimeout("status-timeout", statusTimeout, statusPollInterval);
-    statusTimeoutByFileType = statusTimeoutByFileType == null ? Map.of() : Map.copyOf(statusTimeoutByFileType);
-    statusTimeoutByFileType.forEach((type, timeout) ->
-      validateTimeout("status-timeout-by-file-type[" + type + "]", timeout, statusPollInterval));
+    if (timeouts == null || timeouts.defaults() == null) {
+      throw new IllegalArgumentException("timeouts.defaults must define short-running and long-running");
+    }
+    validateTimeout("timeouts.defaults.short-running", timeouts.defaults().shortRunning(), statusPollInterval);
+    validateTimeout("timeouts.defaults.long-running", timeouts.defaults().longRunning(), statusPollInterval);
+    timeouts.statusTimeoutByFileType().forEach((fileType, timeout) -> {
+      if (!timeout.equals(timeouts.defaults().shortRunning()) && !timeout.equals(timeouts.defaults().longRunning())) {
+        throw new IllegalArgumentException("timeouts.status-timeout-by-file-type[" + fileType
+          + "] must equal short-running or long-running");
+      }
+    });
   }
 
   public Duration resolveFileTypeConfigurationStatusTimeout(MigrationFileType fileType) {
-    return statusTimeoutByFileType.getOrDefault(fileType, statusTimeout);
+    return timeouts.statusTimeoutByFileType().getOrDefault(fileType, statusTimeout);
+  }
+
+  public record Timeouts(Defaults defaults, Map<MigrationFileType, Duration> statusTimeoutByFileType) {
+    public Timeouts {
+      statusTimeoutByFileType = statusTimeoutByFileType == null ? Map.of() : Map.copyOf(statusTimeoutByFileType);
+    }
+  }
+
+  public record Defaults(Duration shortRunning, Duration longRunning) {
   }
 
   private static void validateTimeout(String name, Duration timeout, Duration interval) {

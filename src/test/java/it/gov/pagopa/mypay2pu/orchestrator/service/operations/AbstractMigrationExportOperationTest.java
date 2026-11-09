@@ -7,6 +7,8 @@ import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionStatus;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionStatusResponse;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.config.ExtractionPollingProperties;
+import it.gov.pagopa.mypay2pu.orchestrator.config.ExtractionPollingProperties.Defaults;
+import it.gov.pagopa.mypay2pu.orchestrator.config.ExtractionPollingProperties.Timeouts;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.ExtractorService;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
@@ -432,7 +434,8 @@ class AbstractMigrationExportOperationTest {
                                                      Map<MigrationFileType, Duration> overrides) {
     return new AbstractMigrationExportOperation(
       FILE_TYPE, extractorServiceMock, migrationFileExecutionServiceMock,
-      new ExtractionPollingProperties(interval, timeout, overrides), elapsedNanos::get,
+      new ExtractionPollingProperties(interval, timeout,
+        new Timeouts(new Defaults(Duration.ofMinutes(30), Duration.ofHours(1)), overrides)), elapsedNanos::get,
       seconds -> {
         if (Thread.currentThread().isInterrupted()) {
           throw new InterruptedException();
