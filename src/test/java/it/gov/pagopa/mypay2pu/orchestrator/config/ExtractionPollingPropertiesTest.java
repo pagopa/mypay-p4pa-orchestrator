@@ -191,7 +191,7 @@ class ExtractionPollingPropertiesTest {
   @Test
   void givenOtherDurationWhenConstructThenRejectsConfiguration() {
     Duration statusPollInterval = Duration.ofSeconds(30);
-    Defaults defaults = new Defaults(statusPollInterval, Duration.ofHours(1));
+    Defaults defaults = new Defaults(Duration.ofMinutes(30), Duration.ofHours(1));
     Timeouts timeouts = new Timeouts(defaults,
       Map.of(MigrationFileType.ORGANIZATIONS, Duration.ofMinutes(45)));
     Duration statusTimeout = Duration.ofHours(4);
