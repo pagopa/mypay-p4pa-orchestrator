@@ -10,17 +10,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class TreasuryCsvCompleteMigrationExportOperation extends AbstractMigrationExportOperation {
 
-  public TreasuryCsvCompleteMigrationExportOperation(
-    ExtractorService extractorService,
-    MigrationFileExecutionExportService migrationFileExecutionExportService,
-    ExtractionPollingProperties pollingProperties
-  ) {
-    super(
-      MigrationFileType.TREASURY_CSV_COMPLETE,
-      extractorService,
-      migrationFileExecutionExportService,
-      pollingProperties
-    );
+  public TreasuryCsvCompleteMigrationExportOperation(ExtractorService extractorService,
+                                                     MigrationFileExecutionExportService migrationFileExecutionExportService,
+                                                     ExtractionPollingProperties pollingProperties) {
+    super(MigrationFileType.TREASURY_CSV_COMPLETE, extractorService, migrationFileExecutionExportService, pollingProperties);
   }
-
 }

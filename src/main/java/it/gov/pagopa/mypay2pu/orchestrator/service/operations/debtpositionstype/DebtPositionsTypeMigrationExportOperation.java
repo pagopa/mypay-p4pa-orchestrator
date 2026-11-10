@@ -10,17 +10,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class DebtPositionsTypeMigrationExportOperation extends AbstractMigrationExportOperation {
 
-  public DebtPositionsTypeMigrationExportOperation(
-    ExtractorService extractorService,
-    MigrationFileExecutionExportService migrationFileExecutionExportService,
-    ExtractionPollingProperties pollingProperties
-  ) {
-    super(
-      MigrationFileType.DEBT_POSITIONS_TYPE,
-      extractorService,
-      migrationFileExecutionExportService,
-      pollingProperties
-    );
+  public DebtPositionsTypeMigrationExportOperation(ExtractorService extractorService,
+                                                   MigrationFileExecutionExportService migrationFileExecutionExportService,
+                                                   ExtractionPollingProperties pollingProperties) {
+    super(MigrationFileType.DEBT_POSITIONS_TYPE, extractorService, migrationFileExecutionExportService, pollingProperties);
   }
-
 }

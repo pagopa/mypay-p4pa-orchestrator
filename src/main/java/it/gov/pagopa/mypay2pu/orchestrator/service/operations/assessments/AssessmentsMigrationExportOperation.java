@@ -10,17 +10,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class AssessmentsMigrationExportOperation extends AbstractMigrationExportOperation {
 
-  public AssessmentsMigrationExportOperation(
-    ExtractorService extractorService,
-    MigrationFileExecutionExportService migrationFileExecutionExportService,
-    ExtractionPollingProperties pollingProperties
-  ) {
-    super(
-      MigrationFileType.ASSESSMENTS,
-      extractorService,
-      migrationFileExecutionExportService,
-      pollingProperties
-    );
+  public AssessmentsMigrationExportOperation(ExtractorService extractorService,
+                                             MigrationFileExecutionExportService migrationFileExecutionExportService,
+                                             ExtractionPollingProperties pollingProperties) {
+    super(MigrationFileType.ASSESSMENTS, extractorService, migrationFileExecutionExportService, pollingProperties);
   }
-
 }

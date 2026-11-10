@@ -10,17 +10,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class PaymentsReportingMyPayMigrationExportOperation extends AbstractMigrationExportOperation {
 
-  public PaymentsReportingMyPayMigrationExportOperation(
-    ExtractorService extractorService,
-    MigrationFileExecutionExportService migrationFileExecutionExportService,
-    ExtractionPollingProperties pollingProperties
-  ) {
-    super(
-      MigrationFileType.PAYMENTS_REPORTING_MYPAY,
-      extractorService,
-      migrationFileExecutionExportService,
-      pollingProperties
-    );
+  public PaymentsReportingMyPayMigrationExportOperation(ExtractorService extractorService,
+                                                        MigrationFileExecutionExportService migrationFileExecutionExportService,
+                                                        ExtractionPollingProperties pollingProperties) {
+    super(MigrationFileType.PAYMENTS_REPORTING_MYPAY, extractorService, migrationFileExecutionExportService, pollingProperties);
   }
-
 }
