@@ -7,11 +7,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "orchestrator.extraction", ignoreUnknownFields = false)
 public record ExtractionPollingProperties(Duration statusPollInterval, Duration statusTimeout,
-                                          Timeouts timeouts) {
+                                          Timeouts timeouts, int statusNotFoundMaxAttempts) {
   private static final Duration MIN_POLL_INTERVAL = Duration.ofSeconds(10);
   private static final Duration MIN_TIMEOUT = Duration.ofMinutes(30);
 
   public ExtractionPollingProperties {
+    if (statusNotFoundMaxAttempts < 1) {
+      throw new IllegalArgumentException("status-not-found-max-attempts must be at least 1");
+    }
     validate("status-poll-interval", statusPollInterval, MIN_POLL_INTERVAL);
     validateTimeout("status-timeout", statusTimeout, statusPollInterval);
     if (timeouts == null || timeouts.defaults() == null) {

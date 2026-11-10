@@ -142,6 +142,7 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | ASYNC_QUEUE_CAPACITY          | Extraction coordinator task queue capacity                | 100                  |
 | `EXTRACTION_STATUS_POLL_INTERVAL` | Delay between Extractor status checks (Spring duration format) | `30s`          |
 | `EXTRACTION_STATUS_TIMEOUT`       | Maximum wait for an Extractor operation (Spring duration format) | `PT4H`        |
+| `EXTRACTION_STATUS_NOT_FOUND_MAX_ATTEMPTS` | Maximum initial status GET attempts on `404 EXPORT_FILE_NOT_FOUND`, including the first; `1` disables retries | `5` |
 | `EXTRACTION_TIMEOUT_SHORT_RUNNING` | Timeout for the short-running profile | `30m` |
 | `EXTRACTION_TIMEOUT_LONG_RUNNING` | Timeout for the long-running profile | `1h` |
 
@@ -162,6 +163,13 @@ Types without an assignment use `EXTRACTION_STATUS_TIMEOUT`. Assigned durations 
 two configured defaults; use property references to keep them in sync. Timeouts are checked between
 requests and do not interrupt an HTTP request already in progress. The timeout uses the system clock,
 so adjustments to the clock can shorten or extend the effective wait.
+
+An initial `404 EXPORT_FILE_NOT_FOUND` is retried at the polling interval, within the timeout resolved
+for the file type. By default, five attempts span approximately two minutes plus request durations.
+After a valid status has been observed in the current polling session, subsequent 404 responses fail
+immediately. Other 404 codes and invalid error bodies are not retried. Resuming an accepted extraction
+starts a new initial retry window without resubmitting its POST. HTTP retries for 5xx and 429 are unchanged.
+After each wait, the timeout is checked before issuing another GET.
 
 #### 🔑 keys
 | ENV                   | DESCRIPTION                                                                         | DEFAULT |

@@ -125,6 +125,7 @@ orchestrator:
   extraction:
     status-poll-interval: "\${EXTRACTION_STATUS_POLL_INTERVAL:30s}"
     status-timeout: "\${EXTRACTION_STATUS_TIMEOUT:PT4H}"
+    status-not-found-max-attempts: "\${EXTRACTION_STATUS_NOT_FOUND_MAX_ATTEMPTS:5}"
     timeouts:
       defaults:
         short-running: "\${EXTRACTION_TIMEOUT_SHORT_RUNNING:30m}"

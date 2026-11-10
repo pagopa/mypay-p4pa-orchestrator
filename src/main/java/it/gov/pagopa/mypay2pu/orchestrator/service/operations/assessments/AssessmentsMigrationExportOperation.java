@@ -6,13 +6,15 @@ import it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.ExtractorService;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionExportService;
 import it.gov.pagopa.mypay2pu.orchestrator.service.operations.AbstractMigrationExportOperation;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.json.JsonMapper;
 
 @Service
 public class AssessmentsMigrationExportOperation extends AbstractMigrationExportOperation {
 
   public AssessmentsMigrationExportOperation(ExtractorService extractorService,
                                              MigrationFileExecutionExportService migrationFileExecutionExportService,
-                                             ExtractionPollingProperties pollingProperties) {
-    super(MigrationFileType.ASSESSMENTS, extractorService, migrationFileExecutionExportService, pollingProperties);
+                                             ExtractionPollingProperties pollingProperties,
+                                             JsonMapper jsonMapper) {
+    super(MigrationFileType.ASSESSMENTS, extractorService, migrationFileExecutionExportService, pollingProperties, jsonMapper);
   }
 }

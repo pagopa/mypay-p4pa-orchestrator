@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
 import java.time.Month;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -39,6 +40,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import tools.jackson.databind.json.JsonMapper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -362,6 +367,130 @@ class AbstractMigrationExportOperationTest {
     );
   }
 
+  @Test
+  void givenInitialNotFoundWhenExecuteThenRetriesWithoutResubmittingExtraction() {
+    givenFileExecution(MigrationFileExecutionStatus.PENDING, null);
+    when(extractorServiceMock.createExtraction(EXTRACTION_REQUEST))
+      .thenReturn(new ExtractionAcceptedResponse(EXTRACTION_ID));
+    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID))
+      .thenThrow(notFound("{\"code\":\"EXPORT_FILE_NOT_FOUND\"}"))
+      .thenReturn(newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.COMPLETED, List.of()));
+
+    operation.execute(request());
+
+    verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
+    verify(migrationFileExecutionServiceMock).markExporting(eq(MIGRATION_ID), eq(FILE_TYPE), isA(LocalDateTime.class));
+    verify(extractorServiceMock).createExtraction(EXTRACTION_REQUEST);
+    verify(migrationFileExecutionServiceMock).recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, EXTRACTION_ID);
+    verify(extractorServiceMock, times(2)).getExtractionStatus(EXTRACTION_ID);
+    verify(migrationFileExecutionServiceMock).markExported(MIGRATION_ID, FILE_TYPE, "", COMPLETED_AT);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2, 5})
+  void givenPersistentNotFoundWhenExecuteThenStopsAtConfiguredAttempts(int attempts) {
+    HttpClientErrorException failure = notFound("{\"code\":\"EXPORT_FILE_NOT_FOUND\"}");
+    givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
+    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenThrow(failure);
+    operation = operation(Duration.ofSeconds(10), Duration.ofMinutes(30), Map.of(), attempts);
+    MigrationRequestDto request = request();
+
+    assertSame(failure, assertThrows(HttpClientErrorException.class, () -> operation.execute(request)));
+
+    verifyStatusFailure(failure, attempts);
+  }
+
+  @Test
+  void givenStatusVisibleOnLastAttemptWhenExecuteThenCompletesResumedExtraction() {
+    givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
+    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID))
+      .thenThrow(notFound("{\"code\":\"EXPORT_FILE_NOT_FOUND\"}"))
+      .thenReturn(newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.COMPLETED, List.of()));
+    operation = operation(Duration.ofSeconds(10), Duration.ofMinutes(30), Map.of(), 2);
+
+    operation.execute(request());
+
+    verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
+    verify(extractorServiceMock, times(2)).getExtractionStatus(EXTRACTION_ID);
+    verify(migrationFileExecutionServiceMock).markExported(MIGRATION_ID, FILE_TYPE, "", COMPLETED_AT);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"{\"code\":\"OTHER_NOT_FOUND\"}", "not json", "{}", "null", "", "[]"})
+  void givenUnrelatedOrInvalidNotFoundWhenExecuteThenFailsWithoutRetry(String body) {
+    HttpClientErrorException failure = notFound(body);
+    givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
+    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenThrow(failure);
+    MigrationRequestDto request = request();
+
+    assertSame(failure, assertThrows(HttpClientErrorException.class, () -> operation.execute(request)));
+
+    verifyStatusFailure(failure, 1);
+  }
+
+  @Test
+  void givenNotFoundAfterVisibleStatusWhenExecuteThenDoesNotRetry() {
+    HttpClientErrorException failure = notFound("{\"code\":\"EXPORT_FILE_NOT_FOUND\"}");
+    givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
+    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID))
+      .thenReturn(newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.RUNNING, List.of()))
+      .thenThrow(failure);
+    MigrationRequestDto request = request();
+
+    assertSame(failure, assertThrows(HttpClientErrorException.class, () -> operation.execute(request)));
+
+    verifyStatusFailure(failure, 2);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1799, 1860})
+  void givenExpiredFileTypeTimeoutWhenWaitForInitialStatusThenStopsWithoutAnotherGet(int elapsedSeconds) {
+    HttpClientErrorException failure = notFound("{\"code\":\"EXPORT_FILE_NOT_FOUND\"}");
+    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenThrow(failure);
+    operation = operation(Duration.ofSeconds(10), Duration.ofHours(4), Map.of(FILE_TYPE, Duration.ofMinutes(30)));
+    long startedAtMillis = System.currentTimeMillis() - Duration.ofSeconds(elapsedSeconds).toMillis();
+
+    IllegalStateException thrown = assertThrows(IllegalStateException.class, () ->
+      ReflectionTestUtils.invokeMethod(operation, "waitForInitialStatus", MIGRATION_ID, EXTRACTION_ID, startedAtMillis));
+
+    assertEquals("Timed out waiting for extraction " + EXTRACTION_ID, thrown.getMessage());
+    assertEquals(List.of(failure), List.of(thrown.getSuppressed()));
+    verify(extractorServiceMock).getExtractionStatus(EXTRACTION_ID);
+  }
+
+  @Test
+  void givenInterruptedNotFoundWaitWhenExecuteThenPreservesInterruptAndOriginalError() {
+    HttpClientErrorException failure = notFound("{\"code\":\"EXPORT_FILE_NOT_FOUND\"}");
+    givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
+    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenAnswer(invocation -> {
+      Thread.currentThread().interrupt();
+      throw failure;
+    });
+    MigrationRequestDto request = request();
+
+    try {
+      IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> operation.execute(request));
+      assertTrue(Thread.currentThread().isInterrupted());
+      assertTrue(thrown.getCause() instanceof InterruptedException);
+      assertEquals(List.of(failure), List.of(thrown.getSuppressed()));
+      verifyStatusFailure(thrown, 1);
+    } finally {
+      Thread.interrupted();
+    }
+  }
+
+  private void verifyStatusFailure(RuntimeException failure, int attempts) {
+    verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
+    verify(extractorServiceMock, times(attempts)).getExtractionStatus(EXTRACTION_ID);
+    verify(migrationFileExecutionServiceMock).markExtractionFailed(
+      MIGRATION_ID, FILE_TYPE, EXTRACTOR_ERROR, failure.getMessage());
+  }
+
+  private static HttpClientErrorException notFound(String body) {
+    return HttpClientErrorException.create(HttpStatus.NOT_FOUND, "Not Found", HttpHeaders.EMPTY,
+      body.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
+  }
+
   private static Stream<Arguments> nonRunnableFileStatuses() {
     return Stream.of(
       Arguments.of(MigrationFileExecutionStatus.FAILED, "already FAILED"),
@@ -420,10 +549,16 @@ class AbstractMigrationExportOperationTest {
 
   private AbstractMigrationExportOperation operation(Duration interval, Duration timeout,
                                                      Map<MigrationFileType, Duration> overrides) {
+    return operation(interval, timeout, overrides, 5);
+  }
+
+  private AbstractMigrationExportOperation operation(Duration interval, Duration timeout,
+                                                     Map<MigrationFileType, Duration> overrides, int attempts) {
     return new AbstractMigrationExportOperation(
       FILE_TYPE, extractorServiceMock, migrationFileExecutionServiceMock,
       new ExtractionPollingProperties(interval, timeout,
-        new Timeouts(new Defaults(Duration.ofMinutes(30), Duration.ofHours(1)), overrides))
+        new Timeouts(new Defaults(Duration.ofMinutes(30), Duration.ofHours(1)), overrides), attempts),
+      JsonMapper.builder().build()
     ) { };
   }
 

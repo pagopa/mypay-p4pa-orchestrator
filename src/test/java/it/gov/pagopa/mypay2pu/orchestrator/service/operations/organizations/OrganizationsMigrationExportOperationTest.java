@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import tools.jackson.databind.json.JsonMapper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
@@ -41,10 +42,11 @@ class OrganizationsMigrationExportOperationTest {
     UUID migrationId = UUID.randomUUID();
     try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
       context.registerBean(ExtractorService.class, () -> extractorServiceMock);
+      context.registerBean(JsonMapper.class, () -> JsonMapper.builder().build());
       context.registerBean(MigrationFileExecutionExportService.class, () -> fileExecutionServiceMock);
       context.registerBean(ExtractionPollingProperties.class,
         () -> new ExtractionPollingProperties(Duration.ofSeconds(10), Duration.ofMinutes(30),
-          new Timeouts(new Defaults(Duration.ofMinutes(30), Duration.ofHours(1)), null)));
+          new Timeouts(new Defaults(Duration.ofMinutes(30), Duration.ofHours(1)), null), 5));
       context.register(OrganizationsMigrationExportOperation.class);
       context.refresh();
 

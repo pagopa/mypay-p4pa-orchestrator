@@ -18,6 +18,10 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.client.HttpClientErrorException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Executes the shared extraction lifecycle for a single migration file type.
@@ -26,6 +30,7 @@ import java.util.stream.Collectors;
  * behavior. An accepted extraction can be resumed using its persisted ID; an already exported
  * file is not submitted again. Failures are propagated so dependent operations do not proceed.
  */
+@Slf4j
 public abstract class AbstractMigrationExportOperation implements MigrationExportOperation {
 
   private static final String EXTRACTOR_ERROR = "EXTRACTOR_ERROR";
@@ -34,6 +39,8 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
   private final ExtractorService extractorService;
   private final MigrationFileExecutionExportService migrationFileExecutionExportService;
   private final ExtractionPollingProperties pollingProperties;
+  private final JsonMapper jsonMapper;
+
   /**
    * Configures the file type and services used by this export operation.
    *
@@ -41,16 +48,19 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
    * @param extractorService client for submitting and checking extractions
    * @param migrationFileExecutionExportService service persisting export progress
    * @param pollingProperties polling interval and timeout
+   * @param jsonMapper mapper used to recognize retryable Extractor errors
    * @throws NullPointerException if {@code fileType} is null
    */
   protected AbstractMigrationExportOperation(MigrationFileType fileType,
                                              ExtractorService extractorService,
                                              MigrationFileExecutionExportService migrationFileExecutionExportService,
-                                             ExtractionPollingProperties pollingProperties) {
+                                             ExtractionPollingProperties pollingProperties,
+                                             JsonMapper jsonMapper) {
     this.fileType = Objects.requireNonNull(fileType, "fileType");
     this.extractorService = extractorService;
     this.migrationFileExecutionExportService = migrationFileExecutionExportService;
     this.pollingProperties = pollingProperties;
+    this.jsonMapper = jsonMapper;
   }
 
   /**
@@ -84,7 +94,7 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
     }
 
     try {
-      ExtractionStatusResponse completed = waitForCompletion(extractionId);
+      ExtractionStatusResponse completed = waitForCompletion(migrationId, extractionId);
       migrationFileExecutionExportService.markExported(
         migrationId,
         fileType,
@@ -173,20 +183,18 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
    * <p>The timeout is checked between status requests using the system clock;
    * it does not interrupt an HTTP request already in progress.
    *
+   * <p>Only initial {@code EXPORT_FILE_NOT_FOUND} responses are retried. Once a valid status
+   * has been observed, subsequent 404 responses are propagated immediately.
+   *
+   * @param migrationId migration identifier used in retry logs
    * @param extractionId accepted Extractor job ID
    * @return the completed extraction response
    * @throws IllegalStateException if a response is invalid, extraction fails, or polling times out
    */
-  private ExtractionStatusResponse waitForCompletion(String extractionId) {
+  private ExtractionStatusResponse waitForCompletion(UUID migrationId, String extractionId) {
     long startedAtMillis = System.currentTimeMillis();
+    ExtractionStatusResponse response = waitForInitialStatus(migrationId, extractionId, startedAtMillis);
     while (true) {
-      ExtractionStatusResponse response = extractorService.getExtractionStatus(extractionId);
-      if (response == null) {
-        throw new IllegalStateException("Extractor returned no status for extraction " + extractionId);
-      }
-      if (!extractionId.equals(response.getExtractionId())) {
-        throw new IllegalStateException("Extractor returned a different extraction ID for " + extractionId);
-      }
       if (response.getStatus() == ExtractionStatus.COMPLETED) {
         return response;
       }
@@ -197,6 +205,50 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
         );
       }
       sleepUntilNextPoll(startedAtMillis, extractionId);
+      response = readStatus(extractionId);
+    }
+  }
+
+  private ExtractionStatusResponse waitForInitialStatus(UUID migrationId, String extractionId, long startedAtMillis) {
+    int maxAttempts = pollingProperties.statusNotFoundMaxAttempts();
+    for (int attempt = 1; ; attempt++) {
+      try {
+        return readStatus(extractionId);
+      } catch (HttpClientErrorException.NotFound failure) {
+        if (attempt >= maxAttempts || !isExportFileNotFound(failure)) {
+          throw failure;
+        }
+        log.warn("Extractor status not yet visible: migrationId={} fileType={} extractionId={} attempt={}/{}",
+          migrationId, fileType, extractionId, attempt, maxAttempts);
+        try {
+          sleepUntilNextPoll(startedAtMillis, extractionId);
+        } catch (IllegalStateException waitFailure) {
+          waitFailure.addSuppressed(failure);
+          throw waitFailure;
+        }
+      }
+    }
+  }
+
+  private ExtractionStatusResponse readStatus(String extractionId) {
+    ExtractionStatusResponse response = extractorService.getExtractionStatus(extractionId);
+    if (response == null) {
+      throw new IllegalStateException("Extractor returned no status for extraction " + extractionId);
+    }
+    if (!extractionId.equals(response.getExtractionId())) {
+      throw new IllegalStateException("Extractor returned a different extraction ID for " + extractionId);
+    }
+    return response;
+  }
+
+  private boolean isExportFileNotFound(HttpClientErrorException.NotFound failure) {
+    try {
+      return "EXPORT_FILE_NOT_FOUND".equals(
+        jsonMapper.readTree(failure.getResponseBodyAsString()).path("code").asString()
+      );
+    } catch (JacksonException invalidBody) {
+      log.warn("Cannot decode Extractor 404 response; retry disabled", invalidBody);
+      return false;
     }
   }
 
@@ -218,6 +270,10 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
     } catch (InterruptedException interrupted) {
       Thread.currentThread().interrupt();
       throw new IllegalStateException("Interrupted while waiting for extraction " + extractionId, interrupted);
+    }
+    if (TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - startedAtMillis)
+        >= pollingProperties.resolveFileTypeConfigurationStatusTimeout(fileType).toSeconds()) {
+      throw new IllegalStateException("Timed out waiting for extraction " + extractionId);
     }
   }
 

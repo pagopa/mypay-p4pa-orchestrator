@@ -27,7 +27,7 @@ class ExtractionPollingPropertiesTest {
   @ParameterizedTest
   @MethodSource("validDurations")
   void givenValidDurationsWhenConstructThenRetainsValues(Duration interval, Duration timeout) {
-    ExtractionPollingProperties properties = new ExtractionPollingProperties(interval, timeout, defaults());
+    ExtractionPollingProperties properties = new ExtractionPollingProperties(interval, timeout, defaults(), 5);
 
     assertEquals(interval, properties.statusPollInterval());
     assertEquals(timeout, properties.statusTimeout());
@@ -38,7 +38,7 @@ class ExtractionPollingPropertiesTest {
   void givenInvalidDurationsWhenConstructThenRejectsConfiguration(Duration interval, Duration timeout, String message) {
     Timeouts defaults = defaults();
     IllegalArgumentException exception = assertThrows(
-      IllegalArgumentException.class, () -> new ExtractionPollingProperties(interval, timeout, defaults)
+      IllegalArgumentException.class, () -> new ExtractionPollingProperties(interval, timeout, defaults, 5)
     );
 
     assertEquals(message, exception.getMessage());
@@ -81,6 +81,7 @@ class ExtractionPollingPropertiesTest {
       assertEquals(Duration.ofMinutes(30), properties.timeouts().defaults().shortRunning());
       assertEquals(Duration.ofHours(1), properties.timeouts().defaults().longRunning());
       assertEquals(Duration.ofHours(4), properties.resolveFileTypeConfigurationStatusTimeout(MigrationFileType.ORGANIZATIONS));
+      assertEquals(5, properties.statusNotFoundMaxAttempts());
     }
   }
 
@@ -104,6 +105,7 @@ class ExtractionPollingPropertiesTest {
       assertEquals(Duration.ofHours(4), properties.resolveFileTypeConfigurationStatusTimeout(MigrationFileType.ASSESSMENTS));
       assertEquals(Map.of(MigrationFileType.ORGANIZATIONS, Duration.ofHours(2),
         MigrationFileType.DEBT_POSITIONS_TYPE, Duration.ofMinutes(35)), properties.timeouts().statusTimeoutByFileType());
+      assertEquals(5, properties.statusNotFoundMaxAttempts());
     }
   }
 
@@ -116,7 +118,7 @@ class ExtractionPollingPropertiesTest {
       shortRunning ? Duration.ofHours(1) : timeout);
     Timeouts timeouts = new Timeouts(defaults, null);
     IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-      () -> new ExtractionPollingProperties(interval, statusTimeout, timeouts)
+      () -> new ExtractionPollingProperties(interval, statusTimeout, timeouts, 5)
     );
 
     assertEquals("timeouts.defaults." + (shortRunning ? "short-running" : "long-running") + " " + message,
@@ -181,7 +183,7 @@ class ExtractionPollingPropertiesTest {
       Map.of(MigrationFileType.ORGANIZATIONS, Duration.ofSeconds(1800),
         MigrationFileType.ASSESSMENTS, Duration.ofMinutes(60)));
     ExtractionPollingProperties properties = new ExtractionPollingProperties(Duration.ofSeconds(30), Duration.ofHours(4),
-      timeouts);
+      timeouts, 5);
 
     assertEquals(Duration.ofMinutes(30), properties.resolveFileTypeConfigurationStatusTimeout(MigrationFileType.ORGANIZATIONS));
     assertEquals(Duration.ofHours(1), properties.resolveFileTypeConfigurationStatusTimeout(MigrationFileType.ASSESSMENTS));
@@ -196,7 +198,7 @@ class ExtractionPollingPropertiesTest {
       Map.of(MigrationFileType.ORGANIZATIONS, Duration.ofMinutes(45)));
     Duration statusTimeout = Duration.ofHours(4);
     IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-      () -> new ExtractionPollingProperties(statusPollInterval, statusTimeout, timeouts)
+      () -> new ExtractionPollingProperties(statusPollInterval, statusTimeout, timeouts, 5)
     );
     assertEquals("timeouts.status-timeout-by-file-type[ORGANIZATIONS] must equal short-running or long-running",
       exception.getMessage());
@@ -223,9 +225,20 @@ class ExtractionPollingPropertiesTest {
     Duration statusTimeout = Duration.ofHours(4);
     Timeouts timeouts = new Timeouts(null, null);
     assertThrows(IllegalArgumentException.class,
-      () -> new ExtractionPollingProperties(statusPollInterval, statusTimeout, null));
+      () -> new ExtractionPollingProperties(statusPollInterval, statusTimeout, null, 5));
     assertThrows(IllegalArgumentException.class,
-      () -> new ExtractionPollingProperties(statusPollInterval, statusTimeout, timeouts));
+      () -> new ExtractionPollingProperties(statusPollInterval, statusTimeout, timeouts, 5));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, -1})
+  void givenInvalidNotFoundAttemptsWhenConstructThenRejectsConfiguration(int attempts) {
+    Duration interval = Duration.ofSeconds(30);
+    Duration timeout = Duration.ofHours(4);
+    Timeouts timeouts = defaults();
+    IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+      () -> new ExtractionPollingProperties(interval, timeout, timeouts, attempts));
+    assertEquals("status-not-found-max-attempts must be at least 1", exception.getMessage());
   }
 
   private static Timeouts defaults() {
