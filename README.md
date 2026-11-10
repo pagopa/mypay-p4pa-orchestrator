@@ -147,6 +147,28 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | ASYNC_CORE_POOL_SIZE          | Extraction coordinator core thread pool size              | 4                    |
 | ASYNC_MAX_POOL_SIZE           | Extraction coordinator maximum thread pool size           | 8                    |
 | ASYNC_QUEUE_CAPACITY          | Extraction coordinator task queue capacity                | 100                  |
+| `EXTRACTION_STATUS_POLL_INTERVAL` | Delay between Extractor status checks (Spring duration format) | `30s`          |
+| `EXTRACTION_STATUS_TIMEOUT`       | Maximum wait for an Extractor operation (Spring duration format) | `PT4H`        |
+| `EXTRACTION_TIMEOUT_SHORT_RUNNING` | Timeout for the short-running profile | `30m` |
+| `EXTRACTION_TIMEOUT_LONG_RUNNING` | Timeout for the long-running profile | `1h` |
+
+The polling interval and timeouts must be whole seconds. The interval must be at least `10s`; each
+timeout must be at least `30m` and no shorter than the interval. Assign file types to one of the two
+timeout profiles using Spring properties, for example:
+
+```yaml
+orchestrator:
+  extraction:
+    timeouts:
+      status-timeout-by-file-type:
+        ORGANIZATIONS: ${orchestrator.extraction.timeouts.defaults.short-running}
+        DEBT_POSITIONS: ${orchestrator.extraction.timeouts.defaults.long-running}
+```
+
+Types without an assignment use `EXTRACTION_STATUS_TIMEOUT`. Assigned durations must equal one of the
+two configured defaults; use property references to keep them in sync. Timeouts are checked between
+requests and do not interrupt an HTTP request already in progress. The timeout uses the system clock,
+so adjustments to the clock can shorten or extend the effective wait.
 
 #### 🔑 keys
 | ENV                   | DESCRIPTION                                                                         | DEFAULT |

@@ -191,9 +191,19 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void givenDeltaOrchestrationWithoutPeriodWhenValidateThenAcceptRequest() {
-    for (MigrationAction action : List.of(MigrationAction.EXPORT, MigrationAction.COMPLETE)) {
-      assertDoesNotThrow(() -> validator.validate(request(action, OrchestrationMode.DELTA)));
+  void givenDeltaOrchestrationWithoutPeriodWhenValidateThenAcceptOnlyComplete() {
+    assertDoesNotThrow(() -> validator.validate(request(MigrationAction.COMPLETE, OrchestrationMode.DELTA)));
+  }
+
+  @Test
+  void givenExportWithNotImplementedOrchestrationWhenValidateThenRejectRequest() {
+    for (OrchestrationMode mode : List.of(OrchestrationMode.DELTA, OrchestrationMode.REJECTS_ONLY)) {
+      MigrationRequestDto request = request(MigrationAction.EXPORT, mode);
+      request.setMigrationId(UUID.randomUUID());
+
+      InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
+
+      assertEquals("orchestrationMode %s is not yet implemented for EXPORT".formatted(mode), exception.getMessage());
     }
   }
 
@@ -224,7 +234,9 @@ class MigrationRequestValidatorTest {
       assertEquals("migrationId is required when orchestrationMode is REJECTS_ONLY", exception.getMessage());
 
       request.setMigrationId(UUID.randomUUID());
-      assertDoesNotThrow(() -> validator.validate(request));
+      if (action == MigrationAction.COMPLETE) {
+        assertDoesNotThrow(() -> validator.validate(request));
+      }
     }
   }
 
