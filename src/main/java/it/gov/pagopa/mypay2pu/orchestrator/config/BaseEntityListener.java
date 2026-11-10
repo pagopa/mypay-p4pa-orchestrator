@@ -4,6 +4,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.model.BaseEntity;
 import it.gov.pagopa.mypay2pu.orchestrator.utils.Utilities;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
+import org.springframework.util.StringUtils;
 
 public class BaseEntityListener {
 
@@ -18,6 +19,7 @@ public class BaseEntityListener {
   }
 
   private void onSave(BaseEntity entity) {
-    entity.setUpdateTraceId(Utilities.getTraceId());
+    String traceId = Utilities.getTraceId();
+    entity.setUpdateTraceId(StringUtils.hasText(traceId) ? traceId : "-");
   }
 }
