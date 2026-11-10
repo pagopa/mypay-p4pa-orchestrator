@@ -13,12 +13,7 @@ class AbstractMigrationTransferOperationTest {
   @ParameterizedTest
   @EnumSource(MigrationFileType.class)
   void givenFileTypeWhenExecuteThenThrowNotImplementedException(MigrationFileType fileType) {
-    AbstractMigrationTransferOperation operation = new AbstractMigrationTransferOperation() {
-      @Override
-      public MigrationFileType getMigrationFileType() {
-        return fileType;
-      }
-    };
+    AbstractMigrationTransferOperation operation = new AbstractMigrationTransferOperation(fileType) { };
     MigrationRequestDto request = new MigrationRequestDto();
 
     UnsupportedOperationException exception = assertThrows(
