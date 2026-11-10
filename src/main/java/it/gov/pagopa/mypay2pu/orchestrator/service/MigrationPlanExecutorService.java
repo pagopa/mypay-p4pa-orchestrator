@@ -3,6 +3,7 @@ package it.gov.pagopa.mypay2pu.orchestrator.service;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationOperation;
+import it.gov.pagopa.mypay2pu.orchestrator.utils.ThreadUtils;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -44,7 +45,13 @@ public class MigrationPlanExecutorService {
                       Map<MigrationFileType, ? extends MigrationOperation> operationMap) {
     Set<MigrationFileType> selectedFileTypes = Set.copyOf(request.getFileTypesToInclude());
     try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-      executePlan(request, PLAN_ROOT, selectedFileTypes, operationMap, executor).join();
+      executePlan(
+        request,
+        PLAN_ROOT,
+        selectedFileTypes,
+        operationMap,
+        task -> executor.execute(ThreadUtils.configureThreadContext(task))
+      ).join();
     } catch (CompletionException exception) {
       if (exception.getCause() instanceof RuntimeException cause) {
         throw cause;
