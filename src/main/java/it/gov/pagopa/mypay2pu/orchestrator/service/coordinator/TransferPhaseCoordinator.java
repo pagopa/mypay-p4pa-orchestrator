@@ -23,11 +23,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 /**
- * Coordinates the transfer phase of a migration.
+ * Coordinates the transfer phase of a migration inside the global action executor.
  *
  * <p>Each selected file is submitted only after its selected ancestors have reached a terminal
  * outcome on PU. Evidence collection persists those outcomes; independent sibling branches may
@@ -66,17 +65,8 @@ public class TransferPhaseCoordinator {
     this.pollingMaxAttempts = pollingMaxAttempts;
   }
 
-  /**
-   * Starts transfer coordination for an existing migration.
-   *
-   * <p>The start routine runs on the orchestrator executor. The returned future tracks its
-   * completion, not the completion of the migration itself.
-   *
-   * @param execution persisted migration whose extracted files should be transferred
-   * @return a future completed when the transfer startup routine finishes
-   */
-  @Async("orchestratorTaskExecutor")
-  public CompletableFuture<Void> start(MigrationExecution execution) {
+  /** Executes the transfer phase for an existing migration. */
+  public void execute(MigrationExecution execution) {
     log.info("Starting TRANSFER coordination for migration {}", execution.getId());
     Set<MigrationFileType> selectedFileTypes = Set.copyOf(execution.getFileTypes());
     AtomicBoolean hasWarning = new AtomicBoolean();
@@ -107,10 +97,13 @@ public class TransferPhaseCoordinator {
       );
     } else if (hasWarning.get()) {
       execution.setStatus(MigrationExecutionStatus.WARNING);
+      execution.setErrorCode(null);
+      execution.setErrorMsg(null);
     } else {
       execution.setStatus(MigrationExecutionStatus.COMPLETED);
+      execution.setErrorCode(null);
+      execution.setErrorMsg(null);
     }
-    return CompletableFuture.completedFuture(null);
   }
 
   private CompletableFuture<Void> executeNode(
@@ -177,7 +170,11 @@ public class TransferPhaseCoordinator {
 
       return awaitTerminalOutcome(execution.getId(), fileType);
     } catch (RuntimeException exception) {
-      markFileExecutionAsFailed(fileExecution, exception);
+      try {
+        markFileExecutionAsFailed(fileExecution, exception);
+      } catch (RuntimeException persistenceFailure) {
+        exception.addSuppressed(persistenceFailure);
+      }
       throw exception;
     }
   }

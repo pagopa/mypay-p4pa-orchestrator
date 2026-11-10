@@ -59,7 +59,7 @@ class TransferPhaseCoordinatorDependencyTest {
   }
 
   @Test
-  void givenSelectedChildWhenStartThenSkipUnselectedAncestorsAndTransferChild() {
+  void givenSelectedChildWhenExecuteThenSkipUnselectedAncestorsAndTransferChild() {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.ORGANIZATIONS
@@ -70,7 +70,7 @@ class TransferPhaseCoordinatorDependencyTest {
     )));
 
     MigrationExecution execution = execution(MigrationFileType.ORGANIZATIONS);
-    coordinator.start(execution).join();
+    coordinator.execute(execution);
 
     assertEquals(MigrationExecutionStatus.COMPLETED, execution.getStatus());
     verify(migrationFacadeServiceMock).execute(argThat(

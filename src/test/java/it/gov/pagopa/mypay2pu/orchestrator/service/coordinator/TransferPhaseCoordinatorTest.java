@@ -2,6 +2,7 @@ package it.gov.pagopa.mypay2pu.orchestrator.service.coordinator;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
@@ -67,7 +68,7 @@ class TransferPhaseCoordinatorTest {
   }
 
   @Test
-  void givenParentExportedWhenStartThenChildTransfersAfterParentCompletes() {
+  void givenParentExportedWhenExecuteThenChildTransfersAfterParentCompletes() {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.DEBT_POSITIONS_TYPE
@@ -92,10 +93,10 @@ class TransferPhaseCoordinatorTest {
       MigrationFileExecutionStatus.COMPLETED
     )));
 
-    coordinator.start(execution(
+    coordinator.execute(execution(
       MigrationFileType.DEBT_POSITIONS_TYPE,
       MigrationFileType.ORGANIZATIONS
-    )).join();
+    ));
 
     InOrder inOrder = inOrder(migrationFileExecutionRepositoryMock, migrationFacadeServiceMock);
     inOrder.verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(
@@ -122,7 +123,7 @@ class TransferPhaseCoordinatorTest {
   }
 
   @Test
-  void givenParentWarningWhenStartThenChildTransferContinues() {
+  void givenParentWarningWhenExecuteThenChildTransferContinues() {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.DEBT_POSITIONS_TYPE
@@ -161,13 +162,15 @@ class TransferPhaseCoordinatorTest {
       MigrationFileExecutionStatus.COMPLETED
     )));
 
-    coordinator.start(execution(
+    MigrationExecution migrationExecution = execution(
       MigrationFileType.DEBT_POSITIONS_TYPE,
       MigrationFileType.ORGANIZATIONS,
       MigrationFileType.DEBT_POSITIONS_TYPE_ORG,
       MigrationFileType.DEBT_POSITIONS
-    )).join();
+    );
+    coordinator.execute(migrationExecution);
 
+    assertEquals(MigrationExecutionStatus.WARNING, migrationExecution.getStatus());
     verify(migrationFacadeServiceMock).execute(argThat(
       request -> request.getFileTypesToInclude().equals(List.of(MigrationFileType.ORGANIZATIONS))
     ));
@@ -180,7 +183,7 @@ class TransferPhaseCoordinatorTest {
   }
 
   @Test
-  void givenParentFailedWhenStartThenDependentRemainsPending() {
+  void givenParentFailedWhenExecuteThenDependentRemainsPending() {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.DEBT_POSITIONS_TYPE
@@ -189,11 +192,14 @@ class TransferPhaseCoordinatorTest {
       MigrationFileExecutionStatus.FAILED
     )));
 
-    coordinator.start(execution(
+    MigrationExecution migrationExecution = execution(
       MigrationFileType.DEBT_POSITIONS_TYPE,
       MigrationFileType.ORGANIZATIONS
-    )).join();
+    );
+    coordinator.execute(migrationExecution);
 
+    assertEquals(MigrationExecutionStatus.FAILED, migrationExecution.getStatus());
+    assertEquals("TRANSFER_FAILED", migrationExecution.getErrorCode());
     verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.DEBT_POSITIONS_TYPE
@@ -201,7 +207,7 @@ class TransferPhaseCoordinatorTest {
   }
 
   @Test
-  void givenIndependentBranchWhenAnotherParentFailsThenIndependentBranchTransfers() {
+  void givenIndependentBranchWhenExecuteThenIndependentBranchTransfers() {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.DEBT_POSITIONS_TYPE
@@ -234,14 +240,14 @@ class TransferPhaseCoordinatorTest {
       MigrationFileExecutionStatus.COMPLETED
     )));
 
-    coordinator.start(execution(
+    coordinator.execute(execution(
       MigrationFileType.DEBT_POSITIONS_TYPE,
       MigrationFileType.ORGANIZATIONS,
       MigrationFileType.DEBT_POSITIONS_TYPE_ORG,
       MigrationFileType.ORG_SIL_SERVICES,
       MigrationFileType.DEBT_POSITIONS_PAID,
       MigrationFileType.ASSESSMENTS
-    )).join();
+    ));
 
     verify(migrationFacadeServiceMock).execute(argThat(
       request -> request.getFileTypesToInclude().equals(List.of(MigrationFileType.ORG_SIL_SERVICES))
@@ -249,7 +255,7 @@ class TransferPhaseCoordinatorTest {
   }
 
   @Test
-  void givenParentNeverCompletesWhenStartThenStartFailsAfterPollingTimeout() {
+  void givenParentNeverCompletesWhenExecuteThenFailsAfterPollingTimeout() {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.DEBT_POSITIONS_TYPE
@@ -267,7 +273,7 @@ class TransferPhaseCoordinatorTest {
     MigrationExecution migrationExecution = execution(MigrationFileType.DEBT_POSITIONS_TYPE);
     IllegalStateException exception = assertThrows(
       IllegalStateException.class,
-      () -> coordinator.start(migrationExecution)
+      () -> coordinator.execute(migrationExecution)
     );
 
     assertEquals(
@@ -286,7 +292,7 @@ class TransferPhaseCoordinatorTest {
   }
 
   @Test
-  void givenTransferAlreadyStartedWhenStartThenResumePollingWithoutResubmitting() {
+  void givenTransferAlreadyStartedWhenExecuteThenResumePollingWithoutResubmitting() {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.DEBT_POSITIONS_TYPE
@@ -312,7 +318,7 @@ class TransferPhaseCoordinatorTest {
       MigrationFileType.ORGANIZATIONS
     );
 
-    coordinator.start(migrationExecution).join();
+    coordinator.execute(migrationExecution);
 
     verify(migrationFileExecutionRepositoryMock, times(2)).findByMigrationIdAndFileType(
       MIGRATION_ID,
@@ -325,7 +331,7 @@ class TransferPhaseCoordinatorTest {
   }
 
   @Test
-  void givenPendingFileWhenStartThenRejectTransferAsNotReady() {
+  void givenPendingFileWhenExecuteThenRejectTransferAsNotReady() {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.DEBT_POSITIONS_TYPE
@@ -337,7 +343,7 @@ class TransferPhaseCoordinatorTest {
 
     IllegalStateException exception = assertThrows(
       IllegalStateException.class,
-      () -> coordinator.start(migrationExecution)
+      () -> coordinator.execute(migrationExecution)
     );
 
     assertEquals(
@@ -357,7 +363,7 @@ class TransferPhaseCoordinatorTest {
   }
 
   @Test
-  void givenMissingFileExecutionWhenStartThenFailWithFileTypeAndMigration() {
+  void givenMissingFileExecutionWhenExecuteThenFailWithFileTypeAndMigration() {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.DEBT_POSITIONS_TYPE
@@ -366,7 +372,7 @@ class TransferPhaseCoordinatorTest {
 
     IllegalStateException exception = assertThrows(
       IllegalStateException.class,
-      () -> coordinator.start(migrationExecution)
+      () -> coordinator.execute(migrationExecution)
     );
 
     assertEquals(
@@ -380,7 +386,7 @@ class TransferPhaseCoordinatorTest {
   }
 
   @Test
-  void givenChildTransferFailsWhenStartThenPropagateRuntimeFailure() {
+  void givenChildTransferFailsWhenExecuteThenPropagateRuntimeFailure() {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.DEBT_POSITIONS_TYPE
@@ -407,7 +413,7 @@ class TransferPhaseCoordinatorTest {
 
     IllegalStateException exception = assertThrows(
       IllegalStateException.class,
-      () -> coordinator.start(migrationExecution)
+      () -> coordinator.execute(migrationExecution)
     );
 
     assertEquals("upload failed", exception.getMessage());
@@ -430,7 +436,7 @@ class TransferPhaseCoordinatorTest {
   }
 
   @Test
-  void givenChildTransferThrowsErrorWhenStartThenPropagateError() {
+  void givenChildTransferThrowsErrorWhenExecuteThenPropagateError() {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.DEBT_POSITIONS_TYPE
@@ -457,7 +463,7 @@ class TransferPhaseCoordinatorTest {
 
     AssertionError error = assertThrows(
       AssertionError.class,
-      () -> coordinator.start(migrationExecution)
+      () -> coordinator.execute(migrationExecution)
     );
 
     assertEquals("fatal upload error", error.getMessage());
@@ -475,7 +481,7 @@ class TransferPhaseCoordinatorTest {
   }
 
   @Test
-  void givenCheckedCauseWhenStartThenPreserveCompletionException() {
+  void givenCheckedCauseWhenExecuteThenPreserveCompletionException() {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.DEBT_POSITIONS_TYPE
@@ -494,7 +500,7 @@ class TransferPhaseCoordinatorTest {
 
     CompletionException exception = assertThrows(
       CompletionException.class,
-      () -> coordinator.start(migrationExecution)
+      () -> coordinator.execute(migrationExecution)
     );
 
     assertTrue(exception.getCause() instanceof IOException);
@@ -509,7 +515,7 @@ class TransferPhaseCoordinatorTest {
   }
 
   @Test
-  void givenInterruptedPollingWhenStartThenRestoreInterruptAndFail() {
+  void givenInterruptedPollingWhenExecuteThenRestoreInterruptAndFail() {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.DEBT_POSITIONS_TYPE
@@ -527,7 +533,7 @@ class TransferPhaseCoordinatorTest {
       Thread.currentThread().interrupt();
       IllegalStateException exception = assertThrows(
         IllegalStateException.class,
-        () -> coordinator.start(migrationExecution)
+        () -> coordinator.execute(migrationExecution)
       );
 
       assertTrue(Thread.currentThread().isInterrupted());
