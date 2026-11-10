@@ -1,23 +1,18 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service.operations.debtpositionstypeorg;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
-import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationExportOperation;
+import it.gov.pagopa.mypay2pu.orchestrator.config.ExtractionPollingProperties;
+import it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.ExtractorService;
+import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionExportService;
+import it.gov.pagopa.mypay2pu.orchestrator.service.operations.AbstractMigrationExportOperation;
 import org.springframework.stereotype.Service;
 
 @Service
-public class DebtPositionsTypeOrgMigrationExportOperation implements MigrationExportOperation {
+public class DebtPositionsTypeOrgMigrationExportOperation extends AbstractMigrationExportOperation {
 
-  @Override
-  public MigrationFileType getMigrationFileType() {
-    return MigrationFileType.DEBT_POSITIONS_TYPE_ORG;
-  }
-
-  @Override
-  public void execute(MigrationRequestDto request) {
-    throw new UnsupportedOperationException(
-      "EXPORT for %s is not implemented: the Extractor request and extraction-status handling belong to the Extract component tasks."
-        .formatted(getMigrationFileType())
-    );
+  public DebtPositionsTypeOrgMigrationExportOperation(ExtractorService extractorService,
+                                                      MigrationFileExecutionExportService migrationFileExecutionExportService,
+                                                      ExtractionPollingProperties pollingProperties) {
+    super(MigrationFileType.DEBT_POSITIONS_TYPE_ORG, extractorService, migrationFileExecutionExportService, pollingProperties);
   }
 }
