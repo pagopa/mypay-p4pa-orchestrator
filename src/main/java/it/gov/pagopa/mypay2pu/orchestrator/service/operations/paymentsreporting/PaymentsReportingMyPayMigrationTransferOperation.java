@@ -7,8 +7,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class PaymentsReportingMyPayMigrationTransferOperation extends AbstractMigrationTransferOperation {
 
-  @Override
-  public MigrationFileType getMigrationFileType() {
-    return MigrationFileType.PAYMENTS_REPORTING_MYPAY;
+  protected PaymentsReportingMyPayMigrationTransferOperation() {
+    super(MigrationFileType.PAYMENTS_REPORTING_MYPAY);
   }
 }

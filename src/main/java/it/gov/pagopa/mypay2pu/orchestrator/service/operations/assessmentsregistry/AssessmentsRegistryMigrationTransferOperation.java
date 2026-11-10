@@ -7,8 +7,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class AssessmentsRegistryMigrationTransferOperation extends AbstractMigrationTransferOperation {
 
-  @Override
-  public MigrationFileType getMigrationFileType() {
-    return MigrationFileType.ASSESSMENTS_REGISTRY;
+  protected AssessmentsRegistryMigrationTransferOperation() {
+    super(MigrationFileType.ASSESSMENTS_REGISTRY);
   }
 }

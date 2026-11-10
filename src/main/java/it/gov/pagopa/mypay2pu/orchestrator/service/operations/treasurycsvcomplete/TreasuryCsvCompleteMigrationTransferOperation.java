@@ -7,8 +7,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class TreasuryCsvCompleteMigrationTransferOperation extends AbstractMigrationTransferOperation {
 
-  @Override
-  public MigrationFileType getMigrationFileType() {
-    return MigrationFileType.TREASURY_CSV_COMPLETE;
+  protected TreasuryCsvCompleteMigrationTransferOperation() {
+    super(MigrationFileType.TREASURY_CSV_COMPLETE);
   }
 }
