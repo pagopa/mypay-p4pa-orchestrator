@@ -56,4 +56,5 @@ public class MigrationExecution extends BaseEntity {
   @NotEmpty
   @JdbcTypeCode(SqlTypes.JSON)
   private List<MigrationFileType> fileTypes;
+
 }
