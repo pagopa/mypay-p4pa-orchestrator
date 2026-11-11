@@ -9,6 +9,7 @@ import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.config.ExtractionPollingProperties;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.ExtractorService;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.NotFoundException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionExportService;
 import java.time.LocalDateTime;
@@ -20,9 +21,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
-import org.springframework.web.client.HttpClientErrorException;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Executes the shared extraction lifecycle for a single migration file type.
@@ -40,7 +38,6 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
   private final ExtractorService extractorService;
   private final MigrationFileExecutionExportService migrationFileExecutionExportService;
   private final ExtractionPollingProperties pollingProperties;
-  private final JsonMapper jsonMapper;
 
   /**
    * Configures the file type and services used by this export operation.
@@ -49,19 +46,16 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
    * @param extractorService client for submitting and checking extractions
    * @param migrationFileExecutionExportService service persisting export progress
    * @param pollingProperties polling interval and timeout
-   * @param jsonMapper mapper used to recognize retryable Extractor errors
    * @throws NullPointerException if {@code fileType} is null
    */
   protected AbstractMigrationExportOperation(MigrationFileType fileType,
                                              ExtractorService extractorService,
                                              MigrationFileExecutionExportService migrationFileExecutionExportService,
-                                             ExtractionPollingProperties pollingProperties,
-                                             JsonMapper jsonMapper) {
+                                             ExtractionPollingProperties pollingProperties) {
     this.fileType = Objects.requireNonNull(fileType, "fileType");
     this.extractorService = extractorService;
     this.migrationFileExecutionExportService = migrationFileExecutionExportService;
     this.pollingProperties = pollingProperties;
-    this.jsonMapper = jsonMapper;
   }
 
   /**
@@ -220,7 +214,7 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
    * @param extractionId accepted Extractor job ID
    * @param startedAtMillis polling start time from {@link System#currentTimeMillis()}
    * @return the first status response validated by {@link #readStatus(String)}
-   * @throws HttpClientErrorException.NotFound if the attempt limit is reached or the 404 is not retryable
+   * @throws NotFoundException if the attempt limit is reached or the error is not retryable
    * @throws IllegalStateException if the response is invalid, polling times out, or waiting is interrupted
    */
   private ExtractionStatusResponse waitForInitialStatus(UUID migrationId, String extractionId, long startedAtMillis) {
@@ -228,8 +222,8 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
     for (int attempt = 1; ; attempt++) {
       try {
         return readStatus(extractionId);
-      } catch (HttpClientErrorException.NotFound failure) {
-        if (attempt >= maxAttempts || !isExportFileNotFound(failure)) {
+      } catch (NotFoundException failure) {
+        if (attempt >= maxAttempts || !"EXPORT_FILE_NOT_FOUND".equals(failure.getCode())) {
           throw failure;
         }
         log.warn("Extractor status not yet visible: migrationId={} fileType={} extractionId={} attempt={}/{}",
@@ -260,25 +254,6 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
       throw new IllegalStateException("Extractor returned a different extraction ID for " + extractionId);
     }
     return response;
-  }
-
-  /**
-   * Checks whether a 404 response identifies an extraction whose status is not yet visible.
-   *
-   * <p>Malformed JSON is logged and treated as non-retryable.
-   *
-   * @param failure Extractor 404 response containing the error body
-   * @return {@code true} only if the response body has code {@code EXPORT_FILE_NOT_FOUND}
-   */
-  private boolean isExportFileNotFound(HttpClientErrorException.NotFound failure) {
-    try {
-      return "EXPORT_FILE_NOT_FOUND".equals(
-        jsonMapper.readTree(failure.getResponseBodyAsString()).path("code").asString()
-      );
-    } catch (JacksonException invalidBody) {
-      log.warn("Cannot decode Extractor 404 response; retry disabled", invalidBody);
-      return false;
-    }
   }
 
   /**

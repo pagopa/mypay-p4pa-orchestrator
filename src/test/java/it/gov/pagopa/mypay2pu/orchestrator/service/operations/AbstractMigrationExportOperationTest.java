@@ -14,6 +14,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.NotFoundException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionExportService;
 import java.time.Duration;
@@ -21,7 +22,6 @@ import java.time.LocalDateTime;
 import java.time.Month;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -40,10 +40,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import tools.jackson.databind.json.JsonMapper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -373,7 +369,7 @@ class AbstractMigrationExportOperationTest {
     when(extractorServiceMock.createExtraction(EXTRACTION_REQUEST))
       .thenReturn(new ExtractionAcceptedResponse(EXTRACTION_ID));
     when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID))
-      .thenThrow(notFound("{\"code\":\"EXPORT_FILE_NOT_FOUND\"}"))
+      .thenThrow(notFound("EXPORT_FILE_NOT_FOUND"))
       .thenReturn(newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.COMPLETED, List.of()));
 
     operation.execute(request());
@@ -389,13 +385,13 @@ class AbstractMigrationExportOperationTest {
   @ParameterizedTest
   @ValueSource(ints = {1, 2, 5})
   void givenPersistentNotFoundWhenExecuteThenStopsAtConfiguredAttempts(int attempts) {
-    HttpClientErrorException failure = notFound("{\"code\":\"EXPORT_FILE_NOT_FOUND\"}");
+    NotFoundException failure = notFound("EXPORT_FILE_NOT_FOUND");
     givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
     when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenThrow(failure);
     operation = operation(Duration.ofSeconds(10), Duration.ofMinutes(30), Map.of(), attempts);
     MigrationRequestDto request = request();
 
-    assertSame(failure, assertThrows(HttpClientErrorException.class, () -> operation.execute(request)));
+    assertSame(failure, assertThrows(NotFoundException.class, () -> operation.execute(request)));
 
     verifyStatusFailure(failure, attempts);
   }
@@ -404,7 +400,7 @@ class AbstractMigrationExportOperationTest {
   void givenStatusVisibleOnLastAttemptWhenExecuteThenCompletesResumedExtraction() {
     givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
     when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID))
-      .thenThrow(notFound("{\"code\":\"EXPORT_FILE_NOT_FOUND\"}"))
+      .thenThrow(notFound("EXPORT_FILE_NOT_FOUND"))
       .thenReturn(newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.COMPLETED, List.of()));
     operation = operation(Duration.ofSeconds(10), Duration.ofMinutes(30), Map.of(), 2);
 
@@ -416,28 +412,28 @@ class AbstractMigrationExportOperationTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"{\"code\":\"OTHER_NOT_FOUND\"}", "not json", "{}", "null", "", "[]"})
-  void givenUnrelatedOrInvalidNotFoundWhenExecuteThenFailsWithoutRetry(String body) {
-    HttpClientErrorException failure = notFound(body);
+  @ValueSource(strings = {"OTHER_NOT_FOUND", "EXTRACTOR_NOT_FOUND"})
+  void givenUnrelatedNotFoundWhenExecuteThenFailsWithoutRetry(String code) {
+    NotFoundException failure = notFound(code);
     givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
     when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenThrow(failure);
     MigrationRequestDto request = request();
 
-    assertSame(failure, assertThrows(HttpClientErrorException.class, () -> operation.execute(request)));
+    assertSame(failure, assertThrows(NotFoundException.class, () -> operation.execute(request)));
 
     verifyStatusFailure(failure, 1);
   }
 
   @Test
   void givenNotFoundAfterVisibleStatusWhenExecuteThenDoesNotRetry() {
-    HttpClientErrorException failure = notFound("{\"code\":\"EXPORT_FILE_NOT_FOUND\"}");
+    NotFoundException failure = notFound("EXPORT_FILE_NOT_FOUND");
     givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
     when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID))
       .thenReturn(newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.RUNNING, List.of()))
       .thenThrow(failure);
     MigrationRequestDto request = request();
 
-    assertSame(failure, assertThrows(HttpClientErrorException.class, () -> operation.execute(request)));
+    assertSame(failure, assertThrows(NotFoundException.class, () -> operation.execute(request)));
 
     verifyStatusFailure(failure, 2);
   }
@@ -445,7 +441,7 @@ class AbstractMigrationExportOperationTest {
   @ParameterizedTest
   @ValueSource(ints = {1799, 1860})
   void givenExpiredFileTypeTimeoutWhenWaitForInitialStatusThenStopsWithoutAnotherGet(int elapsedSeconds) {
-    HttpClientErrorException failure = notFound("{\"code\":\"EXPORT_FILE_NOT_FOUND\"}");
+    NotFoundException failure = notFound("EXPORT_FILE_NOT_FOUND");
     when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenThrow(failure);
     operation = operation(Duration.ofSeconds(10), Duration.ofHours(4), Map.of(FILE_TYPE, Duration.ofMinutes(30)));
     long startedAtMillis = System.currentTimeMillis() - Duration.ofSeconds(elapsedSeconds).toMillis();
@@ -460,7 +456,7 @@ class AbstractMigrationExportOperationTest {
 
   @Test
   void givenInterruptedNotFoundWaitWhenExecuteThenPreservesInterruptAndOriginalError() {
-    HttpClientErrorException failure = notFound("{\"code\":\"EXPORT_FILE_NOT_FOUND\"}");
+    NotFoundException failure = notFound("EXPORT_FILE_NOT_FOUND");
     givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
     when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenAnswer(invocation -> {
       Thread.currentThread().interrupt();
@@ -486,9 +482,8 @@ class AbstractMigrationExportOperationTest {
       MIGRATION_ID, FILE_TYPE, EXTRACTOR_ERROR, failure.getMessage());
   }
 
-  private static HttpClientErrorException notFound(String body) {
-    return HttpClientErrorException.create(HttpStatus.NOT_FOUND, "Not Found", HttpHeaders.EMPTY,
-      body.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
+  private static NotFoundException notFound(String code) {
+    return new NotFoundException(code, "Extraction not found");
   }
 
   private static Stream<Arguments> nonRunnableFileStatuses() {
@@ -557,8 +552,7 @@ class AbstractMigrationExportOperationTest {
     return new AbstractMigrationExportOperation(
       FILE_TYPE, extractorServiceMock, migrationFileExecutionServiceMock,
       new ExtractionPollingProperties(interval, timeout,
-        new Timeouts(new Defaults(Duration.ofMinutes(30), Duration.ofHours(1)), overrides), attempts),
-      JsonMapper.builder().build()
+        new Timeouts(new Defaults(Duration.ofMinutes(30), Duration.ofHours(1)), overrides), attempts)
     ) { };
   }
 

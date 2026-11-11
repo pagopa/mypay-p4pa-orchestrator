@@ -171,6 +171,11 @@ immediately. Other 404 codes and invalid error bodies are not retried. Resuming 
 starts a new initial retry window without resubmitting its POST. HTTP retries for 5xx and 429 are unchanged.
 After each wait, the timeout is checked before issuing another GET.
 
+The Extractor client converts status GET 404 responses into business `NotFoundException`s,
+preserving the remote error code and original HTTP cause. Missing or invalid error codes use
+`EXTRACTOR_NOT_FOUND` and are not retried. HTTP error decoding stays inside the connector;
+the export operation only applies the retry policy to the business error code.
+
 #### 🔑 keys
 | ENV                   | DESCRIPTION                                                                         | DEFAULT |
 |-----------------------|-------------------------------------------------------------------------------------|---------|
