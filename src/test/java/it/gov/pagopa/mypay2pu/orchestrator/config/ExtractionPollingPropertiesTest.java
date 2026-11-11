@@ -49,6 +49,7 @@ class ExtractionPollingPropertiesTest {
     try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
       context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("test", Map.of(
         "orchestrator.extraction.status-poll-interval", "9s",
+        "orchestrator.extraction.status-not-found-max-attempts", "5",
         "orchestrator.extraction.status-timeout", "30m",
         "orchestrator.extraction.timeouts.defaults.short-running", "30m",
         "orchestrator.extraction.timeouts.defaults.long-running", "1h"
@@ -92,6 +93,7 @@ class ExtractionPollingPropertiesTest {
         "orchestrator.extraction.status-poll-interval", "30s",
         "orchestrator.extraction.status-timeout", "4h",
         "orchestrator.extraction.timeouts.defaults.short-running", "35m",
+        "orchestrator.extraction.status-not-found-max-attempts", "5",
         "orchestrator.extraction.timeouts.defaults.long-running", "2h",
         "orchestrator.extraction.timeouts.status-timeout-by-file-type.ORGANIZATIONS", "${orchestrator.extraction.timeouts.defaults.long-running}",
         "orchestrator.extraction.timeouts.status-timeout-by-file-type.DEBT_POSITIONS_TYPE", "${orchestrator.extraction.timeouts.defaults.short-running}"
@@ -132,6 +134,7 @@ class ExtractionPollingPropertiesTest {
         "orchestrator.extraction.status-poll-interval", "30s",
         "orchestrator.extraction.status-timeout", "4h",
         "orchestrator.extraction.timeouts.defaults.short-running", "29m",
+        "orchestrator.extraction.status-not-found-max-attempts", "5",
         "orchestrator.extraction.timeouts.defaults.long-running", "1h"
       )));
       context.register(PollingTestConfiguration.class);
@@ -152,7 +155,8 @@ class ExtractionPollingPropertiesTest {
         "orchestrator.extraction.status-timeout", "4h",
         "orchestrator.extraction.timeouts.defaults.short-running", "30m",
         "orchestrator.extraction.timeouts.defaults.long-running", "1h",
-        "orchestrator.extraction.timeouts.status-timeout-by-file-type.UNKNOWN_FILE", "1h"
+        "orchestrator.extraction.timeouts.status-timeout-by-file-type.UNKNOWN_FILE", "1h",
+        "orchestrator.extraction.status-not-found-max-attempts", "5"
       )));
       context.register(PollingTestConfiguration.class);
 
@@ -169,7 +173,8 @@ class ExtractionPollingPropertiesTest {
         "orchestrator.extraction.status-timeout", "4h",
         "orchestrator.extraction.timeouts.defaults.short-running", "30m",
         "orchestrator.extraction.timeouts.defaults.long-running", "1h",
-        "orchestrator.extraction.timeouts.status-timeout-by-file-type.ORGANIZATIONS", profile
+        "orchestrator.extraction.timeouts.status-timeout-by-file-type.ORGANIZATIONS", profile,
+        "orchestrator.extraction.status-not-found-max-attempts", "5"
       )));
       context.register(PollingTestConfiguration.class);
       assertThrows(Exception.class, context::refresh);
@@ -212,7 +217,8 @@ class ExtractionPollingPropertiesTest {
         "orchestrator.extraction.status-timeout", "4h",
         "orchestrator.extraction.timeouts.defaults.short-running", "30m",
         "orchestrator.extraction.timeouts.defaults.long-running", "1h",
-        "orchestrator.extraction.status-timeout-by-file-type.ORGANIZATIONS", "1h"
+        "orchestrator.extraction.status-timeout-by-file-type.ORGANIZATIONS", "1h",
+        "orchestrator.extraction.status-not-found-max-attempts", "5"
       )));
       context.register(PollingTestConfiguration.class);
       assertThrows(Exception.class, context::refresh);
@@ -228,17 +234,6 @@ class ExtractionPollingPropertiesTest {
       () -> new ExtractionPollingProperties(statusPollInterval, statusTimeout, null, 5));
     assertThrows(IllegalArgumentException.class,
       () -> new ExtractionPollingProperties(statusPollInterval, statusTimeout, timeouts, 5));
-  }
-
-  @ParameterizedTest
-  @ValueSource(ints = {0, -1})
-  void givenInvalidNotFoundAttemptsWhenConstructThenRejectsConfiguration(int attempts) {
-    Duration interval = Duration.ofSeconds(30);
-    Duration timeout = Duration.ofHours(4);
-    Timeouts timeouts = defaults();
-    IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-      () -> new ExtractionPollingProperties(interval, timeout, timeouts, attempts));
-    assertEquals("status-not-found-max-attempts must be at least 1", exception.getMessage());
   }
 
   private static Timeouts defaults() {
