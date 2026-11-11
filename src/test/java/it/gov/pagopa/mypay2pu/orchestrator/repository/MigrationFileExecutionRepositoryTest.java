@@ -31,7 +31,7 @@ class MigrationFileExecutionRepositoryTest {
 
   @Test
   void givenExportedExecutionWhenClaimTransferThenAllowsOnlyOneRequest() {
-    MigrationFileExecution execution = repository.save(MigrationFileExecution.builder()
+    MigrationFileExecution execution = repository.saveAndFlush(MigrationFileExecution.builder()
       .migrationId(MIGRATION_ID)
       .fileType(MigrationFileType.ORGANIZATIONS)
       .status(MigrationFileExecutionStatus.EXPORTED)

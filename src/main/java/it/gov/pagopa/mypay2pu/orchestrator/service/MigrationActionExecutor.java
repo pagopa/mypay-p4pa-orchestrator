@@ -7,7 +7,6 @@ import it.gov.pagopa.mypay2pu.orchestrator.exception.BaseBusinessException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.TransferPhaseException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
-import it.gov.pagopa.mypay2pu.orchestrator.service.coordinator.TransferPhaseCoordinator;
 import java.util.concurrent.CompletableFuture;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -18,16 +17,13 @@ import org.springframework.web.client.HttpClientErrorException;
 public class MigrationActionExecutor {
 
   private final MigrationFacadeService migrationFacadeService;
-  private final TransferPhaseCoordinator transferPhaseCoordinator;
   private final MigrationExecutionRepository migrationExecutionRepository;
 
   public MigrationActionExecutor(
     MigrationFacadeService migrationFacadeService,
-    TransferPhaseCoordinator transferPhaseCoordinator,
     MigrationExecutionRepository migrationExecutionRepository
   ) {
     this.migrationFacadeService = migrationFacadeService;
-    this.transferPhaseCoordinator = transferPhaseCoordinator;
     this.migrationExecutionRepository = migrationExecutionRepository;
   }
 
@@ -36,17 +32,13 @@ public class MigrationActionExecutor {
     // Operations persist file executions under the current execution, not the client-supplied migrationId.
     request.setMigrationId(execution.getId());
     try {
-      if (request.getAction() == MigrationAction.TRANSFER) {
-        transferPhaseCoordinator.execute(execution);
-      } else {
-        migrationFacadeService.execute(request);
+      migrationFacadeService.execute(request);
+      if (request.getAction() == MigrationAction.EXPORT) {
         execution.setStatus(MigrationExecutionStatus.COMPLETED);
-      }
-      if (execution.getStatus() != MigrationExecutionStatus.FAILED) {
         execution.setFileTypeCountCompleted(execution.getFileTypes().size());
-        execution.setErrorCode(null);
-        execution.setErrorMsg(null);
       }
+      execution.setErrorCode(null);
+      execution.setErrorMsg(null);
       migrationExecutionRepository.save(execution);
     } catch (RuntimeException failure) {
       execution.setStatus(MigrationExecutionStatus.FAILED);

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class DebtPositionsMigrationTransferOperation extends AbstractMigrationTransferOperation {
 
-  protected DebtPositionsMigrationTransferOperation(
+  public DebtPositionsMigrationTransferOperation(
     MigrationFileExecutionTransferService transferService,
     PuMigrationService puMigrationService,
     PuAuthnService puAuthnService,

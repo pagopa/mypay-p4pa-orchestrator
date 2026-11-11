@@ -4,6 +4,7 @@ import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.NotFoundException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionTransferValidator;
@@ -22,18 +23,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 class MigrationFileExecutionTransferServiceTest {
 
-  private static final UUID MIGRATION_ID = UUID.fromString("5b15e78a-c2e8-4864-a6c5-5e8e401f160a");
+  private static final UUID MIGRATION_ID = UUID.randomUUID();
   private static final MigrationFileType FILE_TYPE = MigrationFileType.ORGANIZATIONS;
-  private static final LocalDateTime STARTED_AT = LocalDateTime.of(2026, Month.NOVEMBER, 11, 10, 55);
-  private static final LocalDateTime COMPLETED_AT = LocalDateTime.of(2026, Month.NOVEMBER, 11, 10, 56);
+  private static final LocalDateTime STARTED_AT = LocalDateTime.of(2026, Month.NOVEMBER, 11, 12, 0);
+  private static final LocalDateTime COMPLETED_AT = LocalDateTime.of(2026, Month.NOVEMBER, 11, 12, 1);
 
   @Mock
   private MigrationFileExecutionRepository migrationFileExecutionRepositoryMock;
@@ -54,8 +55,8 @@ class MigrationFileExecutionTransferServiceTest {
   }
 
   @Test
-  void givenExportedFileWhenTransferLifecycleCompletesThenPersistsUploadAcceptance() {
-    MigrationFileExecution execution = exportedExecution();
+  void givenExportedExecutionWhenMarkTransferringThenAtomicallyClaimsIt() {
+    MigrationFileExecution execution = fileExecution(MigrationFileExecutionStatus.EXPORTED);
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
       .thenReturn(Optional.of(execution));
     when(migrationFileExecutionRepositoryMock.claimTransfer(
@@ -65,25 +66,17 @@ class MigrationFileExecutionTransferServiceTest {
       MigrationFileExecutionStatus.TRANSFERING,
       STARTED_AT
     )).thenAnswer(invocation -> {
-      execution.setStatus(MigrationFileExecutionStatus.TRANSFERING);
-      execution.setUploadStartedAt(STARTED_AT);
+      execution.setStatus(invocation.getArgument(3, MigrationFileExecutionStatus.class));
+      execution.setUploadStartedAt(invocation.getArgument(4, LocalDateTime.class));
       return 1;
     });
-    when(migrationFileExecutionRepositoryMock.save(execution)).thenReturn(execution);
 
-    MigrationFileExecution transferring = service.markTransferring(MIGRATION_ID, FILE_TYPE, STARTED_AT);
-    MigrationFileExecution waiting = service.recordUploadAccepted(MIGRATION_ID, FILE_TYPE, 42L, COMPLETED_AT);
+    MigrationFileExecution result = service.markTransferring(MIGRATION_ID, FILE_TYPE, STARTED_AT);
 
-    assertSame(execution, transferring);
-    assertSame(execution, waiting);
-    assertEquals(MigrationFileExecutionStatus.WAITING_PU, waiting.getStatus());
-    assertEquals(42L, waiting.getUploadId());
-    assertEquals(UploadsStatusEnum.UPLOADED, waiting.getUploadStatus());
-    assertEquals(STARTED_AT, waiting.getUploadStartedAt());
-    assertEquals(COMPLETED_AT, waiting.getUploadCompletedAt());
-    assertEquals("extractor-123", waiting.getExtractionId());
-    assertEquals("organizations.zip", waiting.getFilePath());
-    verify(migrationFileExecutionRepositoryMock, times(3))
+    assertSame(execution, result);
+    assertEquals(MigrationFileExecutionStatus.TRANSFERING, result.getStatus());
+    assertEquals(STARTED_AT, result.getUploadStartedAt());
+    verify(migrationFileExecutionRepositoryMock, times(2))
       .findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
     verify(migrationFileExecutionRepositoryMock).claimTransfer(
       MIGRATION_ID,
@@ -92,43 +85,74 @@ class MigrationFileExecutionTransferServiceTest {
       MigrationFileExecutionStatus.TRANSFERING,
       STARTED_AT
     );
-    verify(migrationFileExecutionRepositoryMock).save(execution);
   }
 
   @Test
-  void givenTransferringFileWhenMarkTransferFailedThenPersistsSpecificError() {
-    MigrationFileExecution execution = exportedExecution();
-    execution.setStatus(MigrationFileExecutionStatus.TRANSFERING);
-    execution.setUploadStartedAt(STARTED_AT);
+  void givenTransferringExecutionWhenRecordUploadAcceptedThenPersistsWaitingPu() {
+    MigrationFileExecution execution = fileExecution(MigrationFileExecutionStatus.TRANSFERING);
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
       .thenReturn(Optional.of(execution));
     when(migrationFileExecutionRepositoryMock.save(execution)).thenReturn(execution);
 
-    MigrationFileExecution result = service.markTransferFailed(
-      MIGRATION_ID, FILE_TYPE, "PU_VALIDATION_ERROR", "PU rejected the archive"
+    MigrationFileExecution result = service.recordUploadAccepted(
+      MIGRATION_ID,
+      FILE_TYPE,
+      42L,
+      UploadsStatusEnum.UPLOADED,
+      COMPLETED_AT
     );
 
-    assertEquals(MigrationFileExecutionStatus.FAILED, result.getStatus());
-    assertEquals("PU_VALIDATION_ERROR", result.getUploadErrorCode());
-    assertEquals("PU rejected the archive", result.getUploadErrorMsg());
-    assertEquals("extractor-123", result.getExtractionId());
+    assertSame(execution, result);
+    assertEquals(MigrationFileExecutionStatus.WAITING_PU, result.getStatus());
+    assertEquals(42L, result.getUploadId());
+    assertEquals(UploadsStatusEnum.UPLOADED, result.getUploadStatus());
+    assertEquals(COMPLETED_AT, result.getUploadCompletedAt());
     verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
     verify(migrationFileExecutionRepositoryMock).save(execution);
   }
 
   @Test
-  void givenNullUploadIdWhenRecordUploadAcceptedThenRejectsBeforeRepositoryLookup() {
-    InvalidValueException exception = assertThrows(
-      InvalidValueException.class,
-      () -> service.recordUploadAccepted(MIGRATION_ID, FILE_TYPE, null, COMPLETED_AT)
-    );
+  void givenExistingExecutionWhenGetRequiredThenReturnsExecution() {
+    MigrationFileExecution execution = fileExecution(MigrationFileExecutionStatus.EXPORTED);
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
+      .thenReturn(Optional.of(execution));
 
-    assertEquals("INVALID_UPLOAD_RESPONSE", exception.getCode());
+    MigrationFileExecution result = service.getRequired(MIGRATION_ID, FILE_TYPE);
+
+    assertSame(execution, result);
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
   }
 
   @Test
-  void givenLostTransferClaimWhenMarkTransferringThenRejectsDuplicateUpload() {
-    MigrationFileExecution execution = exportedExecution();
+  void givenMissingExecutionWhenGetRequiredThenThrowsNotFoundException() {
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
+      .thenReturn(Optional.empty());
+
+    NotFoundException exception = assertThrows(
+      NotFoundException.class,
+      () -> service.getRequired(MIGRATION_ID, FILE_TYPE)
+    );
+
+    assertEquals("MIGRATION_FILE_EXECUTION_NOT_FOUND", exception.getCode());
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
+  }
+
+  @Test
+  void givenMissingExecutionWhenMarkTransferringThenThrowsNotFoundException() {
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
+      .thenReturn(Optional.empty());
+
+    assertThrows(
+      NotFoundException.class,
+      () -> service.markTransferring(MIGRATION_ID, FILE_TYPE, STARTED_AT)
+    );
+
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
+  }
+
+  @Test
+  void givenClaimedExecutionWhenMarkTransferringThenThrowsConflictException() {
+    MigrationFileExecution execution = fileExecution(MigrationFileExecutionStatus.EXPORTED);
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
       .thenReturn(Optional.of(execution));
     when(migrationFileExecutionRepositoryMock.claimTransfer(
@@ -155,16 +179,71 @@ class MigrationFileExecutionTransferServiceTest {
     );
   }
 
-  private MigrationFileExecution exportedExecution() {
+  @Test
+  void givenInvalidAcceptedUploadWhenRecordUploadAcceptedThenDoesNotPersist() {
+    MigrationFileExecution execution = fileExecution(MigrationFileExecutionStatus.TRANSFERING);
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
+      .thenReturn(Optional.of(execution));
+
+    InvalidValueException exception = assertThrows(
+      InvalidValueException.class,
+      () -> service.recordUploadAccepted(
+        MIGRATION_ID,
+        FILE_TYPE,
+        0L,
+        UploadsStatusEnum.UPLOADED,
+        COMPLETED_AT
+      )
+    );
+
+    assertEquals("INVALID_UPLOAD_ID", exception.getCode());
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
+  }
+
+  @Test
+  void givenTransferInProgressWhenMarkTransferFailedThenPersistsFailure() {
+    MigrationFileExecution execution = fileExecution(MigrationFileExecutionStatus.TRANSFERING);
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
+      .thenReturn(Optional.of(execution));
+    when(migrationFileExecutionRepositoryMock.save(execution)).thenReturn(execution);
+
+    MigrationFileExecution result = service.markTransferFailed(
+      MIGRATION_ID,
+      FILE_TYPE,
+      "UPLOAD_FAILED",
+      "PU rejected the upload"
+    );
+
+    assertSame(execution, result);
+    assertEquals(MigrationFileExecutionStatus.FAILED, result.getStatus());
+    assertEquals("UPLOAD_FAILED", result.getUploadErrorCode());
+    assertEquals("PU rejected the upload", result.getUploadErrorMsg());
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
+    verify(migrationFileExecutionRepositoryMock).save(execution);
+  }
+
+  @Test
+  void givenMissingExecutionWhenMarkTransferFailedThenThrowsNotFoundException() {
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
+      .thenReturn(Optional.empty());
+
+    NotFoundException exception = assertThrows(
+      NotFoundException.class,
+      () -> service.markTransferFailed(MIGRATION_ID, FILE_TYPE, "UPLOAD_FAILED", "failure")
+    );
+
+    assertEquals("MIGRATION_FILE_EXECUTION_NOT_FOUND", exception.getCode());
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
+  }
+
+  private MigrationFileExecution fileExecution(MigrationFileExecutionStatus status) {
     return MigrationFileExecution.builder()
       .id(UUID.randomUUID())
       .migrationId(MIGRATION_ID)
       .fileType(FILE_TYPE)
-      .status(MigrationFileExecutionStatus.EXPORTED)
+      .status(status)
       .extractionId("extractor-123")
       .filePath("organizations.zip")
-      .extractionStartedAt(STARTED_AT.minusMinutes(1))
-      .extractionCompletedAt(STARTED_AT)
       .build();
   }
 }

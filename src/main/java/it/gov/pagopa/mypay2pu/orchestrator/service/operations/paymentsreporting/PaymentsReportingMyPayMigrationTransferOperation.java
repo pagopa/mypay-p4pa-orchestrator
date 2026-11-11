@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class PaymentsReportingMyPayMigrationTransferOperation extends AbstractMigrationTransferOperation {
 
-  protected PaymentsReportingMyPayMigrationTransferOperation(
+  public PaymentsReportingMyPayMigrationTransferOperation(
     MigrationFileExecutionTransferService transferService,
     PuMigrationService puMigrationService,
     PuAuthnService puAuthnService,

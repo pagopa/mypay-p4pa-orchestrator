@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class AssessmentsRegistryMigrationTransferOperation extends AbstractMigrationTransferOperation {
 
-  protected AssessmentsRegistryMigrationTransferOperation(
+  public AssessmentsRegistryMigrationTransferOperation(
     MigrationFileExecutionTransferService transferService,
     PuMigrationService puMigrationService,
     PuAuthnService puAuthnService,

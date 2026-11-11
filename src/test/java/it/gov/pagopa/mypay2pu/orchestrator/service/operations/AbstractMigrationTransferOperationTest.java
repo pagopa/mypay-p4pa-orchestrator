@@ -5,12 +5,12 @@ import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.auth.PuAuthnService;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.migration.PuMigrationService;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.TransferPhaseException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionTransferService;
 import it.gov.pagopa.pu.migration.dto.generated.MigrationFileTypeEnum;
 import it.gov.pagopa.pu.migration.dto.generated.UploadMigrationFileResponseDTO;
+import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,6 +25,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.Resource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -32,7 +33,6 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -65,7 +65,7 @@ class AbstractMigrationTransferOperationTest {
   }
 
   @Test
-  void givenOrganizationsDataAndErrorsArchivesWhenExecuteThenUploadsOnlyDataWithBrokerIpa() throws IOException {
+  void givenOrganizationDataAndErrorsArchivesWhenExecuteThenUploadsOnlyDataWithBrokerIpa() throws IOException {
     String dataArchive = "PT_MYPAY2PU_DEV-ORGANIZATIONS-20261111105510-1_0.zip";
     MigrationFileExecution fileExecution = exportedExecution(
       MigrationFileType.ORGANIZATIONS,
@@ -77,7 +77,11 @@ class AbstractMigrationTransferOperationTest {
       eq(MIGRATION_ID), eq(MigrationFileType.ORGANIZATIONS), argThat(Objects::nonNull)
     )).thenReturn(fileExecution);
     when(transferServiceMock.recordUploadAccepted(
-      eq(MIGRATION_ID), eq(MigrationFileType.ORGANIZATIONS), eq(42L), argThat(Objects::nonNull)
+      eq(MIGRATION_ID),
+      eq(MigrationFileType.ORGANIZATIONS),
+      eq(42L),
+      eq(UploadsStatusEnum.UPLOADED),
+      argThat(Objects::nonNull)
     )).thenReturn(fileExecution);
     when(uploadResponseMock.getUploadId()).thenReturn(42L);
     when(puAuthnServiceMock.getAccessToken()).thenReturn("access-token");
@@ -95,7 +99,11 @@ class AbstractMigrationTransferOperationTest {
       eq(MIGRATION_ID), eq(MigrationFileType.ORGANIZATIONS), argThat(Objects::nonNull)
     );
     verify(transferServiceMock).recordUploadAccepted(
-      eq(MIGRATION_ID), eq(MigrationFileType.ORGANIZATIONS), eq(42L), argThat(Objects::nonNull)
+      eq(MIGRATION_ID),
+      eq(MigrationFileType.ORGANIZATIONS),
+      eq(42L),
+      eq(UploadsStatusEnum.UPLOADED),
+      argThat(Objects::nonNull)
     );
     verify(puAuthnServiceMock).getAccessToken();
     verify(puMigrationServiceMock).uploadMigrationFile(
@@ -108,48 +116,34 @@ class AbstractMigrationTransferOperationTest {
   }
 
   @Test
-  void givenMultipleDataArchivesWhenExecuteThenRejectsBeforeStartingTransfer() {
+  void givenMultipleDataArchivesWhenExecuteThenPersistsFailureWithoutUploading() {
     MigrationFileExecution fileExecution = exportedExecution(
       MigrationFileType.PAYMENTS_REPORTING_MYPAY,
       "R_LOMBAR-PAYMENTS_REPORTING_MYPAY-1.zip,IPACODE1-PAYMENTS_REPORTING_MYPAY-2.zip"
     );
     when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.PAYMENTS_REPORTING_MYPAY))
       .thenReturn(fileExecution);
+    when(transferServiceMock.markTransferFailed(
+      MIGRATION_ID,
+      MigrationFileType.PAYMENTS_REPORTING_MYPAY,
+      "TRANSFER_MULTIPLE_ARCHIVES_NOT_SUPPORTED",
+      "Expected one data archive for migration %s and file type PAYMENTS_REPORTING_MYPAY, found 2"
+        .formatted(MIGRATION_ID)
+    )).thenReturn(fileExecution);
 
-    AbstractMigrationTransferOperation transferOperation = operation(MigrationFileType.PAYMENTS_REPORTING_MYPAY);
-    MigrationRequestDto migrationRequest = request(List.of("R_LOMBAR", "IPACODE1"));
     TransferPhaseException exception = assertThrows(
       TransferPhaseException.class,
-      () -> transferOperation.execute(migrationRequest)
+      () -> operation(MigrationFileType.PAYMENTS_REPORTING_MYPAY).execute(request(List.of("R_LOMBAR", "IPACODE1")))
     );
 
     assertEquals("TRANSFER_MULTIPLE_ARCHIVES_NOT_SUPPORTED", exception.getCode());
     verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.PAYMENTS_REPORTING_MYPAY);
-  }
-
-  @Test
-  void givenConcurrentTransferClaimWhenExecuteThenDoesNotSubmitDuplicateUpload() throws IOException {
-    String dataArchive = "organizations.zip";
-    MigrationFileExecution exported = exportedExecution(MigrationFileType.ORGANIZATIONS, dataArchive);
-    MigrationFileExecution transferring = exportedExecution(MigrationFileType.ORGANIZATIONS, dataArchive);
-    transferring.setStatus(MigrationFileExecutionStatus.TRANSFERING);
-    Files.createFile(extractorOutputPath.resolve(dataArchive));
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS))
-      .thenReturn(exported)
-      .thenReturn(transferring);
-    when(transferServiceMock.markTransferring(
-      eq(MIGRATION_ID), eq(MigrationFileType.ORGANIZATIONS), argThat(Objects::nonNull)
-    )).thenThrow(new ConflictException(
-      "INVALID_MIGRATION_FILE_EXECUTION_TRANSITION",
-      "Transfer was claimed by another request"
-    ));
-
-    operation(MigrationFileType.ORGANIZATIONS).execute(request(List.of("ORG_IPA")));
-
-    verify(transferServiceMock, times(2))
-      .getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
-    verify(transferServiceMock).markTransferring(
-      eq(MIGRATION_ID), eq(MigrationFileType.ORGANIZATIONS), argThat(Objects::nonNull)
+    verify(transferServiceMock).markTransferFailed(
+      MIGRATION_ID,
+      MigrationFileType.PAYMENTS_REPORTING_MYPAY,
+      "TRANSFER_MULTIPLE_ARCHIVES_NOT_SUPPORTED",
+      "Expected one data archive for migration %s and file type PAYMENTS_REPORTING_MYPAY, found 2"
+        .formatted(MIGRATION_ID)
     );
   }
 
@@ -167,7 +161,10 @@ class AbstractMigrationTransferOperationTest {
       eq(MIGRATION_ID), eq(MigrationFileType.PAYMENTS_REPORTING_MYPAY), argThat(Objects::nonNull)
     )).thenReturn(fileExecution);
     when(transferServiceMock.recordUploadAccepted(
-      eq(MIGRATION_ID), eq(MigrationFileType.PAYMENTS_REPORTING_MYPAY), eq(42L),
+      eq(MIGRATION_ID),
+      eq(MigrationFileType.PAYMENTS_REPORTING_MYPAY),
+      eq(42L),
+      eq(UploadsStatusEnum.UPLOADED),
       argThat(Objects::nonNull)
     )).thenReturn(fileExecution);
     when(uploadResponseMock.getUploadId()).thenReturn(42L);
@@ -179,14 +176,18 @@ class AbstractMigrationTransferOperationTest {
       eq("access-token")
     )).thenReturn(uploadResponseMock);
 
-    operation(MigrationFileType.PAYMENTS_REPORTING_MYPAY).execute(request(List.of("R_LOMBAR", "IPACODE1")));
+    operation(MigrationFileType.PAYMENTS_REPORTING_MYPAY)
+      .execute(request(List.of("R_LOMBAR", "IPACODE1")));
 
     verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.PAYMENTS_REPORTING_MYPAY);
     verify(transferServiceMock).markTransferring(
       eq(MIGRATION_ID), eq(MigrationFileType.PAYMENTS_REPORTING_MYPAY), argThat(Objects::nonNull)
     );
     verify(transferServiceMock).recordUploadAccepted(
-      eq(MIGRATION_ID), eq(MigrationFileType.PAYMENTS_REPORTING_MYPAY), eq(42L),
+      eq(MIGRATION_ID),
+      eq(MigrationFileType.PAYMENTS_REPORTING_MYPAY),
+      eq(42L),
+      eq(UploadsStatusEnum.UPLOADED),
       argThat(Objects::nonNull)
     );
     verify(puAuthnServiceMock).getAccessToken();
@@ -197,6 +198,21 @@ class AbstractMigrationTransferOperationTest {
       eq("access-token")
     );
     verify(uploadResponseMock).getUploadId();
+  }
+
+  @Test
+  void givenWaitingPuExecutionWhenExecuteThenDoesNotSubmitDuplicateUpload() {
+    MigrationFileExecution fileExecution = exportedExecution(
+      MigrationFileType.ORGANIZATIONS,
+      "organizations.zip"
+    );
+    fileExecution.setStatus(MigrationFileExecutionStatus.WAITING_PU);
+    fileExecution.setUploadId(42L);
+    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
+
+    operation(MigrationFileType.ORGANIZATIONS).execute(request(List.of("ORG_IPA")));
+
+    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
   }
 
   @Test
@@ -223,11 +239,9 @@ class AbstractMigrationTransferOperationTest {
       eq("access-token")
     )).thenReturn(uploadResponseMock);
 
-    AbstractMigrationTransferOperation transferOperation = operation(MigrationFileType.ORGANIZATIONS);
-    MigrationRequestDto migrationRequest = request(List.of("ORG_IPA"));
     TransferPhaseException exception = assertThrows(
       TransferPhaseException.class,
-      () -> transferOperation.execute(migrationRequest)
+      () -> operation(MigrationFileType.ORGANIZATIONS).execute(request(List.of("ORG_IPA")))
     );
 
     assertEquals("TRANSFER_INVALID_UPLOAD_RESPONSE", exception.getCode());

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class TreasuryCsvCompleteMigrationTransferOperation extends AbstractMigrationTransferOperation {
 
-  protected TreasuryCsvCompleteMigrationTransferOperation(
+  public TreasuryCsvCompleteMigrationTransferOperation(
     MigrationFileExecutionTransferService transferService,
     PuMigrationService puMigrationService,
     PuAuthnService puAuthnService,

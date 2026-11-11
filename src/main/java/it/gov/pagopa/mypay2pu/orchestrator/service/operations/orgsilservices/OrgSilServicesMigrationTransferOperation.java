@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class OrgSilServicesMigrationTransferOperation extends AbstractMigrationTransferOperation {
 
-  protected OrgSilServicesMigrationTransferOperation(
+  public OrgSilServicesMigrationTransferOperation(
     MigrationFileExecutionTransferService transferService,
     PuMigrationService puMigrationService,
     PuAuthnService puAuthnService,

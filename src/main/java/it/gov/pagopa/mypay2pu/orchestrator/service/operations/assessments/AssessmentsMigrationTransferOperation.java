@@ -11,20 +11,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class AssessmentsMigrationTransferOperation extends AbstractMigrationTransferOperation {
 
-  protected AssessmentsMigrationTransferOperation(
+  public AssessmentsMigrationTransferOperation(
     MigrationFileExecutionTransferService transferService,
     PuMigrationService puMigrationService,
     PuAuthnService puAuthnService,
     @Value("${orchestrator.storage.extractor-output-path}") String extractorOutputPath,
     @Value("${orchestrator.transfer.broker-ipa-code}") String brokerIpaCode
   ) {
-    super(
-      MigrationFileType.ASSESSMENTS,
-      transferService,
-      puMigrationService,
-      puAuthnService,
-      extractorOutputPath,
-      brokerIpaCode
-    );
+    super(MigrationFileType.ASSESSMENTS, transferService, puMigrationService, puAuthnService, extractorOutputPath, brokerIpaCode);
   }
 }

@@ -12,6 +12,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -35,6 +37,7 @@ public class MigrationExecution extends BaseEntity {
   @NotNull
   private Integer fileTypeCountCompleted;
   @NotEmpty
+  @JdbcTypeCode(SqlTypes.JSON)
   private List<String> ipacodes;
   @Enumerated(EnumType.STRING)
   @NotNull
@@ -50,7 +53,8 @@ public class MigrationExecution extends BaseEntity {
   private String errorCode;
   private String errorMsg;
   private String logicalKeys;
-  @Enumerated(EnumType.STRING)
   @NotEmpty
+  @JdbcTypeCode(SqlTypes.JSON)
   private List<MigrationFileType> fileTypes;
+
 }

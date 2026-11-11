@@ -5,11 +5,13 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationOperation;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
@@ -90,6 +92,57 @@ class MigrationPlanExecutorServiceTest {
       MigrationFileType.ORGANIZATIONS,
       failedParent
     ), executed);
+  }
+
+  @Test
+  void givenPlanNodeWhenGetChildrenThenReturnsConfiguredChildren() {
+    assertEquals(
+      Set.of(MigrationFileType.DEBT_POSITIONS_TYPE_ORG, MigrationFileType.ORG_SIL_SERVICES),
+      planExecutor.getChildren(MigrationFileType.ORGANIZATIONS)
+    );
+  }
+
+  @Test
+  void givenPlanLeafWhenGetChildrenThenReturnsEmptySet() {
+    assertEquals(Set.of(), planExecutor.getChildren(MigrationFileType.ASSESSMENTS));
+  }
+
+  @Test
+  void givenSelectedDescendantThrowsErrorWhenExecuteThenRethrowsError() {
+    AssertionError failure = new AssertionError("operation failed");
+    MigrationOperation operation = operation(MigrationFileType.ORGANIZATIONS, request -> {
+      throw failure;
+    });
+    MigrationRequestDto migrationRequest = request(MigrationFileType.ORGANIZATIONS);
+    Map<MigrationFileType, MigrationOperation> operationMap = Map.of(
+      MigrationFileType.ORGANIZATIONS, operation
+    );
+
+    AssertionError thrown = assertThrows(
+      AssertionError.class,
+      () -> planExecutor.execute(migrationRequest, operationMap)
+    );
+
+    assertSame(failure, thrown);
+  }
+
+  @Test
+  void givenCompletionExceptionWithCheckedCauseWhenExecuteThenRethrowsCompletionException() {
+    CompletionException failure = new CompletionException(new IOException("checked failure"));
+    MigrationOperation operation = operation(MigrationFileType.DEBT_POSITIONS_TYPE, request -> {
+      throw failure;
+    });
+    MigrationRequestDto migrationRequest = request(MigrationFileType.DEBT_POSITIONS_TYPE);
+    Map<MigrationFileType, MigrationOperation> operationMap = Map.of(
+      MigrationFileType.DEBT_POSITIONS_TYPE, operation
+    );
+
+    CompletionException thrown = assertThrows(
+      CompletionException.class,
+      () -> planExecutor.execute(migrationRequest, operationMap)
+    );
+
+    assertSame(failure, thrown);
   }
 
   private void visitPlan(MigrationFileType fileType, Set<MigrationFileType> visited) {
