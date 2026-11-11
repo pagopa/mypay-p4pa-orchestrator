@@ -5,6 +5,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.BaseBusinessException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.TransferPhaseException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
@@ -24,6 +25,7 @@ import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 
 /**
  * Coordinates the transfer phase of a migration inside the global action executor.
@@ -70,14 +72,14 @@ public class TransferPhaseCoordinator {
     log.info("Starting TRANSFER coordination for migration {}", execution.getId());
     Set<MigrationFileType> selectedFileTypes = Set.copyOf(execution.getFileTypes());
     AtomicBoolean hasWarning = new AtomicBoolean();
-    AtomicReference<MigrationFileType> failedFileType = new AtomicReference<>();
+    AtomicReference<FailedFile> failure = new AtomicReference<>();
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       executeNode(
         execution,
         MigrationPlanExecutorService.PLAN_ROOT,
         selectedFileTypes,
         hasWarning,
-        failedFileType,
+        failure,
         executor
       ).join();
     } catch (CompletionException exception) {
@@ -89,11 +91,12 @@ public class TransferPhaseCoordinator {
       }
       throw exception;
     }
-    if (failedFileType.get() != null) {
+    if (failure.get() != null) {
       execution.setStatus(MigrationExecutionStatus.FAILED);
-      execution.setErrorCode("TRANSFER_FAILED");
+      String errorCode = failure.get().errorCode();
+      execution.setErrorCode(errorCode == null || errorCode.isBlank() ? "TRANSFER_FAILED" : errorCode);
       execution.setErrorMsg(
-        "Transfer failed because file type %s reached FAILED".formatted(failedFileType.get())
+        "Transfer failed because file type %s reached FAILED".formatted(failure.get().fileType())
       );
     } else if (hasWarning.get()) {
       execution.setStatus(MigrationExecutionStatus.WARNING);
@@ -111,16 +114,20 @@ public class TransferPhaseCoordinator {
     MigrationFileType fileType,
     Set<MigrationFileType> selectedFileTypes,
     AtomicBoolean hasWarning,
-    AtomicReference<MigrationFileType> failedFileType,
+    AtomicReference<FailedFile> failure,
     ExecutorService executor
   ) {
     if (selectedFileTypes.contains(fileType)) {
-      MigrationFileExecutionStatus outcome = transferAndAwaitOutcome(execution, fileType);
+      MigrationFileExecution fileExecution = transferAndAwaitOutcome(execution, fileType);
+      MigrationFileExecutionStatus outcome = fileExecution.getStatus();
       if (outcome == MigrationFileExecutionStatus.WARNING) {
         hasWarning.set(true);
       }
       if (outcome == MigrationFileExecutionStatus.FAILED) {
-        failedFileType.compareAndSet(null, fileType);
+        failure.compareAndSet(
+          null,
+          new FailedFile(fileType, fileExecution.getUploadErrorCode())
+        );
         log.warn(
           "Skipping dependent transfer branch for migration {} because parent file type {} failed",
           execution.getId(),
@@ -137,7 +144,7 @@ public class TransferPhaseCoordinator {
           child,
           selectedFileTypes,
           hasWarning,
-          failedFileType,
+          failure,
           executor
         ),
         executor
@@ -145,7 +152,7 @@ public class TransferPhaseCoordinator {
       .toArray(CompletableFuture<?>[]::new));
   }
 
-  private MigrationFileExecutionStatus transferAndAwaitOutcome(
+  private MigrationFileExecution transferAndAwaitOutcome(
     MigrationExecution execution,
     MigrationFileType fileType
   ) {
@@ -154,7 +161,7 @@ public class TransferPhaseCoordinator {
 
     try {
       if (isTerminal(status)) {
-        return status;
+        return fileExecution;
       }
 
       if (status == MigrationFileExecutionStatus.EXPORTED) {
@@ -183,26 +190,50 @@ public class TransferPhaseCoordinator {
     MigrationFileExecution fileExecution,
     RuntimeException exception
   ) {
-    fileExecution.setStatus(MigrationFileExecutionStatus.FAILED);
-    fileExecution.setUploadErrorCode(errorCode(exception));
-    fileExecution.setUploadErrorMsg(exception.getMessage());
-    migrationFileExecutionRepository.save(fileExecution);
+    MigrationFileExecution current = findFileExecution(fileExecution.getMigrationId(), fileExecution.getFileType());
+    MigrationFileExecutionStatus status = current.getStatus();
+    if (status == MigrationFileExecutionStatus.FAILED) {
+      return;
+    }
+    if (status != MigrationFileExecutionStatus.EXPORTED
+      && status != MigrationFileExecutionStatus.TRANSFERING
+      && status != MigrationFileExecutionStatus.WAITING_PU) {
+      return;
+    }
+
+    current.setStatus(MigrationFileExecutionStatus.FAILED);
+    if (current.getUploadErrorCode() == null || current.getUploadErrorCode().isBlank()) {
+      current.setUploadErrorCode(errorCode(exception));
+    }
+    if (current.getUploadErrorMsg() == null || current.getUploadErrorMsg().isBlank()) {
+      current.setUploadErrorMsg(errorMessage(exception));
+    }
+    migrationFileExecutionRepository.save(current);
   }
 
   private String errorCode(RuntimeException exception) {
-    return exception instanceof TransferPhaseException transferPhaseException
-      ? transferPhaseException.getCode()
-      : "TRANSFER_FAILED";
+    return switch (exception) {
+      case TransferPhaseException transferPhaseException -> transferPhaseException.getCode();
+      case BaseBusinessException businessException -> businessException.getCode();
+      case HttpClientErrorException.TooManyRequests tooManyRequestsException -> "TOO_MANY_REQUESTS";
+      default -> "TRANSFER_FAILED";
+    };
   }
 
-  private MigrationFileExecutionStatus awaitTerminalOutcome(
+  private String errorMessage(RuntimeException exception) {
+    return exception.getMessage() == null || exception.getMessage().isBlank()
+      ? exception.getClass().getSimpleName()
+      : exception.getMessage();
+  }
+
+  private MigrationFileExecution awaitTerminalOutcome(
     UUID migrationId,
     MigrationFileType fileType
   ) {
     for (int attempt = 1; attempt <= pollingMaxAttempts; attempt++) {
-      MigrationFileExecutionStatus status = findFileExecution(migrationId, fileType).getStatus();
-      if (isTerminal(status)) {
-        return status;
+      MigrationFileExecution fileExecution = findFileExecution(migrationId, fileType);
+      if (isTerminal(fileExecution.getStatus())) {
+        return fileExecution;
       }
       if (attempt < pollingMaxAttempts) {
         waitBeforeNextPoll(migrationId, fileType);
@@ -253,4 +284,5 @@ public class TransferPhaseCoordinator {
       || status == MigrationFileExecutionStatus.FAILED;
   }
 
+  private record FailedFile(MigrationFileType fileType, String errorCode) { }
 }

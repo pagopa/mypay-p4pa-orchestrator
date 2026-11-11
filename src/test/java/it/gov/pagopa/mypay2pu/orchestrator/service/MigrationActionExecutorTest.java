@@ -4,6 +4,7 @@ import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.TransferPhaseException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
@@ -152,6 +153,24 @@ class MigrationActionExecutorTest {
     assertEquals(MigrationExecutionStatus.FAILED, execution.getStatus());
     assertEquals("TRANSFER_PU_TIMEOUT", execution.getErrorCode());
     assertEquals("workflow timed out", execution.getErrorMsg());
+    verify(transferPhaseCoordinatorMock).execute(same(execution));
+    verify(migrationExecutionRepositoryMock).save(same(execution));
+  }
+
+  @Test
+  void givenBusinessFailureWhenExecuteThenPreservesSpecificFailureCode() {
+    MigrationRequestDto request = new MigrationRequestDto().action(MigrationAction.TRANSFER);
+    MigrationExecution execution = execution(MigrationAction.TRANSFER);
+    ConflictException failure = new ConflictException("PU_VALIDATION_ERROR", "PU rejected the archive");
+    doThrow(failure).when(transferPhaseCoordinatorMock).execute(same(execution));
+
+    assertSame(failure, assertThrows(
+      ConflictException.class,
+      () -> executor.execute(request, execution)
+    ));
+
+    assertEquals("PU_VALIDATION_ERROR", execution.getErrorCode());
+    assertEquals("PU rejected the archive", execution.getErrorMsg());
     verify(transferPhaseCoordinatorMock).execute(same(execution));
     verify(migrationExecutionRepositoryMock).save(same(execution));
   }

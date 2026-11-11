@@ -255,6 +255,30 @@ class TransferPhaseCoordinatorTest {
   }
 
   @Test
+  void givenFailedFileWithSpecificUploadErrorWhenExecuteThenPreservesErrorCode() {
+    MigrationFileExecution failedExecution = fileExecution(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileExecutionStatus.FAILED
+    );
+    failedExecution.setUploadErrorCode("PU_VALIDATION_ERROR");
+    failedExecution.setUploadErrorMsg("PU rejected the archive");
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.DEBT_POSITIONS_TYPE
+    )).thenReturn(Optional.of(failedExecution));
+    MigrationExecution migrationExecution = execution(MigrationFileType.DEBT_POSITIONS_TYPE);
+
+    coordinator.execute(migrationExecution);
+
+    assertEquals(MigrationExecutionStatus.FAILED, migrationExecution.getStatus());
+    assertEquals("PU_VALIDATION_ERROR", migrationExecution.getErrorCode());
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(
+      MIGRATION_ID,
+      MigrationFileType.DEBT_POSITIONS_TYPE
+    );
+  }
+
+  @Test
   void givenParentNeverCompletesWhenExecuteThenFailsAfterPollingTimeout() {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(
       MIGRATION_ID,
@@ -262,6 +286,9 @@ class TransferPhaseCoordinatorTest {
     )).thenReturn(Optional.of(fileExecution(
       MigrationFileType.DEBT_POSITIONS_TYPE,
       MigrationFileExecutionStatus.EXPORTED
+    ))).thenReturn(Optional.of(fileExecution(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileExecutionStatus.WAITING_PU
     ))).thenReturn(Optional.of(fileExecution(
       MigrationFileType.DEBT_POSITIONS_TYPE,
       MigrationFileExecutionStatus.WAITING_PU
@@ -338,6 +365,9 @@ class TransferPhaseCoordinatorTest {
     )).thenReturn(Optional.of(fileExecution(
       MigrationFileType.DEBT_POSITIONS_TYPE,
       MigrationFileExecutionStatus.PENDING
+    ))).thenReturn(Optional.of(fileExecution(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileExecutionStatus.PENDING
     )));
     MigrationExecution migrationExecution = execution(MigrationFileType.DEBT_POSITIONS_TYPE);
 
@@ -351,15 +381,10 @@ class TransferPhaseCoordinatorTest {
         .formatted(MIGRATION_ID),
       exception.getMessage()
     );
-    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(
+    verify(migrationFileExecutionRepositoryMock, times(2)).findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.DEBT_POSITIONS_TYPE
     );
-    verify(migrationFileExecutionRepositoryMock).save(argThat(
-      fileExecution -> fileExecution.getFileType() == MigrationFileType.DEBT_POSITIONS_TYPE
-        && fileExecution.getStatus() == MigrationFileExecutionStatus.FAILED
-        && "TRANSFER_FILE_NOT_READY".equals(fileExecution.getUploadErrorCode())
-    ));
   }
 
   @Test
@@ -400,6 +425,9 @@ class TransferPhaseCoordinatorTest {
     )).thenReturn(Optional.of(fileExecution(
       MigrationFileType.ORGANIZATIONS,
       MigrationFileExecutionStatus.EXPORTED
+    ))).thenReturn(Optional.of(fileExecution(
+      MigrationFileType.ORGANIZATIONS,
+      MigrationFileExecutionStatus.EXPORTED
     )));
     doThrow(new IllegalStateException("upload failed"))
       .when(migrationFacadeServiceMock)
@@ -421,7 +449,7 @@ class TransferPhaseCoordinatorTest {
       MIGRATION_ID,
       MigrationFileType.DEBT_POSITIONS_TYPE
     );
-    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(
+    verify(migrationFileExecutionRepositoryMock, times(2)).findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.ORGANIZATIONS
     );
@@ -525,6 +553,9 @@ class TransferPhaseCoordinatorTest {
     ))).thenReturn(Optional.of(fileExecution(
       MigrationFileType.DEBT_POSITIONS_TYPE,
       MigrationFileExecutionStatus.WAITING_PU
+    ))).thenReturn(Optional.of(fileExecution(
+      MigrationFileType.DEBT_POSITIONS_TYPE,
+      MigrationFileExecutionStatus.WAITING_PU
     )));
     MigrationExecution migrationExecution = execution(MigrationFileType.DEBT_POSITIONS_TYPE);
     boolean interruptedBeforeTest = Thread.interrupted();
@@ -549,7 +580,7 @@ class TransferPhaseCoordinatorTest {
       }
     }
 
-    verify(migrationFileExecutionRepositoryMock, times(2)).findByMigrationIdAndFileType(
+    verify(migrationFileExecutionRepositoryMock, times(3)).findByMigrationIdAndFileType(
       MIGRATION_ID,
       MigrationFileType.DEBT_POSITIONS_TYPE
     );
