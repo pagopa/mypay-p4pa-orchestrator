@@ -19,6 +19,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.HttpClientErrorException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
@@ -166,7 +167,7 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
       ExtractionAcceptedResponse accepted = extractorService.createExtraction(
         new ExtractionRequest(List.copyOf(request.getIpaCodes()), fileType, null, null)
       );
-      if (accepted == null || accepted.getExtractionId().isBlank()) {
+      if (accepted == null || !StringUtils.hasText(accepted.getExtractionId())) {
         throw new IllegalStateException("Extractor returned an invalid accepted extraction ID");
       }
       migrationFileExecutionExportService.recordExtractionAccepted(migrationId, fileType, accepted.getExtractionId());
@@ -209,6 +210,19 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
     }
   }
 
+  /**
+   * Retrieves the first valid status, retrying only 404 responses with code {@code EXPORT_FILE_NOT_FOUND}.
+   *
+   * <p>The configured attempt limit includes the initial request. Retries share the overall
+   * polling timeout and interval. If waiting fails, the last 404 is attached as a suppressed exception.
+   *
+   * @param migrationId migration identifier used in retry logs
+   * @param extractionId accepted Extractor job ID
+   * @param startedAtMillis polling start time from {@link System#currentTimeMillis()}
+   * @return the first status response validated by {@link #readStatus(String)}
+   * @throws HttpClientErrorException.NotFound if the attempt limit is reached or the 404 is not retryable
+   * @throws IllegalStateException if the response is invalid, polling times out, or waiting is interrupted
+   */
   private ExtractionStatusResponse waitForInitialStatus(UUID migrationId, String extractionId, long startedAtMillis) {
     int maxAttempts = pollingProperties.statusNotFoundMaxAttempts();
     for (int attempt = 1; ; attempt++) {
@@ -230,6 +244,13 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
     }
   }
 
+  /**
+   * Fetches an extraction status and verifies that it belongs to the requested extraction.
+   *
+   * @param extractionId accepted Extractor job ID
+   * @return the non-null response matching the requested extraction ID
+   * @throws IllegalStateException if the response is null or contains a different extraction ID
+   */
   private ExtractionStatusResponse readStatus(String extractionId) {
     ExtractionStatusResponse response = extractorService.getExtractionStatus(extractionId);
     if (response == null) {
@@ -241,6 +262,14 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
     return response;
   }
 
+  /**
+   * Checks whether a 404 response identifies an extraction whose status is not yet visible.
+   *
+   * <p>Malformed JSON is logged and treated as non-retryable.
+   *
+   * @param failure Extractor 404 response containing the error body
+   * @return {@code true} only if the response body has code {@code EXPORT_FILE_NOT_FOUND}
+   */
   private boolean isExportFileNotFound(HttpClientErrorException.NotFound failure) {
     try {
       return "EXPORT_FILE_NOT_FOUND".equals(
