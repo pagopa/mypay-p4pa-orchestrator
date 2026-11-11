@@ -131,14 +131,7 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 #### 💼 Business logic
 | ENV            | DESCRIPTION                                   | DEFAULT                                               |
 |-----------------|------------------------------------------------|---------------------------------------------------------|
-| BROKER_IPA_CODE | Broker IPA code stored with each new migration | `${PA_COD_IPA_ENTE_PREDEFINITO:IPA_DEFAULT}`) |
-
-##### 🔄 Transfer workflow polling
-
-| ENV                             | DESCRIPTION                                           | DEFAULT |
-|---------------------------------|-------------------------------------------------------|---------|
-| POLLING_WORKFLOW_INTERVAL_SECONDS | Interval between persisted PU workflow status checks | 30      |
-| POLLING_WORKFLOW_MAX_ATTEMPTS     | Maximum status checks before timing out              | 1440    |
+| BROKER_IPA_CODE | Broker IPA code used for ORGANIZATIONS uploads | `${PA_COD_IPA_ENTE_PREDEFINITO:IPA_DEFAULT}` |
 
 #### ⚡ Async extraction
 

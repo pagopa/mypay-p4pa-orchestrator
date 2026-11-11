@@ -1,0 +1,120 @@
+package it.gov.pagopa.mypay2pu.orchestrator.service;
+
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
+import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
+import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
+import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionTransferValidator;
+import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
+import java.time.LocalDateTime;
+import java.time.Month;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class MigrationFileExecutionTransferServiceTest {
+
+  private static final UUID MIGRATION_ID = UUID.randomUUID();
+  private static final MigrationFileType FILE_TYPE = MigrationFileType.ORGANIZATIONS;
+  private static final LocalDateTime STARTED_AT = LocalDateTime.of(2026, Month.NOVEMBER, 11, 12, 0);
+  private static final LocalDateTime COMPLETED_AT = LocalDateTime.of(2026, Month.NOVEMBER, 11, 12, 1);
+
+  @Mock
+  private MigrationFileExecutionRepository migrationFileExecutionRepositoryMock;
+
+  private MigrationFileExecutionTransferService service;
+
+  @BeforeEach
+  void setUp() {
+    service = new MigrationFileExecutionTransferService(
+      migrationFileExecutionRepositoryMock,
+      new MigrationFileExecutionTransferValidator()
+    );
+  }
+
+  @AfterEach
+  void verifyMocks() {
+    verifyNoMoreInteractions(migrationFileExecutionRepositoryMock);
+  }
+
+  @Test
+  void givenExportedExecutionWhenMarkTransferringThenAtomicallyClaimsIt() {
+    MigrationFileExecution execution = fileExecution(MigrationFileExecutionStatus.EXPORTED);
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
+      .thenReturn(Optional.of(execution), Optional.of(execution));
+    when(migrationFileExecutionRepositoryMock.claimTransfer(
+      MIGRATION_ID,
+      FILE_TYPE,
+      MigrationFileExecutionStatus.EXPORTED,
+      MigrationFileExecutionStatus.TRANSFERING,
+      STARTED_AT
+    )).thenAnswer(invocation -> {
+      execution.setStatus(invocation.getArgument(3, MigrationFileExecutionStatus.class));
+      execution.setUploadStartedAt(invocation.getArgument(4, LocalDateTime.class));
+      return 1;
+    });
+
+    MigrationFileExecution result = service.markTransferring(MIGRATION_ID, FILE_TYPE, STARTED_AT);
+
+    assertSame(execution, result);
+    assertEquals(MigrationFileExecutionStatus.TRANSFERING, result.getStatus());
+    assertEquals(STARTED_AT, result.getUploadStartedAt());
+    verify(migrationFileExecutionRepositoryMock, times(2))
+      .findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
+    verify(migrationFileExecutionRepositoryMock).claimTransfer(
+      MIGRATION_ID,
+      FILE_TYPE,
+      MigrationFileExecutionStatus.EXPORTED,
+      MigrationFileExecutionStatus.TRANSFERING,
+      STARTED_AT
+    );
+  }
+
+  @Test
+  void givenTransferringExecutionWhenRecordUploadAcceptedThenPersistsWaitingPu() {
+    MigrationFileExecution execution = fileExecution(MigrationFileExecutionStatus.TRANSFERING);
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
+      .thenReturn(Optional.of(execution));
+    when(migrationFileExecutionRepositoryMock.save(execution)).thenReturn(execution);
+
+    MigrationFileExecution result = service.recordUploadAccepted(
+      MIGRATION_ID,
+      FILE_TYPE,
+      42L,
+      UploadsStatusEnum.UPLOADED,
+      COMPLETED_AT
+    );
+
+    assertSame(execution, result);
+    assertEquals(MigrationFileExecutionStatus.WAITING_PU, result.getStatus());
+    assertEquals(42L, result.getUploadId());
+    assertEquals(UploadsStatusEnum.UPLOADED, result.getUploadStatus());
+    assertEquals(COMPLETED_AT, result.getUploadCompletedAt());
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
+    verify(migrationFileExecutionRepositoryMock).save(execution);
+  }
+
+  private MigrationFileExecution fileExecution(MigrationFileExecutionStatus status) {
+    return MigrationFileExecution.builder()
+      .id(UUID.randomUUID())
+      .migrationId(MIGRATION_ID)
+      .fileType(FILE_TYPE)
+      .status(status)
+      .extractionId("extractor-123")
+      .filePath("organizations.zip")
+      .build();
+  }
+}
