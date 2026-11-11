@@ -81,6 +81,152 @@ class MigrationFileExecutionTransferValidatorTest {
     assertEquals(MigrationFileExecutionStatus.TRANSFERING, fileExecution.getStatus());
   }
 
+  @Test
+  void givenMissingExtractionIdWhenValidateMarkTransferringThenThrowsInvalidValueException() {
+    MigrationFileExecution fileExecution = fileExecution(MigrationFileExecutionStatus.EXPORTED);
+    fileExecution.setExtractionId(" ");
+
+    InvalidValueException exception = assertThrows(
+      InvalidValueException.class,
+      () -> validator.validateMarkTransferring(fileExecution)
+    );
+
+    assertEquals("INVALID_MIGRATION_REQUEST", exception.getCode());
+  }
+
+  @Test
+  void givenMissingFilePathWhenValidateMarkTransferringThenThrowsInvalidValueException() {
+    MigrationFileExecution fileExecution = fileExecution(MigrationFileExecutionStatus.EXPORTED);
+    fileExecution.setFilePath("");
+
+    InvalidValueException exception = assertThrows(
+      InvalidValueException.class,
+      () -> validator.validateMarkTransferring(fileExecution)
+    );
+
+    assertEquals("INVALID_MIGRATION_REQUEST", exception.getCode());
+  }
+
+  @Test
+  void givenExistingUploadIdWhenValidateMarkTransferringThenThrowsConflictException() {
+    MigrationFileExecution fileExecution = fileExecution(MigrationFileExecutionStatus.EXPORTED);
+    fileExecution.setUploadId(41L);
+
+    ConflictException exception = assertThrows(
+      ConflictException.class,
+      () -> validator.validateMarkTransferring(fileExecution)
+    );
+
+    assertEquals("INVALID_MIGRATION_FILE_EXECUTION_TRANSITION", exception.getCode());
+  }
+
+  @Test
+  void givenExistingUploadStatusWhenValidateMarkTransferringThenThrowsConflictException() {
+    MigrationFileExecution fileExecution = fileExecution(MigrationFileExecutionStatus.EXPORTED);
+    fileExecution.setUploadStatus(UploadsStatusEnum.UPLOADED);
+
+    assertThrows(ConflictException.class, () -> validator.validateMarkTransferring(fileExecution));
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = MigrationFileExecutionStatus.class, names = "TRANSFERING", mode = EnumSource.Mode.EXCLUDE)
+  void givenNonTransferringStatusWhenValidateRecordUploadAcceptedThenThrowsConflictException(
+    MigrationFileExecutionStatus status
+  ) {
+    MigrationFileExecution fileExecution = fileExecution(status);
+
+    assertThrows(
+      ConflictException.class,
+      () -> validator.validateRecordUploadAccepted(fileExecution, 42L, UploadsStatusEnum.UPLOADED)
+    );
+  }
+
+  @Test
+  void givenInvalidUploadStatusWhenValidateRecordUploadAcceptedThenThrowsInvalidValueException() {
+    MigrationFileExecution fileExecution = fileExecution(MigrationFileExecutionStatus.TRANSFERING);
+
+    InvalidValueException exception = assertThrows(
+      InvalidValueException.class,
+      () -> validator.validateRecordUploadAccepted(
+        fileExecution,
+        42L,
+        UploadsStatusEnum.PROCESSING
+      )
+    );
+
+    assertEquals("INVALID_UPLOAD_STATUS", exception.getCode());
+  }
+
+  @Test
+  void givenSameAcceptedUploadDataWhenValidateRecordUploadAcceptedThenAllowsRetry() {
+    MigrationFileExecution fileExecution = fileExecution(MigrationFileExecutionStatus.TRANSFERING);
+    fileExecution.setUploadId(42L);
+    fileExecution.setUploadStatus(UploadsStatusEnum.UPLOADED);
+
+    assertDoesNotThrow(() ->
+      validator.validateRecordUploadAccepted(fileExecution, 42L, UploadsStatusEnum.UPLOADED)
+    );
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = MigrationFileExecutionStatus.class, names = {"EXPORTED", "TRANSFERING"})
+  void givenTransferInProgressWhenValidateMarkTransferFailedThenAllowsFailure(
+    MigrationFileExecutionStatus status
+  ) {
+    assertDoesNotThrow(() -> validator.validateMarkTransferFailed(
+      fileExecution(status),
+      "UPLOAD_FAILED",
+      "PU rejected the upload"
+    ));
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+    value = MigrationFileExecutionStatus.class,
+    names = {"EXPORTED", "TRANSFERING", "FAILED"},
+    mode = EnumSource.Mode.EXCLUDE
+  )
+  void givenStatusWithoutFailureTransitionWhenValidateMarkTransferFailedThenThrowsConflictException(
+    MigrationFileExecutionStatus status
+  ) {
+    MigrationFileExecution fileExecution = fileExecution(status);
+
+    assertThrows(
+      ConflictException.class,
+      () -> validator.validateMarkTransferFailed(fileExecution, "UPLOAD_FAILED", "failure")
+    );
+  }
+
+  @Test
+  void givenBlankErrorCodeWhenValidateMarkTransferFailedThenThrowsInvalidValueException() {
+    MigrationFileExecution fileExecution = fileExecution(MigrationFileExecutionStatus.TRANSFERING);
+
+    InvalidValueException exception = assertThrows(
+      InvalidValueException.class,
+      () -> validator.validateMarkTransferFailed(
+        fileExecution,
+        " ",
+        "failure"
+      )
+    );
+
+    assertEquals("INVALID_MIGRATION_REQUEST", exception.getCode());
+  }
+
+  @Test
+  void givenChangedFailureMessageWhenValidateMarkTransferFailedThenRejectsChange() {
+    MigrationFileExecution fileExecution = fileExecution(MigrationFileExecutionStatus.FAILED);
+    fileExecution.setUploadErrorCode("UPLOAD_FAILED");
+    fileExecution.setUploadErrorMsg("original failure");
+
+    ConflictException exception = assertThrows(
+      ConflictException.class,
+      () -> validator.validateMarkTransferFailed(fileExecution, "UPLOAD_FAILED", "different failure")
+    );
+
+    assertEquals("IMMUTABLE_FIELD", exception.getCode());
+  }
+
   private MigrationFileExecution fileExecution(MigrationFileExecutionStatus status) {
     return MigrationFileExecution.builder()
       .migrationId(UUID.randomUUID())
