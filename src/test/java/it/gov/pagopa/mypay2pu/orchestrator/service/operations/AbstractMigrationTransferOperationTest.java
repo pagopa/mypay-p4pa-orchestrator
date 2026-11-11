@@ -1,6 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service.operations;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
+import it.gov.pagopa.mypay2pu.orchestrator.config.MigrationTransferProperties;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.auth.PuAuthnService;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.migration.PuMigrationService;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
@@ -11,6 +12,13 @@ import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionTransfe
 import it.gov.pagopa.pu.migration.dto.generated.MigrationFileTypeEnum;
 import it.gov.pagopa.pu.migration.dto.generated.UploadMigrationFileResponseDTO;
 import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,21 +27,12 @@ import java.time.Month;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.io.Resource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AbstractMigrationTransferOperationTest {
@@ -131,9 +130,12 @@ class AbstractMigrationTransferOperationTest {
         .formatted(MIGRATION_ID)
     )).thenReturn(fileExecution);
 
+    AbstractMigrationTransferOperation transferOperation =
+      operation(MigrationFileType.PAYMENTS_REPORTING_MYPAY);
+    MigrationRequestDto migrationRequest = request(List.of("R_LOMBAR", "IPACODE1"));
     TransferPhaseException exception = assertThrows(
       TransferPhaseException.class,
-      () -> operation(MigrationFileType.PAYMENTS_REPORTING_MYPAY).execute(request(List.of("R_LOMBAR", "IPACODE1")))
+      () -> transferOperation.execute(migrationRequest)
     );
 
     assertEquals("TRANSFER_MULTIPLE_ARCHIVES_NOT_SUPPORTED", exception.getCode());
@@ -239,9 +241,11 @@ class AbstractMigrationTransferOperationTest {
       eq("access-token")
     )).thenReturn(uploadResponseMock);
 
+    AbstractMigrationTransferOperation transferOperation = operation(MigrationFileType.ORGANIZATIONS);
+    MigrationRequestDto migrationRequest = request(List.of("ORG_IPA"));
     TransferPhaseException exception = assertThrows(
       TransferPhaseException.class,
-      () -> operation(MigrationFileType.ORGANIZATIONS).execute(request(List.of("ORG_IPA")))
+      () -> transferOperation.execute(migrationRequest)
     );
 
     assertEquals("TRANSFER_INVALID_UPLOAD_RESPONSE", exception.getCode());
@@ -271,8 +275,10 @@ class AbstractMigrationTransferOperationTest {
       transferServiceMock,
       puMigrationServiceMock,
       puAuthnServiceMock,
-      extractorOutputPath.toString(),
-      BROKER_IPA_CODE
+      new MigrationTransferProperties(
+        new MigrationTransferProperties.Storage(extractorOutputPath.toString()),
+        new MigrationTransferProperties.Transfer(BROKER_IPA_CODE)
+      )
     ) { };
   }
 

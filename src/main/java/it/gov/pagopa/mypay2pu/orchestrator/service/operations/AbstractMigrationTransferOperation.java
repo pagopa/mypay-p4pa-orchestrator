@@ -1,6 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service.operations;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
+import it.gov.pagopa.mypay2pu.orchestrator.config.MigrationTransferProperties;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.auth.PuAuthnService;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.migration.PuMigrationService;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
@@ -13,6 +14,10 @@ import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionTransfe
 import it.gov.pagopa.pu.migration.dto.generated.MigrationFileTypeEnum;
 import it.gov.pagopa.pu.migration.dto.generated.UploadMigrationFileResponseDTO;
 import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.web.client.HttpClientErrorException;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -22,10 +27,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
-import org.springframework.web.client.HttpClientErrorException;
 
 /**
  * Executes the shared upload lifecycle for a single migration file type.
@@ -49,15 +50,16 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
     MigrationFileExecutionTransferService transferService,
     PuMigrationService puMigrationService,
     PuAuthnService puAuthnService,
-    @Value("${orchestrator.storage.extractor-output-path}") String extractorOutputPath,
-    @Value("${orchestrator.transfer.broker-ipa-code}") String brokerIpaCode
+    MigrationTransferProperties transferProperties
   ) {
     this.fileType = Objects.requireNonNull(fileType, "fileType");
     this.transferService = Objects.requireNonNull(transferService, "transferService");
     this.puMigrationService = Objects.requireNonNull(puMigrationService, "puMigrationService");
     this.puAuthnService = Objects.requireNonNull(puAuthnService, "puAuthnService");
-    this.extractorOutputPath = Path.of(extractorOutputPath).toAbsolutePath().normalize();
-    this.brokerIpaCode = brokerIpaCode;
+    this.extractorOutputPath = Path.of(transferProperties.storage().extractorOutputPath())
+      .toAbsolutePath()
+      .normalize();
+    this.brokerIpaCode = transferProperties.transfer().brokerIpaCode();
   }
 
   @Override
@@ -75,10 +77,14 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
     UUID migrationId = request.getMigrationId();
     MigrationFileExecution fileExecution = transferService.getRequired(migrationId, fileType);
 
-    switch (fileExecution.getStatus()) {
-      case WAITING_PU, COMPLETED, WARNING -> {
-        return;
-      }
+    MigrationFileExecutionStatus status = fileExecution.getStatus();
+    if (status == MigrationFileExecutionStatus.WAITING_PU
+      || status == MigrationFileExecutionStatus.COMPLETED
+      || status == MigrationFileExecutionStatus.WARNING) {
+      return;
+    }
+
+    switch (status) {
       case TRANSFERING -> throw new ConflictException(
         "INVALID_MIGRATION_FILE_EXECUTION_TRANSITION",
         "Transfer for migration %s and file type %s is already in progress"
