@@ -60,7 +60,9 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
           .formatted(migrationId, fileType)
       );
     }
-    return findRequiredTransferExecution(migrationId, fileType);
+    fileExecution.setStatus(MigrationFileExecutionStatus.TRANSFERING);
+    fileExecution.setUploadStartedAt(startedAt);
+    return fileExecution;
   }
 
   public MigrationFileExecution recordUploadAccepted(
