@@ -8,7 +8,8 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionS
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.BaseBusinessException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.TransferPhaseException;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.NotFoundException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionTransferService;
 import it.gov.pagopa.pu.migration.dto.generated.MigrationFileTypeEnum;
@@ -92,7 +93,7 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
       );
       case FAILED -> throw alreadyFailed(fileExecution);
       case EXPORTED -> uploadExportedFile(request, fileExecution);
-      default -> throw new TransferPhaseException(
+      default -> throw new ConflictException(
         "TRANSFER_FILE_NOT_READY",
         "File type %s for migration %s is not ready for transfer (status=%s)"
           .formatted(fileType, migrationId, fileExecution.getStatus())
@@ -124,7 +125,7 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
       );
       Long uploadId = response == null ? null : response.getUploadId();
       if (uploadId == null || uploadId <= 0) {
-        throw new TransferPhaseException(
+        throw new InvalidValueException(
           "TRANSFER_INVALID_UPLOAD_RESPONSE",
           "PU returned no valid upload ID for migration %s and file type %s".formatted(migrationId, fileType)
         );
@@ -145,7 +146,7 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
   private Resource dataArchive(MigrationFileExecution fileExecution) {
     String filePath = fileExecution.getFilePath();
     if (filePath == null || filePath.isBlank()) {
-      throw new TransferPhaseException(
+      throw new NotFoundException(
         "TRANSFER_ARCHIVE_NOT_FOUND",
         "No exported archive is available for migration %s and file type %s"
           .formatted(fileExecution.getMigrationId(), fileType)
@@ -158,14 +159,14 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
       .filter(name -> !name.toLowerCase(Locale.ROOT).endsWith(".errors.zip"))
       .toList();
     if (archives.isEmpty()) {
-      throw new TransferPhaseException(
+      throw new NotFoundException(
         "TRANSFER_ARCHIVE_NOT_FOUND",
         "No data archive is available for migration %s and file type %s"
           .formatted(fileExecution.getMigrationId(), fileType)
       );
     }
     if (archives.size() != 1) {
-      throw new TransferPhaseException(
+      throw new InvalidValueException(
         "TRANSFER_MULTIPLE_ARCHIVES_NOT_SUPPORTED",
         "Expected one data archive for migration %s and file type %s, found %d"
           .formatted(fileExecution.getMigrationId(), fileType, archives.size())
@@ -176,7 +177,7 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
     if (!archivePath.startsWith(extractorOutputPath)
       || !Files.isRegularFile(archivePath)
       || !Files.isReadable(archivePath)) {
-      throw new TransferPhaseException(
+      throw new NotFoundException(
         "TRANSFER_ARCHIVE_NOT_FOUND",
         "Exported archive %s is missing or unreadable".formatted(archives.getFirst())
       );
@@ -187,7 +188,7 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
   private String organizationIpaCode(MigrationRequestDto request, String archiveName) {
     if (fileType == MigrationFileType.ORGANIZATIONS) {
       if (brokerIpaCode == null || brokerIpaCode.isBlank()) {
-        throw new TransferPhaseException(
+        throw new InvalidValueException(
           "TRANSFER_BROKER_IPA_CODE_MISSING",
           "Broker IPA code is not configured"
         );
@@ -197,7 +198,7 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
 
     List<String> ipaCodes = request.getIpaCodes();
     if (ipaCodes == null || ipaCodes.isEmpty()) {
-      throw new TransferPhaseException(
+      throw new InvalidValueException(
         "TRANSFER_IPA_CODE_NOT_FOUND",
         "No IPA code was provided for file type %s".formatted(fileType)
       );
@@ -213,7 +214,7 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
       ).matcher(archiveName).find())
       .toList();
     if (matchingCodes.size() != 1) {
-      throw new TransferPhaseException(
+      throw new InvalidValueException(
         matchingCodes.isEmpty() ? "TRANSFER_IPA_CODE_NOT_FOUND" : "TRANSFER_IPA_CODE_AMBIGUOUS",
         "Unable to determine one IPA code from the archive name for file type %s".formatted(fileType)
       );
@@ -251,9 +252,6 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
   }
 
   private String transferErrorCode(RuntimeException failure) {
-    if (failure instanceof TransferPhaseException transferFailure) {
-      return transferFailure.getCode();
-    }
     if (failure instanceof BaseBusinessException businessFailure) {
       return businessFailure.getCode();
     }
@@ -263,7 +261,7 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
     return DEFAULT_TRANSFER_ERROR;
   }
 
-  private TransferPhaseException alreadyFailed(MigrationFileExecution fileExecution) {
+  private ConflictException alreadyFailed(MigrationFileExecution fileExecution) {
     String errorCode = fileExecution.getUploadErrorCode();
     if (errorCode == null || errorCode.isBlank()) {
       errorCode = fileExecution.getExtractionErrorCode();
@@ -278,6 +276,6 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
     if (errorMessage == null || errorMessage.isBlank()) {
       errorMessage = "Transfer is already FAILED";
     }
-    return new TransferPhaseException(errorCode, errorMessage);
+    return new ConflictException(errorCode, errorMessage);
   }
 }

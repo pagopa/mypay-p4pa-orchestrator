@@ -6,7 +6,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.auth.PuAuthnService;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.migration.PuMigrationService;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.TransferPhaseException;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionTransferService;
 import it.gov.pagopa.pu.migration.dto.generated.MigrationFileTypeEnum;
@@ -133,8 +133,8 @@ class AbstractMigrationTransferOperationTest {
     AbstractMigrationTransferOperation transferOperation =
       operation(MigrationFileType.PAYMENTS_REPORTING_MYPAY);
     MigrationRequestDto migrationRequest = request(List.of("R_LOMBAR", "IPACODE1"));
-    TransferPhaseException exception = assertThrows(
-      TransferPhaseException.class,
+    InvalidValueException exception = assertThrows(
+      InvalidValueException.class,
       () -> transferOperation.execute(migrationRequest)
     );
 
@@ -243,8 +243,8 @@ class AbstractMigrationTransferOperationTest {
 
     AbstractMigrationTransferOperation transferOperation = operation(MigrationFileType.ORGANIZATIONS);
     MigrationRequestDto migrationRequest = request(List.of("ORG_IPA"));
-    TransferPhaseException exception = assertThrows(
-      TransferPhaseException.class,
+    InvalidValueException exception = assertThrows(
+      InvalidValueException.class,
       () -> transferOperation.execute(migrationRequest)
     );
 

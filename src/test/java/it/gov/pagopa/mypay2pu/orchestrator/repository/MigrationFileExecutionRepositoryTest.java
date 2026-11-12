@@ -42,15 +42,11 @@ class MigrationFileExecutionRepositoryTest {
     int firstClaim = repository.claimTransfer(
       MIGRATION_ID,
       MigrationFileType.ORGANIZATIONS,
-      MigrationFileExecutionStatus.EXPORTED,
-      MigrationFileExecutionStatus.TRANSFERING,
       STARTED_AT
     );
     int duplicateClaim = repository.claimTransfer(
       MIGRATION_ID,
       MigrationFileType.ORGANIZATIONS,
-      MigrationFileExecutionStatus.EXPORTED,
-      MigrationFileExecutionStatus.TRANSFERING,
       STARTED_AT.plusMinutes(1)
     );
     MigrationFileExecution persisted = repository.findById(execution.getId()).orElseThrow();
