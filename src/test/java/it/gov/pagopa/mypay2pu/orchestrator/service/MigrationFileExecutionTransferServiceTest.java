@@ -61,8 +61,6 @@ class MigrationFileExecutionTransferServiceTest {
     when(migrationFileExecutionRepositoryMock.claimTransfer(
       MIGRATION_ID,
       FILE_TYPE,
-      MigrationFileExecutionStatus.EXPORTED,
-      MigrationFileExecutionStatus.TRANSFERING,
       STARTED_AT
     )).thenReturn(1);
 
@@ -75,8 +73,6 @@ class MigrationFileExecutionTransferServiceTest {
     verify(migrationFileExecutionRepositoryMock).claimTransfer(
       MIGRATION_ID,
       FILE_TYPE,
-      MigrationFileExecutionStatus.EXPORTED,
-      MigrationFileExecutionStatus.TRANSFERING,
       STARTED_AT
     );
   }
@@ -152,8 +148,6 @@ class MigrationFileExecutionTransferServiceTest {
     when(migrationFileExecutionRepositoryMock.claimTransfer(
       MIGRATION_ID,
       FILE_TYPE,
-      MigrationFileExecutionStatus.EXPORTED,
-      MigrationFileExecutionStatus.TRANSFERING,
       STARTED_AT
     )).thenReturn(0);
 
@@ -167,8 +161,6 @@ class MigrationFileExecutionTransferServiceTest {
     verify(migrationFileExecutionRepositoryMock).claimTransfer(
       MIGRATION_ID,
       FILE_TYPE,
-      MigrationFileExecutionStatus.EXPORTED,
-      MigrationFileExecutionStatus.TRANSFERING,
       STARTED_AT
     );
   }

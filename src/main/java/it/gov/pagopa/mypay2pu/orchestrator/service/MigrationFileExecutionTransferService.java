@@ -32,7 +32,7 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
   }
 
   public MigrationFileExecution getRequired(UUID migrationId, MigrationFileType fileType) {
-    return findRequiredTransferExecution(migrationId, fileType);
+    return findRequiredMigrationFileExecution(migrationId, fileType);
   }
 
   /**
@@ -44,13 +44,11 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
     MigrationFileType fileType,
     LocalDateTime startedAt
   ) {
-    MigrationFileExecution fileExecution = findRequiredTransferExecution(migrationId, fileType);
+    MigrationFileExecution fileExecution = findRequiredMigrationFileExecution(migrationId, fileType);
     validator.validateMarkTransferring(fileExecution);
     int claimed = migrationFileExecutionRepository.claimTransfer(
       migrationId,
       fileType,
-      MigrationFileExecutionStatus.EXPORTED,
-      MigrationFileExecutionStatus.TRANSFERING,
       startedAt
     );
     if (claimed != 1) {
@@ -95,7 +93,7 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
     });
   }
 
-  private MigrationFileExecution findRequiredTransferExecution(
+  private MigrationFileExecution findRequiredMigrationFileExecution(
     UUID migrationId,
     MigrationFileType fileType
   ) {
