@@ -1,7 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.repository;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import java.util.List;
 import java.util.Optional;
@@ -22,18 +21,16 @@ public interface MigrationFileExecutionRepository extends JpaRepository<Migratio
   @Transactional
   @Query("""
     update MigrationFileExecution fileExecution
-    set fileExecution.status = :transferringStatus,
+    set fileExecution.status = it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus.TRANSFERING,
         fileExecution.uploadStartedAt = :startedAt
     where fileExecution.migrationId = :migrationId
       and fileExecution.fileType = :fileType
-      and fileExecution.status = :expectedStatus
+      and fileExecution.status = it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus.EXPORTED
       and fileExecution.uploadId is null
     """)
   int claimTransfer(
     @Param("migrationId") UUID migrationId,
     @Param("fileType") MigrationFileType fileType,
-    @Param("expectedStatus") MigrationFileExecutionStatus expectedStatus,
-    @Param("transferringStatus") MigrationFileExecutionStatus transferringStatus,
     @Param("startedAt") LocalDateTime startedAt
   );
 }

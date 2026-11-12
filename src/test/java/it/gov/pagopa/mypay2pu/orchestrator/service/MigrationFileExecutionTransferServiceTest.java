@@ -23,7 +23,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -62,27 +61,18 @@ class MigrationFileExecutionTransferServiceTest {
     when(migrationFileExecutionRepositoryMock.claimTransfer(
       MIGRATION_ID,
       FILE_TYPE,
-      MigrationFileExecutionStatus.EXPORTED,
-      MigrationFileExecutionStatus.TRANSFERING,
       STARTED_AT
-    )).thenAnswer(invocation -> {
-      execution.setStatus(invocation.getArgument(3, MigrationFileExecutionStatus.class));
-      execution.setUploadStartedAt(invocation.getArgument(4, LocalDateTime.class));
-      return 1;
-    });
+    )).thenReturn(1);
 
     MigrationFileExecution result = service.markTransferring(MIGRATION_ID, FILE_TYPE, STARTED_AT);
 
     assertSame(execution, result);
     assertEquals(MigrationFileExecutionStatus.TRANSFERING, result.getStatus());
     assertEquals(STARTED_AT, result.getUploadStartedAt());
-    verify(migrationFileExecutionRepositoryMock, times(2))
-      .findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
     verify(migrationFileExecutionRepositoryMock).claimTransfer(
       MIGRATION_ID,
       FILE_TYPE,
-      MigrationFileExecutionStatus.EXPORTED,
-      MigrationFileExecutionStatus.TRANSFERING,
       STARTED_AT
     );
   }
@@ -158,8 +148,6 @@ class MigrationFileExecutionTransferServiceTest {
     when(migrationFileExecutionRepositoryMock.claimTransfer(
       MIGRATION_ID,
       FILE_TYPE,
-      MigrationFileExecutionStatus.EXPORTED,
-      MigrationFileExecutionStatus.TRANSFERING,
       STARTED_AT
     )).thenReturn(0);
 
@@ -173,8 +161,6 @@ class MigrationFileExecutionTransferServiceTest {
     verify(migrationFileExecutionRepositoryMock).claimTransfer(
       MIGRATION_ID,
       FILE_TYPE,
-      MigrationFileExecutionStatus.EXPORTED,
-      MigrationFileExecutionStatus.TRANSFERING,
       STARTED_AT
     );
   }

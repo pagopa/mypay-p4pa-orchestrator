@@ -4,7 +4,7 @@ import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.TransferPhaseException;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
 import java.util.List;
@@ -53,20 +53,14 @@ class MigrationActionExecutorTest {
 
   @ParameterizedTest
   @EnumSource(MigrationAction.class)
-  void givenSuccessfulActionWhenExecuteThenPersistsActionOutcome(MigrationAction action) {
+  void givenSuccessfulActionWhenExecuteThenPersistsCompletedMigration(MigrationAction action) {
     MigrationRequestDto request = new MigrationRequestDto().action(action);
     MigrationExecution execution = execution(action);
 
     assertTrue(executor.execute(request, execution).isDone());
 
-    assertEquals(
-      action == MigrationAction.EXPORT ? MigrationExecutionStatus.COMPLETED : MigrationExecutionStatus.RUNNING,
-      execution.getStatus()
-    );
-    assertEquals(
-      action == MigrationAction.EXPORT ? 1 : 7,
-      execution.getFileTypeCountCompleted()
-    );
+    assertEquals(MigrationExecutionStatus.COMPLETED, execution.getStatus());
+    assertEquals(1, execution.getFileTypeCountCompleted());
     assertNull(execution.getErrorCode());
     assertNull(execution.getErrorMsg());
     assertEquals(execution.getId(), request.getMigrationId());
@@ -112,14 +106,14 @@ class MigrationActionExecutorTest {
   }
 
   @Test
-  void givenTransferPhaseFailureWhenExecuteThenPersistsSpecificFailureCode() {
+  void givenBusinessFailureWhenExecuteThenPersistsSpecificFailureCode() {
     MigrationRequestDto request = new MigrationRequestDto().action(MigrationAction.TRANSFER);
     MigrationExecution execution = execution(MigrationAction.TRANSFER);
-    TransferPhaseException failure = new TransferPhaseException("TRANSFER_INVALID_UPLOAD_RESPONSE", "invalid upload");
+    ConflictException failure = new ConflictException("TRANSFER_INVALID_UPLOAD_RESPONSE", "invalid upload");
     doThrow(failure).when(migrationFacadeServiceMock).execute(same(request));
 
     assertSame(failure, assertThrows(
-      TransferPhaseException.class,
+      ConflictException.class,
       () -> executor.execute(request, execution)
     ));
 

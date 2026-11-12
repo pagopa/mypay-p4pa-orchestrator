@@ -3,6 +3,7 @@ package it.gov.pagopa.mypay2pu.orchestrator.service;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.NotFoundException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionTransferValidator;
@@ -31,7 +32,7 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
   }
 
   public MigrationFileExecution getRequired(UUID migrationId, MigrationFileType fileType) {
-    return findRequired(migrationId, fileType);
+    return findRequiredMigrationFileExecution(migrationId, fileType);
   }
 
   /**
@@ -43,13 +44,11 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
     MigrationFileType fileType,
     LocalDateTime startedAt
   ) {
-    MigrationFileExecution fileExecution = findRequired(migrationId, fileType);
+    MigrationFileExecution fileExecution = findRequiredMigrationFileExecution(migrationId, fileType);
     validator.validateMarkTransferring(fileExecution);
     int claimed = migrationFileExecutionRepository.claimTransfer(
       migrationId,
       fileType,
-      MigrationFileExecutionStatus.EXPORTED,
-      MigrationFileExecutionStatus.TRANSFERING,
       startedAt
     );
     if (claimed != 1) {
@@ -59,7 +58,9 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
           .formatted(migrationId, fileType)
       );
     }
-    return findRequired(migrationId, fileType);
+    fileExecution.setStatus(MigrationFileExecutionStatus.TRANSFERING);
+    fileExecution.setUploadStartedAt(startedAt);
+    return fileExecution;
   }
 
   public MigrationFileExecution recordUploadAccepted(
@@ -90,5 +91,16 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
       fileExecution.setUploadErrorCode(errorCode);
       fileExecution.setUploadErrorMsg(errorMessage);
     });
+  }
+
+  private MigrationFileExecution findRequiredMigrationFileExecution(
+    UUID migrationId,
+    MigrationFileType fileType
+  ) {
+    return migrationFileExecutionRepository.findByMigrationIdAndFileType(migrationId, fileType)
+      .orElseThrow(() -> new NotFoundException(
+        "MIGRATION_FILE_EXECUTION_NOT_FOUND",
+        "File execution does not exist for migration %s and file type %s".formatted(migrationId, fileType)
+      ));
   }
 }

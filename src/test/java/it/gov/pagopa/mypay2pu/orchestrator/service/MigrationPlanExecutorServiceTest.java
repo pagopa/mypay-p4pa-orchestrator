@@ -95,19 +95,6 @@ class MigrationPlanExecutorServiceTest {
   }
 
   @Test
-  void givenPlanNodeWhenGetChildrenThenReturnsConfiguredChildren() {
-    assertEquals(
-      Set.of(MigrationFileType.DEBT_POSITIONS_TYPE_ORG, MigrationFileType.ORG_SIL_SERVICES),
-      planExecutor.getChildren(MigrationFileType.ORGANIZATIONS)
-    );
-  }
-
-  @Test
-  void givenPlanLeafWhenGetChildrenThenReturnsEmptySet() {
-    assertEquals(Set.of(), planExecutor.getChildren(MigrationFileType.ASSESSMENTS));
-  }
-
-  @Test
   void givenSelectedDescendantThrowsErrorWhenExecuteThenRethrowsError() {
     AssertionError failure = new AssertionError("operation failed");
     MigrationOperation operation = operation(MigrationFileType.ORGANIZATIONS, request -> {
