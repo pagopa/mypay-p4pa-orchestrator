@@ -38,6 +38,7 @@ import java.util.regex.Pattern;
 public abstract class AbstractMigrationTransferOperation implements MigrationTransferOperation {
 
   private static final String DEFAULT_TRANSFER_ERROR = "TRANSFER_FAILED";
+  private static final String EXTRACTOR_OUTPUT_PATH_LOG = "extractorOutputPath={}";
 
   private final MigrationFileType fileType;
   private final MigrationFileExecutionTransferService transferService;
@@ -108,7 +109,7 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
     MigrationFileTypeEnum puFileType;
     try {
       archive = dataArchive(fileExecution);
-      orgIpaCode = organizationIpaCode(request, archive.getFilename());
+      orgIpaCode = brokerIpaCodeForUpload();
       puFileType = puFileType();
     } catch (RuntimeException failure) {
       markTransferFailed(migrationId, failure);
@@ -173,10 +174,39 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
       );
     }
 
-    Path archivePath = extractorOutputPath.resolve(archives.getFirst()).normalize();
-    if (!archivePath.startsWith(extractorOutputPath)
-      || !Files.isRegularFile(archivePath)
-      || !Files.isReadable(archivePath)) {
+    String extractionId = fileExecution.getExtractionId();
+    if (extractionId == null || extractionId.isBlank()
+      || extractionId.contains("/") || extractionId.contains("\\")
+      || ".".equals(extractionId) || "..".equals(extractionId)) {
+      throw new InvalidValueException(
+        "TRANSFER_EXTRACTION_ID_INVALID",
+        "A valid extraction ID is required to locate the archive for migration %s and file type %s"
+          .formatted(fileExecution.getMigrationId(), fileType)
+      );
+    }
+
+    Path extractionDirectory = extractorOutputPath.resolve(extractionId).normalize();
+    Path archivePath = extractionDirectory.resolve(archives.getFirst()).normalize();
+    boolean withinExpectedDirectory = extractionDirectory.startsWith(extractorOutputPath)
+      && archivePath.startsWith(extractionDirectory);
+    boolean regularFile = withinExpectedDirectory && Files.isRegularFile(archivePath);
+    boolean readable = withinExpectedDirectory && Files.isReadable(archivePath);
+    if (!withinExpectedDirectory || !regularFile || !readable) {
+      log.warn(
+        "Transfer archive is missing or unreadable: migrationId={} fileType={} extractionId={} filePath={} "
+          + EXTRACTOR_OUTPUT_PATH_LOG + " expectedExtractionDirectory={} resolvedArchivePath={} "
+          + "withinExpectedDirectory={} regularFile={} readable={}",
+        fileExecution.getMigrationId(),
+        fileType,
+        extractionId,
+        filePath,
+        extractorOutputPath,
+        extractionDirectory,
+        archivePath,
+        withinExpectedDirectory,
+        regularFile,
+        readable
+      );
       throw new NotFoundException(
         "TRANSFER_ARCHIVE_NOT_FOUND",
         "Exported archive %s is missing or unreadable".formatted(archives.getFirst())
@@ -185,41 +215,14 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
     return new FileSystemResource(archivePath);
   }
 
-  private String organizationIpaCode(MigrationRequestDto request, String archiveName) {
-    if (fileType == MigrationFileType.ORGANIZATIONS) {
-      if (brokerIpaCode == null || brokerIpaCode.isBlank()) {
-        throw new InvalidValueException(
-          "TRANSFER_BROKER_IPA_CODE_MISSING",
-          "Broker IPA code is not configured"
-        );
-      }
-      return brokerIpaCode;
-    }
-
-    List<String> ipaCodes = request.getIpaCodes();
-    if (ipaCodes == null || ipaCodes.isEmpty()) {
+  private String brokerIpaCodeForUpload() {
+    if (brokerIpaCode == null || brokerIpaCode.isBlank()) {
       throw new InvalidValueException(
-        "TRANSFER_IPA_CODE_NOT_FOUND",
-        "No IPA code was provided for file type %s".formatted(fileType)
+        "TRANSFER_BROKER_IPA_CODE_MISSING",
+        "Broker IPA code is not configured"
       );
     }
-    List<String> distinctCodes = ipaCodes.stream().filter(Objects::nonNull).distinct().toList();
-    if (distinctCodes.size() == 1) {
-      return distinctCodes.getFirst();
-    }
-
-    List<String> matchingCodes = distinctCodes.stream()
-      .filter(code -> Pattern.compile(
-        "(?i)(?<![A-Z0-9_])%s(?![A-Z0-9_])".formatted(Pattern.quote(code))
-      ).matcher(archiveName).find())
-      .toList();
-    if (matchingCodes.size() != 1) {
-      throw new InvalidValueException(
-        matchingCodes.isEmpty() ? "TRANSFER_IPA_CODE_NOT_FOUND" : "TRANSFER_IPA_CODE_AMBIGUOUS",
-        "Unable to determine one IPA code from the archive name for file type %s".formatted(fileType)
-      );
-    }
-    return matchingCodes.getFirst();
+    return brokerIpaCode;
   }
 
   private MigrationFileTypeEnum puFileType() {

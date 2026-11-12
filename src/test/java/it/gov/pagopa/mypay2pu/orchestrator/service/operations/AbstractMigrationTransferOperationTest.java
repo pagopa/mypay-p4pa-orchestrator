@@ -70,7 +70,7 @@ class AbstractMigrationTransferOperationTest {
       MigrationFileType.ORGANIZATIONS,
       dataArchive + ",PT_MYPAY2PU_DEV-ORGANIZATIONS-20261111105510-1_0.errors.zip"
     );
-    Files.createFile(extractorOutputPath.resolve(dataArchive));
+    createArchive(fileExecution, dataArchive);
     when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
     when(transferServiceMock.markTransferring(
       eq(MIGRATION_ID), eq(MigrationFileType.ORGANIZATIONS), argThat(Objects::nonNull)
@@ -150,13 +150,13 @@ class AbstractMigrationTransferOperationTest {
   }
 
   @Test
-  void givenPaymentReportingArchiveWithMultipleIpaCodesWhenExecuteThenUsesCodeInArchiveName() throws IOException {
-    String dataArchive = "PT_MYPAY2PU_DEV-R_LOMBAR-PAYMENTS_REPORTING_MYPAY-20261111105512-part001-1.0.zip";
+  void givenPaymentReportingArchiveWithMultipleIpaCodesWhenExecuteThenUsesBrokerIpa() throws IOException {
+    String dataArchive = "PT_MYPAY2PU_DEV-BROKER_IPA-PAYMENTS_REPORTING_MYPAY-20261111105512-part001-1.0.zip";
     MigrationFileExecution fileExecution = exportedExecution(
       MigrationFileType.PAYMENTS_REPORTING_MYPAY,
-      dataArchive + ",PT_MYPAY2PU_DEV-R_LOMBAR-PAYMENTS_REPORTING_MYPAY-20261111105512-1.0.errors.zip"
+      dataArchive + ",PT_MYPAY2PU_DEV-BROKER_IPA-PAYMENTS_REPORTING_MYPAY-20261111105512-1.0.errors.zip"
     );
-    Files.createFile(extractorOutputPath.resolve(dataArchive));
+    createArchive(fileExecution, dataArchive);
     when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.PAYMENTS_REPORTING_MYPAY))
       .thenReturn(fileExecution);
     when(transferServiceMock.markTransferring(
@@ -172,7 +172,7 @@ class AbstractMigrationTransferOperationTest {
     when(uploadResponseMock.getUploadId()).thenReturn(42L);
     when(puAuthnServiceMock.getAccessToken()).thenReturn("access-token");
     when(puMigrationServiceMock.uploadMigrationFile(
-      eq("R_LOMBAR"),
+      eq(BROKER_IPA_CODE),
       eq(MigrationFileTypeEnum.PAYMENTS_REPORTING),
       argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
       eq("access-token")
@@ -194,7 +194,7 @@ class AbstractMigrationTransferOperationTest {
     );
     verify(puAuthnServiceMock).getAccessToken();
     verify(puMigrationServiceMock).uploadMigrationFile(
-      eq("R_LOMBAR"),
+      eq(BROKER_IPA_CODE),
       eq(MigrationFileTypeEnum.PAYMENTS_REPORTING),
       argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
       eq("access-token")
@@ -221,7 +221,7 @@ class AbstractMigrationTransferOperationTest {
   void givenUploadResponseWithoutIdWhenExecuteThenPersistsTransferFailure() throws IOException {
     String dataArchive = "organizations.zip";
     MigrationFileExecution fileExecution = exportedExecution(MigrationFileType.ORGANIZATIONS, dataArchive);
-    Files.createFile(extractorOutputPath.resolve(dataArchive));
+    createArchive(fileExecution, dataArchive);
     when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
     when(transferServiceMock.markTransferring(
       eq(MIGRATION_ID), eq(MigrationFileType.ORGANIZATIONS), argThat(Objects::nonNull)
@@ -287,6 +287,13 @@ class AbstractMigrationTransferOperationTest {
     request.setMigrationId(MIGRATION_ID);
     request.setIpaCodes(ipaCodes);
     return request;
+  }
+
+  private void createArchive(MigrationFileExecution fileExecution, String fileName) throws IOException {
+    Path archiveDirectory = extractorOutputPath
+      .resolve(fileExecution.getExtractionId());
+    Files.createDirectories(archiveDirectory);
+    Files.createFile(archiveDirectory.resolve(fileName));
   }
 
   private MigrationFileExecution exportedExecution(MigrationFileType fileType, String filePath) {
