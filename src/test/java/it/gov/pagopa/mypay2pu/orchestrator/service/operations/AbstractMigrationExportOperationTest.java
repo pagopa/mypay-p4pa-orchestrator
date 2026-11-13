@@ -88,6 +88,7 @@ class AbstractMigrationExportOperationTest {
     when(extractorServiceMock.createExtraction(EXTRACTION_REQUEST))
       .thenReturn(new ExtractionAcceptedResponse(EXTRACTION_ID));
     when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenReturn(
+      newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.NEW, List.of()),
       newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.RUNNING, List.of()),
       newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.COMPLETED, List.of(
         new ArchiveFile(" archive/export-1.zip ", List.of()),
@@ -106,7 +107,7 @@ class AbstractMigrationExportOperationTest {
     );
     calls.verify(extractorServiceMock).createExtraction(EXTRACTION_REQUEST);
     calls.verify(migrationFileExecutionServiceMock).recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, EXTRACTION_ID);
-    calls.verify(extractorServiceMock, times(2)).getExtractionStatus(EXTRACTION_ID);
+    calls.verify(extractorServiceMock, times(3)).getExtractionStatus(EXTRACTION_ID);
     calls.verify(migrationFileExecutionServiceMock).markExported(
       MIGRATION_ID,
       FILE_TYPE,
@@ -415,7 +416,7 @@ class AbstractMigrationExportOperationTest {
   }
 
   private static Stream<ExtractionStatus> nonTerminalStatuses() {
-    return Stream.of(ExtractionStatus.RUNNING, null);
+    return Stream.of(ExtractionStatus.NEW, ExtractionStatus.RUNNING, null);
   }
 
   private AbstractMigrationExportOperation operation(Duration interval, Duration timeout,
