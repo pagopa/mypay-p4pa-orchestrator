@@ -1,7 +1,9 @@
 package it.gov.pagopa.mypay2pu.orchestrator.utils;
 
 import java.util.Map;
+import java.util.UUID;
 import org.slf4j.MDC;
+import org.springframework.util.StringUtils;
 
 public final class ThreadUtils {
 
@@ -13,6 +15,10 @@ public final class ThreadUtils {
       Map<String, String> previous = MDC.getCopyOfContextMap();
       try {
         setContext(context);
+        String traceId = MDC.get("traceId");
+        if (!StringUtils.hasText(traceId)) {
+          MDC.put("traceId", UUID.randomUUID().toString().replace("-", ""));
+        }
         task.run();
       } finally {
         setContext(previous);
