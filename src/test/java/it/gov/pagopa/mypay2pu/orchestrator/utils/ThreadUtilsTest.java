@@ -1,17 +1,15 @@
 package it.gov.pagopa.mypay2pu.orchestrator.utils;
 
+import io.micrometer.tracing.Tracer;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.MDC;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ThreadUtilsTest {
 
@@ -28,7 +26,7 @@ class ThreadUtilsTest {
         if (fail) {
           throw failure;
         }
-      });
+      }, Tracer.NOOP.currentTraceContext());
       MDC.setContextMap(Map.of("traceId", "worker"));
       if (fail) {
         assertSame(failure, assertThrows(IllegalStateException.class, task::run));
@@ -38,17 +36,10 @@ class ThreadUtilsTest {
       assertEquals(Map.of("traceId", "worker"), MDC.getCopyOfContextMap());
 
       MDC.clear();
-      AtomicReference<String> generatedTraceId = new AtomicReference<>();
-      Runnable noContextTask = ThreadUtils.configureThreadContext(() -> {
-        String traceId = MDC.get("traceId");
-        assertNotNull(traceId);
-        assertTrue(traceId.matches("[0-9a-f]{32}"));
-        generatedTraceId.set(traceId);
-      });
+      Runnable noContextTask = ThreadUtils.configureThreadContext(
+        () -> assertNull(MDC.getCopyOfContextMap()), Tracer.NOOP.currentTraceContext());
       MDC.put("traceId", "worker");
       noContextTask.run();
-      assertNotNull(generatedTraceId.get());
-      assertNotEquals("worker", generatedTraceId.get());
       assertEquals(Map.of("traceId", "worker"), MDC.getCopyOfContextMap());
     } finally {
       if (previous == null) {

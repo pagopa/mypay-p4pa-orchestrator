@@ -1,5 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.config;
 
+import io.micrometer.tracing.Tracer;
 import it.gov.pagopa.mypay2pu.orchestrator.utils.ThreadUtils;
 import java.util.concurrent.Executor;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,14 +16,15 @@ public class AsyncConfiguration {
   @Bean("orchestratorTaskExecutor")
   public Executor orchestratorTaskExecutor(@Value("${orchestrator.async.core-pool-size}") int corePoolSize,
                                            @Value("${orchestrator.async.max-pool-size}") int maxPoolSize,
-                                           @Value("${orchestrator.async.queue-capacity}") int queueCapacity) {
+                                           @Value("${orchestrator.async.queue-capacity}") int queueCapacity,
+                                           Tracer tracer) {
     ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
     executor.setCorePoolSize(corePoolSize);
     executor.setMaxPoolSize(maxPoolSize);
     executor.setQueueCapacity(queueCapacity);
     executor.setThreadNamePrefix("orchestrator-");
     executor.setWaitForTasksToCompleteOnShutdown(true);
-    executor.setTaskDecorator(ThreadUtils::configureThreadContext);
+    executor.setTaskDecorator(task -> ThreadUtils.configureThreadContext(task, tracer.currentTraceContext()));
     return executor;
   }
 }
