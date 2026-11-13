@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 /**
  * Executes the shared upload lifecycle for a single migration file type.
@@ -38,7 +37,6 @@ import java.util.regex.Pattern;
 public abstract class AbstractMigrationTransferOperation implements MigrationTransferOperation {
 
   private static final String DEFAULT_TRANSFER_ERROR = "TRANSFER_FAILED";
-  private static final String EXTRACTOR_OUTPUT_PATH_LOG = "extractorOutputPath={}";
 
   private final MigrationFileType fileType;
   private final MigrationFileExecutionTransferService transferService;
@@ -192,21 +190,6 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
     boolean regularFile = withinExpectedDirectory && Files.isRegularFile(archivePath);
     boolean readable = withinExpectedDirectory && Files.isReadable(archivePath);
     if (!withinExpectedDirectory || !regularFile || !readable) {
-      log.warn(
-        "Transfer archive is missing or unreadable: migrationId={} fileType={} extractionId={} filePath={} "
-          + EXTRACTOR_OUTPUT_PATH_LOG + " expectedExtractionDirectory={} resolvedArchivePath={} "
-          + "withinExpectedDirectory={} regularFile={} readable={}",
-        fileExecution.getMigrationId(),
-        fileType,
-        extractionId,
-        filePath,
-        extractorOutputPath,
-        extractionDirectory,
-        archivePath,
-        withinExpectedDirectory,
-        regularFile,
-        readable
-      );
       throw new NotFoundException(
         "TRANSFER_ARCHIVE_NOT_FOUND",
         "Exported archive %s is missing or unreadable".formatted(archives.getFirst())
