@@ -4,13 +4,14 @@ import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
 import java.util.List;
 import java.util.UUID;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -104,14 +105,34 @@ class MigrationActionExecutorTest {
     verify(migrationExecutionRepositoryMock).save(same(execution));
   }
 
+  @Test
+  void givenBusinessFailureWhenExecuteThenPersistsSpecificFailureCode() {
+    MigrationRequestDto request = new MigrationRequestDto().action(MigrationAction.TRANSFER);
+    MigrationExecution execution = execution(MigrationAction.TRANSFER);
+    ConflictException failure = new ConflictException("TRANSFER_INVALID_UPLOAD_RESPONSE", "invalid upload");
+    doThrow(failure).when(migrationFacadeServiceMock).execute(same(request));
+
+    assertSame(failure, assertThrows(
+      ConflictException.class,
+      () -> executor.execute(request, execution)
+    ));
+
+    assertEquals(MigrationExecutionStatus.FAILED, execution.getStatus());
+    assertEquals("TRANSFER_INVALID_UPLOAD_RESPONSE", execution.getErrorCode());
+    assertEquals("invalid upload", execution.getErrorMsg());
+    verify(migrationFacadeServiceMock).execute(same(request));
+    verify(migrationExecutionRepositoryMock).save(same(execution));
+  }
+
   private MigrationExecution execution(MigrationAction action) {
     return MigrationExecution.builder()
-        .id(UUID.randomUUID())
-        .action(action)
-        .status(MigrationExecutionStatus.RUNNING)
-        .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))
-        .errorCode("previous error")
-        .errorMsg("previous message")
-        .build();
+      .id(UUID.randomUUID())
+      .action(action)
+      .status(MigrationExecutionStatus.RUNNING)
+      .fileTypeCountCompleted(7)
+      .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))
+      .errorCode("previous error")
+      .errorMsg("previous message")
+      .build();
   }
 }

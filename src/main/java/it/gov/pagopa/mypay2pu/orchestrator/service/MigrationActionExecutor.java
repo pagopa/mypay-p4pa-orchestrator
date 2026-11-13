@@ -1,7 +1,8 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.BaseBusinessException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
 import java.util.concurrent.CompletableFuture;
@@ -36,7 +37,9 @@ public class MigrationActionExecutor {
       migrationExecutionRepository.save(execution);
     } catch (RuntimeException failure) {
       execution.setStatus(MigrationExecutionStatus.FAILED);
-      execution.setErrorCode(request.getAction() + "_FAILED");
+      execution.setErrorCode(failure instanceof BaseBusinessException businessException
+        ? businessException.getCode()
+        : request.getAction() + "_FAILED");
       execution.setErrorMsg(
         failure.getMessage() == null || failure.getMessage().isBlank()
           ? failure.getClass().getSimpleName()

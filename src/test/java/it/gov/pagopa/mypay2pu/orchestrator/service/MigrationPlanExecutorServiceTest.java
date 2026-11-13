@@ -18,11 +18,13 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.MDC;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.io.IOException;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -106,6 +108,44 @@ class MigrationPlanExecutorServiceTest {
       MigrationFileType.ORGANIZATIONS,
       failedParent
     ), executed);
+  }
+
+  @Test
+  void givenSelectedDescendantThrowsErrorWhenExecuteThenRethrowsError() {
+    AssertionError failure = new AssertionError("operation failed");
+    MigrationOperation operation = operation(MigrationFileType.ORGANIZATIONS, request -> {
+      throw failure;
+    });
+    MigrationRequestDto migrationRequest = request(MigrationFileType.ORGANIZATIONS);
+    Map<MigrationFileType, MigrationOperation> operationMap = Map.of(
+      MigrationFileType.ORGANIZATIONS, operation
+    );
+
+    AssertionError thrown = assertThrows(
+      AssertionError.class,
+      () -> planExecutor.execute(migrationRequest, operationMap)
+    );
+
+    assertSame(failure, thrown);
+  }
+
+  @Test
+  void givenCompletionExceptionWithCheckedCauseWhenExecuteThenRethrowsCompletionException() {
+    CompletionException failure = new CompletionException(new IOException("checked failure"));
+    MigrationOperation operation = operation(MigrationFileType.DEBT_POSITIONS_TYPE, request -> {
+      throw failure;
+    });
+    MigrationRequestDto migrationRequest = request(MigrationFileType.DEBT_POSITIONS_TYPE);
+    Map<MigrationFileType, MigrationOperation> operationMap = Map.of(
+      MigrationFileType.DEBT_POSITIONS_TYPE, operation
+    );
+
+    CompletionException thrown = assertThrows(
+      CompletionException.class,
+      () -> planExecutor.execute(migrationRequest, operationMap)
+    );
+
+    assertSame(failure, thrown);
   }
 
   @ParameterizedTest
