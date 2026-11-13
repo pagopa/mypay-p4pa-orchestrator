@@ -1,13 +1,22 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service.operations.paymentsreporting;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
+import it.gov.pagopa.mypay2pu.orchestrator.config.MigrationTransferProperties;
+import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.auth.PuAuthnService;
+import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.migration.PuMigrationService;
+import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionTransferService;
 import it.gov.pagopa.mypay2pu.orchestrator.service.operations.AbstractMigrationTransferOperation;
 import org.springframework.stereotype.Service;
 
 @Service
 public class PaymentsReportingMyPayMigrationTransferOperation extends AbstractMigrationTransferOperation {
 
-  protected PaymentsReportingMyPayMigrationTransferOperation() {
-    super(MigrationFileType.PAYMENTS_REPORTING_MYPAY);
+  public PaymentsReportingMyPayMigrationTransferOperation(
+    MigrationFileExecutionTransferService transferService,
+    PuMigrationService puMigrationService,
+    PuAuthnService puAuthnService,
+    MigrationTransferProperties transferProperties
+  ) {
+    super(MigrationFileType.PAYMENTS_REPORTING_MYPAY, transferService, puMigrationService, puAuthnService, transferProperties);
   }
 }
