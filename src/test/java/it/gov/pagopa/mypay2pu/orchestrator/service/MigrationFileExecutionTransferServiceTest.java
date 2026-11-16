@@ -6,6 +6,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.NotFoundException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
+import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionDetailRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionTransferValidator;
 import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
@@ -37,6 +38,8 @@ class MigrationFileExecutionTransferServiceTest {
 
   @Mock
   private MigrationFileExecutionRepository migrationFileExecutionRepositoryMock;
+  @Mock
+  private MigrationFileExecutionDetailRepository migrationFileExecutionDetailRepositoryMock;
 
   private MigrationFileExecutionTransferService service;
 
@@ -44,13 +47,17 @@ class MigrationFileExecutionTransferServiceTest {
   void setUp() {
     service = new MigrationFileExecutionTransferService(
       migrationFileExecutionRepositoryMock,
+      migrationFileExecutionDetailRepositoryMock,
       new MigrationFileExecutionTransferValidator()
     );
   }
 
   @AfterEach
   void verifyMocks() {
-    verifyNoMoreInteractions(migrationFileExecutionRepositoryMock);
+    verifyNoMoreInteractions(
+      migrationFileExecutionRepositoryMock,
+      migrationFileExecutionDetailRepositoryMock
+    );
   }
 
   @Test

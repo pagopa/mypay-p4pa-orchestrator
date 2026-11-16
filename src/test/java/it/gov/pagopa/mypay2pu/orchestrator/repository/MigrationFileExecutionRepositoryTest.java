@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.annotation.Transactional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -24,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class MigrationFileExecutionRepositoryTest {
 
   private static final UUID MIGRATION_ID = UUID.fromString("6c0bba84-b67b-4ce7-b8cf-5e1fc3209ab7");
+  private static final UUID LOCK_MIGRATION_ID = UUID.fromString("89ae69ee-b3f6-4f11-9428-93891bb04f27");
   private static final LocalDateTime STARTED_AT = LocalDateTime.of(2026, Month.NOVEMBER, 11, 12, 0);
 
   @Autowired
@@ -55,5 +57,24 @@ class MigrationFileExecutionRepositoryTest {
     assertEquals(0, duplicateClaim);
     assertEquals(MigrationFileExecutionStatus.TRANSFERING, persisted.getStatus());
     assertEquals(STARTED_AT, persisted.getUploadStartedAt());
+  }
+
+  @Test
+  @Transactional
+  void givenWaitingPuExecutionWhenFindByMigrationIdAndFileTypeForUpdateThenReturnsExecution() {
+    MigrationFileExecution execution = repository.saveAndFlush(MigrationFileExecution.builder()
+      .migrationId(LOCK_MIGRATION_ID)
+      .fileType(MigrationFileType.ORGANIZATIONS)
+      .status(MigrationFileExecutionStatus.WAITING_PU)
+      .uploadId(42L)
+      .build());
+
+    MigrationFileExecution lockedExecution = repository.findByMigrationIdAndFileTypeForUpdate(
+      LOCK_MIGRATION_ID,
+      MigrationFileType.ORGANIZATIONS
+    ).orElseThrow();
+
+    assertEquals(execution.getId(), lockedExecution.getId());
+    assertEquals(MigrationFileExecutionStatus.WAITING_PU, lockedExecution.getStatus());
   }
 }

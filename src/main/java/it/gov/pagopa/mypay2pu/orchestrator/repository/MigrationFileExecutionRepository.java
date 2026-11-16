@@ -2,11 +2,13 @@ package it.gov.pagopa.mypay2pu.orchestrator.repository;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,6 +18,18 @@ public interface MigrationFileExecutionRepository extends JpaRepository<Migratio
   List<MigrationFileExecution> findAllByMigrationIdOrderByCreationDateAscIdAsc(UUID migrationId);
 
   Optional<MigrationFileExecution> findByMigrationIdAndFileType(UUID migrationId, MigrationFileType fileType);
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("""
+    select fileExecution
+    from MigrationFileExecution fileExecution
+    where fileExecution.migrationId = :migrationId
+      and fileExecution.fileType = :fileType
+    """)
+  Optional<MigrationFileExecution> findByMigrationIdAndFileTypeForUpdate(
+    @Param("migrationId") UUID migrationId,
+    @Param("fileType") MigrationFileType fileType
+  );
 
   @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Transactional
