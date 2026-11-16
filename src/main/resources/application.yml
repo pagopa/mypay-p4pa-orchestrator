@@ -113,6 +113,7 @@ rest:
       max-attempts: "\${PU_MIGRATION_MAX_ATTEMPTS:3}" # It's counting also the first attempt
       wait-time-millis: "\${PU_MIGRATION_WAIT_TIME_MILLIS:500}"
       print-body-when-error: "\${PU_MIGRATION_PRINT_BODY_WHEN_ERROR:true}"
+      broker-ipa-code: "\${BROKER_IPA_CODE:\${PA_COD_IPA_ENTE_PREDEFINITO:IPA_DEFAULT}}"
 
 orchestrator:
   async:
@@ -129,8 +130,6 @@ orchestrator:
       defaults:
         short-running: "\${EXTRACTION_TIMEOUT_SHORT_RUNNING:30m}"
         long-running: "\${EXTRACTION_TIMEOUT_LONG_RUNNING:1h}"
-  transfer:
-    broker-ipa-code: "\${BROKER_IPA_CODE:\${PA_COD_IPA_ENTE_PREDEFINITO:IPA_DEFAULT}}"
 
 cipher:
   file-encrypt-enabled: "\${FILE_ENCRYPT_ENABLED:false}"
