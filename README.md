@@ -127,11 +127,7 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 | PU_MIGRATION_MAX_ATTEMPTS          | PU Migration API max attempts                  | 3                           |
 | PU_MIGRATION_WAIT_TIME_MILLIS      | PU Migration retry waiting time (milliseconds) | 500                         |
 | PU_MIGRATION_PRINT_BODY_WHEN_ERROR | To print body when an error occurs             | true                        |
-
-#### 💼 Business logic
-| ENV            | DESCRIPTION                                   | DEFAULT                                               |
-|-----------------|------------------------------------------------|---------------------------------------------------------|
-| BROKER_IPA_CODE | Broker IPA code used for ORGANIZATIONS uploads | `${PA_COD_IPA_ENTE_PREDEFINITO:IPA_DEFAULT}` |
+| BROKER_IPA_CODE                    | Broker IPA code used by PU Migration requests | `${PA_COD_IPA_ENTE_PREDEFINITO:IPA_DEFAULT}` |
 
 #### ⚡ Async extraction
 
