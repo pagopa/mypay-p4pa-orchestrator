@@ -220,12 +220,12 @@ class AbstractMigrationTransferOperationTest {
     fileExecution.setStatus(MigrationFileExecutionStatus.WAITING_PU);
     fileExecution.setUploadId(42L);
     when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
-    when(transferServiceMock.hasUploadDetails(MIGRATION_ID, MigrationFileType.ORGANIZATIONS, 42L)).thenReturn(true);
+    when(transferServiceMock.hasUploadDetails(fileExecution)).thenReturn(true);
 
     operation(MigrationFileType.ORGANIZATIONS).execute(request(List.of("ORG_IPA")));
 
     verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
-    verify(transferServiceMock).hasUploadDetails(MIGRATION_ID, MigrationFileType.ORGANIZATIONS, 42L);
+    verify(transferServiceMock).hasUploadDetails(fileExecution);
   }
 
   @Test
@@ -237,8 +237,7 @@ class AbstractMigrationTransferOperationTest {
     fileExecution.setStatus(MigrationFileExecutionStatus.WAITING_PU);
     fileExecution.setUploadId(42L);
     when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
-    when(transferServiceMock.hasUploadDetails(MIGRATION_ID, MigrationFileType.ORGANIZATIONS, 42L))
-      .thenReturn(false);
+    when(transferServiceMock.hasUploadDetails(fileExecution)).thenReturn(false);
     when(puMigrationServiceMock.getMigrationUploadDetails(42L)).thenReturn(List.of());
     when(transferServiceMock.recordUploadDetails(
       MIGRATION_ID, MigrationFileType.ORGANIZATIONS, 42L, List.of()
@@ -247,7 +246,7 @@ class AbstractMigrationTransferOperationTest {
     operation(MigrationFileType.ORGANIZATIONS).execute(request(List.of("ORG_IPA")));
 
     verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
-    verify(transferServiceMock).hasUploadDetails(MIGRATION_ID, MigrationFileType.ORGANIZATIONS, 42L);
+    verify(transferServiceMock).hasUploadDetails(fileExecution);
     verify(puMigrationServiceMock).getMigrationUploadDetails(42L);
     verify(transferServiceMock).recordUploadDetails(
       MIGRATION_ID, MigrationFileType.ORGANIZATIONS, 42L, List.of()

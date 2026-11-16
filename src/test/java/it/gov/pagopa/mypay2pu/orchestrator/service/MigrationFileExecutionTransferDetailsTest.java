@@ -9,6 +9,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionDetailRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
+import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationFileExecutionDetailMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionTransferValidator;
 import it.gov.pagopa.pu.migration.dto.generated.IngestionFlowFileStatus;
 import it.gov.pagopa.pu.migration.dto.generated.IngestionFlowFileTypeEnum;
@@ -51,6 +52,7 @@ class MigrationFileExecutionTransferDetailsTest {
     service = new MigrationFileExecutionTransferService(
       migrationFileExecutionRepositoryMock,
       migrationFileExecutionDetailRepositoryMock,
+      new MigrationFileExecutionDetailMapper(),
       new MigrationFileExecutionTransferValidator()
     );
   }
@@ -204,14 +206,20 @@ class MigrationFileExecutionTransferDetailsTest {
 
   @Test
   void givenAcceptedUploadWithoutPersistedDetailsWhenHasUploadDetailsThenReturnsFalse() {
-    waitingPuExecution();
+    MigrationFileExecution fileExecution = MigrationFileExecution.builder()
+      .id(FILE_EXECUTION_ID)
+      .migrationId(MIGRATION_ID)
+      .fileType(FILE_TYPE)
+      .status(MigrationFileExecutionStatus.WAITING_PU)
+      .uploadId(UPLOAD_ID)
+      .build();
     when(migrationFileExecutionDetailRepositoryMock.existsByMigrationFileExecutionId(FILE_EXECUTION_ID))
       .thenReturn(false);
 
-    boolean result = service.hasUploadDetails(MIGRATION_ID, FILE_TYPE, UPLOAD_ID);
+    boolean result = service.hasUploadDetails(fileExecution);
 
     assertFalse(result);
-    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
+    verifyNoInteractions(migrationFileExecutionRepositoryMock);
     verify(migrationFileExecutionDetailRepositoryMock).existsByMigrationFileExecutionId(FILE_EXECUTION_ID);
   }
 
@@ -224,19 +232,6 @@ class MigrationFileExecutionTransferDetailsTest {
       Arguments.of(IngestionFlowFileStatus.WARNING, MigrationFileExecutionDetailStatus.PARTIAL),
       Arguments.of(IngestionFlowFileStatus.ERROR, MigrationFileExecutionDetailStatus.FAILED)
     );
-  }
-
-  private MigrationFileExecution waitingPuExecution() {
-    MigrationFileExecution fileExecution = MigrationFileExecution.builder()
-      .id(FILE_EXECUTION_ID)
-      .migrationId(MIGRATION_ID)
-      .fileType(FILE_TYPE)
-      .status(MigrationFileExecutionStatus.WAITING_PU)
-      .uploadId(UPLOAD_ID)
-      .build();
-    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
-      .thenReturn(Optional.of(fileExecution));
-    return fileExecution;
   }
 
   private MigrationFileExecution lockedWaitingPuExecution() {

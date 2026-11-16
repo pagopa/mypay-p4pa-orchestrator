@@ -1,7 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
-import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionDetailStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
@@ -10,11 +9,10 @@ import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionDetailRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
+import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationFileExecutionDetailMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionTransferValidator;
-import it.gov.pagopa.pu.migration.dto.generated.IngestionFlowFileStatus;
 import it.gov.pagopa.pu.migration.dto.generated.UploadDetails;
 import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,16 +29,19 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
 
   private final MigrationFileExecutionRepository migrationFileExecutionRepository;
   private final MigrationFileExecutionDetailRepository migrationFileExecutionDetailRepository;
+  private final MigrationFileExecutionDetailMapper migrationFileExecutionDetailMapper;
   private final MigrationFileExecutionTransferValidator validator;
 
   public MigrationFileExecutionTransferService(
     MigrationFileExecutionRepository migrationFileExecutionRepository,
     MigrationFileExecutionDetailRepository migrationFileExecutionDetailRepository,
+    MigrationFileExecutionDetailMapper migrationFileExecutionDetailMapper,
     MigrationFileExecutionTransferValidator validator
   ) {
     super(migrationFileExecutionRepository);
     this.migrationFileExecutionRepository = migrationFileExecutionRepository;
     this.migrationFileExecutionDetailRepository = migrationFileExecutionDetailRepository;
+    this.migrationFileExecutionDetailMapper = migrationFileExecutionDetailMapper;
     this.validator = validator;
   }
 
@@ -119,26 +120,17 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
     }
 
     List<MigrationFileExecutionDetail> details = uploadDetails.stream()
-      .map(uploadDetail -> toMigrationFileExecutionDetail(fileExecution.getId(), uploadId, uploadDetail))
+      .map(uploadDetail -> migrationFileExecutionDetailMapper.toMigrationFileExecutionDetail(
+        fileExecution.getId(), uploadId, uploadDetail
+      ))
       .toList();
     return migrationFileExecutionDetailRepository.saveAll(details);
   }
 
   @Transactional(readOnly = true)
-  public boolean hasUploadDetails(UUID migrationId, MigrationFileType fileType, Long uploadId) {
-    MigrationFileExecution fileExecution = findAcceptedUpload(migrationId, fileType, uploadId);
+  public boolean hasUploadDetails(MigrationFileExecution fileExecution) {
+    validateUploadId(fileExecution.getUploadId());
     return migrationFileExecutionDetailRepository.existsByMigrationFileExecutionId(fileExecution.getId());
-  }
-
-  private MigrationFileExecution findAcceptedUpload(
-    UUID migrationId,
-    MigrationFileType fileType,
-    Long uploadId
-  ) {
-    validateUploadId(uploadId);
-    MigrationFileExecution fileExecution = findRequiredMigrationFileExecution(migrationId, fileType);
-    validateAcceptedUpload(fileExecution, migrationId, fileType, uploadId);
-    return fileExecution;
   }
 
   private void validateUploadId(Long uploadId) {
@@ -197,74 +189,5 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
         "MIGRATION_FILE_EXECUTION_NOT_FOUND",
         "File execution does not exist for migration %s and file type %s".formatted(migrationId, fileType)
       ));
-  }
-
-  private MigrationFileExecutionDetail toMigrationFileExecutionDetail(
-    UUID migrationFileExecutionId,
-    Long uploadId,
-    UploadDetails uploadDetail
-  ) {
-    if (uploadDetail == null
-      || !Objects.equals(uploadDetail.getUploadId(), uploadId)
-      || StringUtils.isBlank(uploadDetail.getFileName())
-      || uploadDetail.getFileSize() < 0) {
-      throw new InvalidValueException(
-        "TRANSFER_INVALID_UPLOAD_DETAILS",
-        "PU returned invalid upload details for upload %s".formatted(uploadId)
-      );
-    }
-
-    Integer numTotalRows = toNonNegativeInteger(uploadDetail.getNumTotalRows(), "numTotalRows");
-    Integer numCorrectlyImportedRows =
-      toNonNegativeInteger(uploadDetail.getNumCorrectlyImportedRows(), "numCorrectlyImportedRows");
-    if (numTotalRows != null && numCorrectlyImportedRows != null && numCorrectlyImportedRows > numTotalRows) {
-      throw new InvalidValueException(
-        "TRANSFER_INVALID_UPLOAD_DETAILS",
-        "numCorrectlyImportedRows exceeds numTotalRows for upload %s".formatted(uploadId)
-      );
-    }
-
-    return MigrationFileExecutionDetail.builder()
-      .migrationFileExecutionId(migrationFileExecutionId)
-      .fileName(uploadDetail.getFileName())
-      .uploadDetailId(uploadDetail.getUploadDetailId())
-      .fileSize(uploadDetail.getFileSize())
-      .status(toLocalStatus(uploadDetail.getStatus()))
-      .errorDescription(uploadDetail.getErrorDescription())
-      .discardFileName(uploadDetail.getDiscardFileName())
-      .numTotalRows(numTotalRows)
-      .numCorrectlyImportedRows(numCorrectlyImportedRows)
-      .build();
-  }
-
-  private Integer toNonNegativeInteger(Long value, String fieldName) {
-    if (value == null) {
-      return null;
-    }
-    int intValue;
-    try {
-      intValue = Math.toIntExact(value);
-    } catch (ArithmeticException exception) {
-      throw new InvalidValueException(
-        "TRANSFER_INVALID_UPLOAD_DETAILS",
-        "%s exceeds the supported range".formatted(fieldName)
-      );
-    }
-    if (intValue < 0) {
-      throw new InvalidValueException(
-        "TRANSFER_INVALID_UPLOAD_DETAILS",
-        "%s must not be negative".formatted(fieldName)
-      );
-    }
-    return intValue;
-  }
-
-  private MigrationFileExecutionDetailStatus toLocalStatus(IngestionFlowFileStatus status) {
-    return switch (status) {
-      case UPLOADED, PROCESSING, WAITING_FILE -> MigrationFileExecutionDetailStatus.WAITING_PU;
-      case COMPLETED -> MigrationFileExecutionDetailStatus.COMPLETED;
-      case WARNING -> MigrationFileExecutionDetailStatus.PARTIAL;
-      case ERROR -> MigrationFileExecutionDetailStatus.FAILED;
-    };
   }
 }

@@ -66,7 +66,7 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
 
     MigrationFileExecutionStatus status = fileExecution.getStatus();
     if (status == MigrationFileExecutionStatus.WAITING_PU) {
-      if (!transferService.hasUploadDetails(migrationId, fileType, fileExecution.getUploadId())) {
+      if (!transferService.hasUploadDetails(fileExecution)) {
         fetchAndRecordUploadDetails(migrationId, fileExecution.getUploadId());
       }
       return;

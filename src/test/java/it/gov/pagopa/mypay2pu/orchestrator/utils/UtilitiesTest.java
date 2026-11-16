@@ -1,6 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.utils;
 
 
+import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
@@ -39,5 +40,31 @@ public class UtilitiesTest {
   @Test
   void givenNullUriWhenRemovePiiFromURIThenOk(){
     Assertions.assertNull(Utilities.removePiiFromURI(null));
+  }
+
+  @Test
+  void givenNullValueWhenToNonNegativeIntegerThenReturnsNull() {
+    Assertions.assertNull(Utilities.toNonNegativeInteger(null, "numRows"));
+  }
+
+  @Test
+  void givenNonNegativeValueWhenToNonNegativeIntegerThenReturnsInteger() {
+    Assertions.assertEquals(12, Utilities.toNonNegativeInteger(12L, "numRows"));
+  }
+
+  @Test
+  void givenNegativeValueWhenToNonNegativeIntegerThenThrowsInvalidValueException() {
+    Assertions.assertThrows(
+      InvalidValueException.class,
+      () -> Utilities.toNonNegativeInteger(-1L, "numRows")
+    );
+  }
+
+  @Test
+  void givenValueAboveIntegerRangeWhenToNonNegativeIntegerThenThrowsInvalidValueException() {
+    Assertions.assertThrows(
+      InvalidValueException.class,
+      () -> Utilities.toNonNegativeInteger((long) Integer.MAX_VALUE + 1, "numRows")
+    );
   }
 }
