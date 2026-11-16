@@ -3,6 +3,7 @@ package it.gov.pagopa.mypay2pu.orchestrator.service.operations;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ArchiveFile;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionAcceptedResponse;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionRequest;
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionFilters;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionStatus;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionStatusResponse;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
@@ -10,7 +11,9 @@ import it.gov.pagopa.mypay2pu.orchestrator.config.ExtractionPollingProperties;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.ExtractorService;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
+import it.gov.pagopa.mypay2pu.orchestrator.service.ExtractionWindowResolver;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionExportService;
+import it.gov.pagopa.mypay2pu.orchestrator.service.ExtractionWindow;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -34,6 +37,7 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
   private final ExtractorService extractorService;
   private final MigrationFileExecutionExportService migrationFileExecutionExportService;
   private final ExtractionPollingProperties pollingProperties;
+  private final ExtractionWindowResolver extractionWindowResolver;
   /**
    * Configures the file type and services used by this export operation.
    *
@@ -41,16 +45,19 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
    * @param extractorService client for submitting and checking extractions
    * @param migrationFileExecutionExportService service persisting export progress
    * @param pollingProperties polling interval and timeout
+   * @param extractionWindowResolver resolves bounds from the persisted execution for submission
    * @throws NullPointerException if {@code fileType} is null
    */
   protected AbstractMigrationExportOperation(MigrationFileType fileType,
                                              ExtractorService extractorService,
                                              MigrationFileExecutionExportService migrationFileExecutionExportService,
-                                             ExtractionPollingProperties pollingProperties) {
+                                             ExtractionPollingProperties pollingProperties,
+                                             ExtractionWindowResolver extractionWindowResolver) {
     this.fileType = Objects.requireNonNull(fileType, "fileType");
     this.extractorService = extractorService;
     this.migrationFileExecutionExportService = migrationFileExecutionExportService;
     this.pollingProperties = pollingProperties;
+    this.extractionWindowResolver = extractionWindowResolver;
   }
 
   /**
@@ -153,9 +160,13 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
     UUID migrationId = request.getMigrationId();
     migrationFileExecutionExportService.markExporting(migrationId, fileType, LocalDateTime.now(ZoneOffset.UTC));
     try {
-      ExtractionAcceptedResponse accepted = extractorService.createExtraction(
-        new ExtractionRequest(List.copyOf(request.getIpaCodes()), fileType, null, null)
-      );
+      ExtractionWindow window = extractionWindowResolver.resolvePersistedWindow(request);
+      ExtractionFilters filters = window == null ? null
+        : new ExtractionFilters(window.dateFrom(), window.dateTo(), null);
+      ExtractionAcceptedResponse accepted = extractorService.createExtraction(new ExtractionRequest(
+        List.copyOf(request.getIpaCodes()), fileType,
+        window != null && window.delta() ? window.dateFrom() : null, filters
+      ));
       if (accepted == null || accepted.getExtractionId().isBlank()) {
         throw new IllegalStateException("Extractor returned an invalid accepted extraction ID");
       }

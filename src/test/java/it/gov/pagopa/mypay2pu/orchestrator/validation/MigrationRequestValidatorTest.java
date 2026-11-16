@@ -4,18 +4,25 @@ import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
+import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
+import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.LocalDate;
+import java.time.Month;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -31,17 +38,19 @@ import static org.mockito.Mockito.when;
 class MigrationRequestValidatorTest {
   @Mock
   private MigrationExecutionRepository migrationExecutionRepositoryMock;
+  @Mock
+  private MigrationFileExecutionRepository migrationFileExecutionRepositoryMock;
 
   private MigrationRequestValidator validator;
 
   @BeforeEach
   void setUp() {
-    validator = new MigrationRequestValidator(migrationExecutionRepositoryMock);
+    validator = new MigrationRequestValidator(migrationExecutionRepositoryMock, migrationFileExecutionRepositoryMock);
   }
 
   @AfterEach
   void verifyMocks() {
-    verifyNoMoreInteractions(migrationExecutionRepositoryMock);
+    verifyNoMoreInteractions(migrationExecutionRepositoryMock, migrationFileExecutionRepositoryMock);
   }
 
   @Test
@@ -191,13 +200,74 @@ class MigrationRequestValidatorTest {
   }
 
   @Test
-  void givenDeltaOrchestrationWithoutPeriodWhenValidateThenAcceptOnlyComplete() {
-    assertDoesNotThrow(() -> validator.validate(request(MigrationAction.COMPLETE, OrchestrationMode.DELTA)));
+  void givenDeltaWithoutMigrationIdWhenValidateThenRejectRequest() {
+    MigrationRequestDto request = request(MigrationAction.COMPLETE, OrchestrationMode.DELTA);
+    request.setFileTypesToInclude(List.of(MigrationFileType.DEBT_POSITIONS));
+    InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
+    assertEquals("migrationId is required when orchestrationMode is DELTA", exception.getMessage());
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = MigrationFileType.class, names = {
+    "ORGANIZATIONS", "ORG_SIL_SERVICES", "DEBT_POSITIONS_TYPE",
+    "DEBT_POSITIONS_TYPE_ORG", "DEBT_POSITIONS_TYPE_ORG_OPERATORS"
+  })
+  void givenFullOnlyTypeWhenValidateThenRejectDelta(MigrationFileType type) {
+    MigrationRequestDto request = request(MigrationAction.EXPORT, OrchestrationMode.DELTA);
+    request.setMigrationId(UUID.randomUUID());
+    request.setFileTypesToInclude(List.of(type));
+
+    InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
+
+    assertEquals("fileTypesToInclude contains types not supported for DELTA", exception.getMessage());
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = MigrationExecutionStatus.class, names = {"RUNNING", "FAILED"})
+  void givenIncompletePreviousExecutionWhenRequireDeltaPreviousMigrationThenReject(MigrationExecutionStatus status) {
+    UUID parentId = UUID.randomUUID();
+    MigrationRequestDto request = request(MigrationAction.EXPORT, OrchestrationMode.DELTA);
+    request.setMigrationId(parentId);
+    request.setFileTypesToInclude(List.of(MigrationFileType.DEBT_POSITIONS));
+    MigrationExecution previous = MigrationExecution.builder()
+      .id(parentId).action(MigrationAction.EXPORT).status(status)
+      .orchestrationMode(OrchestrationMode.FULL)
+      .ipacodes(request.getIpaCodes()).fileTypes(request.getFileTypesToInclude())
+      .lastSuccessfulExtractionAt(LocalDate.of(2026, Month.JANUARY, 2).atStartOfDay())
+      .build();
+    when(migrationExecutionRepositoryMock.findById(parentId)).thenReturn(Optional.of(previous));
+
+    assertThrows(InvalidValueException.class, () -> validator.requireDeltaPreviousMigration(request));
+
+    verify(migrationExecutionRepositoryMock).findById(parentId);
+  }
+
+  @Test
+  void givenFailedPreviousFileWhenRequireDeltaPreviousMigrationThenReject() {
+    UUID parentId = UUID.randomUUID();
+    MigrationRequestDto request = request(MigrationAction.EXPORT, OrchestrationMode.DELTA);
+    request.setMigrationId(parentId);
+    request.setFileTypesToInclude(List.of(MigrationFileType.DEBT_POSITIONS));
+    MigrationExecution previous = MigrationExecution.builder()
+      .id(parentId).action(MigrationAction.EXPORT).status(MigrationExecutionStatus.COMPLETED)
+      .orchestrationMode(OrchestrationMode.FULL)
+      .ipacodes(request.getIpaCodes()).fileTypes(request.getFileTypesToInclude())
+      .lastSuccessfulExtractionAt(LocalDate.of(2026, Month.JANUARY, 2).atStartOfDay()).build();
+    MigrationFileExecution failed = MigrationFileExecution.builder()
+      .fileType(MigrationFileType.DEBT_POSITIONS).status(MigrationFileExecutionStatus.FAILED).build();
+    when(migrationExecutionRepositoryMock.findById(parentId)).thenReturn(Optional.of(previous));
+    when(migrationFileExecutionRepositoryMock.findAllByMigrationIdOrderByCreationDateAscIdAsc(parentId))
+      .thenReturn(List.of(failed));
+
+    assertThrows(InvalidValueException.class, () -> validator.requireDeltaPreviousMigration(request));
+
+    verify(migrationExecutionRepositoryMock).findById(parentId);
+    verify(migrationFileExecutionRepositoryMock).findAllByMigrationIdOrderByCreationDateAscIdAsc(parentId);
   }
 
   @Test
   void givenExportWithNotImplementedOrchestrationWhenValidateThenRejectRequest() {
-    for (OrchestrationMode mode : List.of(OrchestrationMode.DELTA, OrchestrationMode.REJECTS_ONLY)) {
+    for (OrchestrationMode mode : List.of(OrchestrationMode.REJECTS_ONLY)) {
       MigrationRequestDto request = request(MigrationAction.EXPORT, mode);
       request.setMigrationId(UUID.randomUUID());
 

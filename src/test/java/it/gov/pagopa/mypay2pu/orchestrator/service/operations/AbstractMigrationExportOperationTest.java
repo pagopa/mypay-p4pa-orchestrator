@@ -3,6 +3,7 @@ package it.gov.pagopa.mypay2pu.orchestrator.service.operations;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ArchiveFile;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionAcceptedResponse;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionRequest;
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionFilters;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionStatus;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionStatusResponse;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
@@ -14,10 +15,14 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
+import it.gov.pagopa.mypay2pu.orchestrator.service.ExtractionWindow;
+import it.gov.pagopa.mypay2pu.orchestrator.service.ExtractionWindowResolver;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionExportService;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.Month;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -64,12 +69,15 @@ class AbstractMigrationExportOperationTest {
     2026, Month.OCTOBER, 28, 12, 0
   );
   private static final ExtractionRequest EXTRACTION_REQUEST =
-    new ExtractionRequest(List.of("IPA1"), FILE_TYPE, null, null);
+    new ExtractionRequest(List.of("IPA1"), FILE_TYPE, null,
+      new ExtractionFilters(null, LocalDate.of(2026, Month.JANUARY, 3).atStartOfDay().atOffset(ZoneOffset.UTC), null));
 
   @Mock
   private ExtractorService extractorServiceMock;
   @Mock
   private MigrationFileExecutionExportService migrationFileExecutionServiceMock;
+  @Mock
+  private ExtractionWindowResolver extractionWindowResolverMock;
 
   private AbstractMigrationExportOperation operation;
   @BeforeEach
@@ -79,12 +87,14 @@ class AbstractMigrationExportOperationTest {
 
   @AfterEach
   void verifyMocks() {
-    verifyNoMoreInteractions(extractorServiceMock, migrationFileExecutionServiceMock);
+    verifyNoMoreInteractions(extractorServiceMock, migrationFileExecutionServiceMock, extractionWindowResolverMock);
   }
 
   @Test
   void givenPendingFileWhenExecuteThenSubmitsPollsAndPersistsCompletion() {
+    MigrationRequestDto request = request();
     givenFileExecution(MigrationFileExecutionStatus.PENDING, null);
+    givenPersistedExecution(request, OrchestrationMode.FULL, null, LocalDate.of(2026, Month.JANUARY, 3));
     when(extractorServiceMock.createExtraction(EXTRACTION_REQUEST))
       .thenReturn(new ExtractionAcceptedResponse(EXTRACTION_ID));
     when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenReturn(
@@ -98,8 +108,9 @@ class AbstractMigrationExportOperationTest {
       ))
     );
 
-    operation.execute(request());
+    operation.execute(request);
 
+    verify(extractionWindowResolverMock).resolvePersistedWindow(request);
     InOrder calls = inOrder(migrationFileExecutionServiceMock, extractorServiceMock);
     calls.verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
     calls.verify(migrationFileExecutionServiceMock).markExporting(
@@ -114,6 +125,94 @@ class AbstractMigrationExportOperationTest {
       "archive/export-1.zip,archive/export-2.zip",
       COMPLETED_AT
     );
+  }
+
+  @Test
+  void givenDeltaWindowWhenExecuteThenPassesMatchingUtcLowerAndExclusiveUpperBounds() {
+    OffsetDateTime from = LocalDate.of(2026, Month.JANUARY, 2).atStartOfDay().atOffset(ZoneOffset.UTC);
+    OffsetDateTime to = from.plusDays(1);
+    MigrationRequestDto request = request().orchestrationMode(OrchestrationMode.DELTA)
+      .period(new PeriodDto(from.minusDays(1).toLocalDate(), to.plusDays(1).toLocalDate()));
+    givenPersistedExecution(request, OrchestrationMode.DELTA, from.toLocalDate(), to.toLocalDate());
+    ExtractionRequest expected = new ExtractionRequest(List.of("IPA1"), FILE_TYPE, from,
+      new ExtractionFilters(from, to, null));
+    givenFileExecution(MigrationFileExecutionStatus.PENDING, null);
+    when(extractorServiceMock.createExtraction(expected)).thenReturn(new ExtractionAcceptedResponse(EXTRACTION_ID));
+    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenReturn(
+      newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.COMPLETED, List.of())
+    );
+
+    operation.execute(request);
+
+    verify(extractionWindowResolverMock).resolvePersistedWindow(request);
+    verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
+    verify(migrationFileExecutionServiceMock).markExporting(eq(MIGRATION_ID), eq(FILE_TYPE), isA(LocalDateTime.class));
+    verify(extractorServiceMock).createExtraction(expected);
+    verify(migrationFileExecutionServiceMock).recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, EXTRACTION_ID);
+    verify(extractorServiceMock).getExtractionStatus(EXTRACTION_ID);
+    verify(migrationFileExecutionServiceMock).markExported(MIGRATION_ID, FILE_TYPE, "", COMPLETED_AT);
+  }
+
+  @Test
+  void givenFullWindowWhenExecuteThenPassesBoundsWithoutLastExtractionDate() {
+    OffsetDateTime from = LocalDate.of(2026, Month.JANUARY, 1).atStartOfDay().atOffset(ZoneOffset.UTC);
+    OffsetDateTime to = from.plusDays(1);
+    MigrationRequestDto request = request();
+    givenPersistedExecution(request, OrchestrationMode.FULL, from.toLocalDate(), to.toLocalDate());
+    ExtractionRequest expected = new ExtractionRequest(List.of("IPA1"), FILE_TYPE, null,
+      new ExtractionFilters(from, to, null));
+    givenFileExecution(MigrationFileExecutionStatus.PENDING, null);
+    when(extractorServiceMock.createExtraction(expected)).thenReturn(new ExtractionAcceptedResponse(EXTRACTION_ID));
+    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenReturn(
+      newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.COMPLETED, List.of())
+    );
+
+    operation.execute(request);
+
+    verify(extractionWindowResolverMock).resolvePersistedWindow(request);
+    verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
+    verify(migrationFileExecutionServiceMock).markExporting(eq(MIGRATION_ID), eq(FILE_TYPE), isA(LocalDateTime.class));
+    verify(extractorServiceMock).createExtraction(expected);
+    verify(migrationFileExecutionServiceMock).recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, EXTRACTION_ID);
+    verify(extractorServiceMock).getExtractionStatus(EXTRACTION_ID);
+    verify(migrationFileExecutionServiceMock).markExported(MIGRATION_ID, FILE_TYPE, "", COMPLETED_AT);
+  }
+
+  @Test
+  void givenMissingPersistedExecutionWhenExecuteThenFailsWithoutSubmittingOrRecalculatingBounds() {
+    MigrationRequestDto request = request();
+    givenFileExecution(MigrationFileExecutionStatus.PENDING, null);
+    when(extractionWindowResolverMock.resolvePersistedWindow(request))
+      .thenThrow(new IllegalStateException("Missing migration execution " + MIGRATION_ID));
+
+    IllegalStateException failure = assertThrows(IllegalStateException.class, () -> operation.execute(request));
+
+    assertEquals("Missing migration execution " + MIGRATION_ID, failure.getMessage());
+    verify(extractionWindowResolverMock).resolvePersistedWindow(request);
+    verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
+    verify(migrationFileExecutionServiceMock).markExporting(eq(MIGRATION_ID), eq(FILE_TYPE), isA(LocalDateTime.class));
+    verify(migrationFileExecutionServiceMock).markExtractionFailed(
+      MIGRATION_ID, FILE_TYPE, EXTRACTOR_ERROR, failure.getMessage());
+  }
+
+  @Test
+  void givenRejectsOnlyWhenExecuteThenDoesNotLookUpFullOrDeltaWindow() {
+    MigrationRequestDto request = request().orchestrationMode(OrchestrationMode.REJECTS_ONLY);
+    ExtractionRequest expected = new ExtractionRequest(List.of("IPA1"), FILE_TYPE, null, null);
+    givenFileExecution(MigrationFileExecutionStatus.PENDING, null);
+    when(extractorServiceMock.createExtraction(expected)).thenReturn(new ExtractionAcceptedResponse(EXTRACTION_ID));
+    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenReturn(
+      newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.COMPLETED, List.of()));
+
+    operation.execute(request);
+
+    verify(extractionWindowResolverMock).resolvePersistedWindow(request);
+    verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
+    verify(migrationFileExecutionServiceMock).markExporting(eq(MIGRATION_ID), eq(FILE_TYPE), isA(LocalDateTime.class));
+    verify(extractorServiceMock).createExtraction(expected);
+    verify(migrationFileExecutionServiceMock).recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, EXTRACTION_ID);
+    verify(extractorServiceMock).getExtractionStatus(EXTRACTION_ID);
+    verify(migrationFileExecutionServiceMock).markExported(MIGRATION_ID, FILE_TYPE, "", COMPLETED_AT);
   }
 
   @Test
@@ -149,7 +248,7 @@ class AbstractMigrationExportOperationTest {
       newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.COMPLETED, List.of())
     );
 
-    operation.execute(request());
+    operation.execute(request().orchestrationMode(OrchestrationMode.DELTA));
 
     verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
     verify(extractorServiceMock).getExtractionStatus(EXTRACTION_ID);
@@ -177,6 +276,7 @@ class AbstractMigrationExportOperationTest {
     MigrationRequestDto request = request();
 
     givenFileExecution(MigrationFileExecutionStatus.PENDING, null);
+    givenPersistedExecution(request, OrchestrationMode.FULL, null, LocalDate.of(2026, Month.JANUARY, 3));
     when(extractorServiceMock.createExtraction(EXTRACTION_REQUEST)).thenReturn(accepted);
 
     IllegalStateException failure = assertThrows(
@@ -185,6 +285,7 @@ class AbstractMigrationExportOperationTest {
     );
 
     assertEquals("Extractor returned an invalid accepted extraction ID", failure.getMessage());
+    verify(extractionWindowResolverMock).resolvePersistedWindow(request);
     verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
     verify(migrationFileExecutionServiceMock).markExporting(
       eq(MIGRATION_ID), eq(FILE_TYPE), isA(LocalDateTime.class)
@@ -201,6 +302,7 @@ class AbstractMigrationExportOperationTest {
     MigrationRequestDto request = request();
 
     givenFileExecution(MigrationFileExecutionStatus.PENDING, null);
+    givenPersistedExecution(request, OrchestrationMode.FULL, null, LocalDate.of(2026, Month.JANUARY, 3));
     when(extractorServiceMock.createExtraction(EXTRACTION_REQUEST)).thenThrow(failure);
 
     assertSame(failure, assertThrows(
@@ -208,6 +310,7 @@ class AbstractMigrationExportOperationTest {
       () -> operation.execute(request)
     ));
 
+    verify(extractionWindowResolverMock).resolvePersistedWindow(request);
     verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
     verify(migrationFileExecutionServiceMock).markExporting(
       eq(MIGRATION_ID), eq(FILE_TYPE), isA(LocalDateTime.class)
@@ -424,7 +527,8 @@ class AbstractMigrationExportOperationTest {
     return new AbstractMigrationExportOperation(
       FILE_TYPE, extractorServiceMock, migrationFileExecutionServiceMock,
       new ExtractionPollingProperties(interval, timeout,
-        new Timeouts(new Defaults(Duration.ofMinutes(30), Duration.ofHours(1)), overrides))
+        new Timeouts(new Defaults(Duration.ofMinutes(30), Duration.ofHours(1)), overrides)),
+      extractionWindowResolverMock
     ) { };
   }
 
@@ -436,6 +540,15 @@ class AbstractMigrationExportOperationTest {
         .status(status)
         .extractionId(extractionId)
         .build());
+  }
+
+  private void givenPersistedExecution(MigrationRequestDto request, OrchestrationMode mode,
+                                       LocalDate from, LocalDate to) {
+    ExtractionWindow window = new ExtractionWindow(
+      from == null ? null : from.atStartOfDay().atOffset(ZoneOffset.UTC),
+      to.atStartOfDay().atOffset(ZoneOffset.UTC),
+      mode == OrchestrationMode.DELTA);
+    when(extractionWindowResolverMock.resolvePersistedWindow(request)).thenReturn(window);
   }
 
   private MigrationRequestDto request() {

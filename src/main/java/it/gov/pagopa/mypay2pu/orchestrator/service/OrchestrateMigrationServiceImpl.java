@@ -25,19 +25,22 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
   private final MigrationExecutionRepository migrationExecutionRepository;
   private final MigrationExecutionMapper migrationExecutionMapper;
   private final MigrationResponseMapper migrationResponseMapper;
+  private final ExtractionWindowResolver extractionWindowResolver;
 
   public OrchestrateMigrationServiceImpl(
     MigrationActionExecutor migrationActionExecutor,
     MigrationRequestValidator migrationRequestValidator,
     MigrationExecutionRepository migrationExecutionRepository,
     MigrationExecutionMapper migrationExecutionMapper,
-    MigrationResponseMapper migrationResponseMapper
+    MigrationResponseMapper migrationResponseMapper,
+    ExtractionWindowResolver extractionWindowResolver
   ) {
     this.migrationActionExecutor = migrationActionExecutor;
     this.migrationRequestValidator = migrationRequestValidator;
     this.migrationExecutionRepository = migrationExecutionRepository;
     this.migrationExecutionMapper = migrationExecutionMapper;
     this.migrationResponseMapper = migrationResponseMapper;
+    this.extractionWindowResolver = extractionWindowResolver;
   }
 
   @Override
@@ -46,6 +49,7 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
     MigrationAction action = request.getAction();
 
     MigrationExecution execution = actionRequest2MigrationExecution(request);
+    extractionWindowResolver.resolve(request, execution);
     execution.setStatus(MigrationExecutionStatus.RUNNING);
     MigrationExecution savedExecution = migrationExecutionRepository.save(execution);
 

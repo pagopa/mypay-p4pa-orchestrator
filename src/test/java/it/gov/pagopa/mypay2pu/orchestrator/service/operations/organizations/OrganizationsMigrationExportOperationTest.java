@@ -8,6 +8,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.ExtractorService;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
+import it.gov.pagopa.mypay2pu.orchestrator.service.ExtractionWindowResolver;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionExportService;
 import java.time.Duration;
 import java.util.UUID;
@@ -30,10 +31,12 @@ class OrganizationsMigrationExportOperationTest {
   private ExtractorService extractorServiceMock;
   @Mock
   private MigrationFileExecutionExportService fileExecutionServiceMock;
+  @Mock
+  private ExtractionWindowResolver extractionWindowResolverMock;
 
   @AfterEach
   void verifyMocks() {
-    verifyNoMoreInteractions(extractorServiceMock, fileExecutionServiceMock);
+    verifyNoMoreInteractions(extractorServiceMock, fileExecutionServiceMock, extractionWindowResolverMock);
   }
 
   @Test
@@ -42,6 +45,7 @@ class OrganizationsMigrationExportOperationTest {
     try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
       context.registerBean(ExtractorService.class, () -> extractorServiceMock);
       context.registerBean(MigrationFileExecutionExportService.class, () -> fileExecutionServiceMock);
+      context.registerBean(ExtractionWindowResolver.class, () -> extractionWindowResolverMock);
       context.registerBean(ExtractionPollingProperties.class,
         () -> new ExtractionPollingProperties(Duration.ofSeconds(10), Duration.ofMinutes(30),
           new Timeouts(new Defaults(Duration.ofMinutes(30), Duration.ofHours(1)), null)));

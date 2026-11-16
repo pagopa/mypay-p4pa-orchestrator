@@ -300,19 +300,19 @@
           },
           "fileTypesToInclude" : {
             "type" : "array",
-            "description" : "Required and non-empty for EXPORT and COMPLETE actions; must not contain both PAYMENTS_REPORTING_MYPAY and PAYMENTS_REPORTING_MYPIVOT",
+            "description" : "Required and non-empty for EXPORT and COMPLETE actions; must not contain both PAYMENTS_REPORTING_MYPAY and PAYMENTS_REPORTING_MYPIVOT. DELTA does not support ORGANIZATIONS, ORG_SIL_SERVICES, DEBT_POSITIONS_TYPE, DEBT_POSITIONS_TYPE_ORG or DEBT_POSITIONS_TYPE_ORG_OPERATORS.",
             "items" : {
               "$ref" : "#/components/schemas/MigrationFileType"
             }
           },
           "period" : {
             "$ref" : "#/components/schemas/PeriodDto",
-            "description" : "Required when orchestrationMode is FULL for EXPORT and COMPLETE actions"
+            "description" : "Required when orchestrationMode is FULL for EXPORT and COMPLETE actions. The UTC dateTo is an exclusive upper bound and defaults to the current UTC date; DELTA dateFrom, when supplied, must equal the previous checkpoint."
           },
           "migrationId" : {
             "type" : [ "string", "null" ],
             "format" : "uuid",
-            "description" : "For TRANSFER, must identify an existing completed EXPORT migration; for REJECTS_ONLY EXPORT and COMPLETE, identifies the previous migration"
+            "description" : "For TRANSFER, must identify an existing completed EXPORT migration; for DELTA and REJECTS_ONLY EXPORT and COMPLETE, identifies the previous migration"
           },
           "logicalKey" : {
             "type" : [ "string", "null" ]

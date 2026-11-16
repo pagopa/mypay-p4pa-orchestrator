@@ -18,6 +18,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.MDC;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import java.io.IOException;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -59,6 +60,28 @@ class MigrationPlanExecutorServiceTest {
     );
 
     assertEquals(Set.of(MigrationFileType.ASSESSMENTS), executed);
+  }
+
+  @Test
+  void givenDeltaRequestWhenExecuteThenTraversesUnselectedAncestorsWithOriginalContract() {
+    Set<MigrationFileType> executed = ConcurrentHashMap.newKeySet();
+    MigrationRequestDto request = request(MigrationFileType.DEBT_POSITIONS).orchestrationMode(OrchestrationMode.DELTA);
+    MigrationOperation operation = new MigrationOperation() {
+      @Override
+      public MigrationFileType getMigrationFileType() {
+        return MigrationFileType.DEBT_POSITIONS;
+      }
+
+      @Override
+      public void execute(MigrationRequestDto actual) {
+        assertSame(request, actual);
+        executed.add(getMigrationFileType());
+      }
+    };
+
+    planExecutor.execute(request, Map.of(MigrationFileType.DEBT_POSITIONS, operation));
+
+    assertEquals(Set.of(MigrationFileType.DEBT_POSITIONS), executed);
   }
 
   @Test

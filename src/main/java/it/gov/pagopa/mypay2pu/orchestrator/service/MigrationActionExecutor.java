@@ -1,10 +1,13 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.BaseBusinessException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
+import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -26,16 +29,27 @@ public class MigrationActionExecutor {
 
   @Async("orchestratorTaskExecutor")
   public CompletableFuture<Void> execute(MigrationRequestDto request, MigrationExecution execution) {
+    return executeInternal(request, execution);
+  }
+
+  private CompletableFuture<Void> executeInternal(MigrationRequestDto request, MigrationExecution execution) {
     // Operations persist file executions under the current execution, not the client-supplied migrationId.
     request.setMigrationId(execution.getId());
+    LocalDateTime previousCheckpoint = execution.getLastSuccessfulExtractionAt();
     try {
       migrationFacadeService.execute(request);
+      if ((execution.getAction() == MigrationAction.EXPORT || execution.getAction() == MigrationAction.COMPLETE)
+        && (execution.getOrchestrationMode() == OrchestrationMode.FULL
+          || execution.getOrchestrationMode() == OrchestrationMode.DELTA)) {
+        execution.setLastSuccessfulExtractionAt(execution.getDateTo().atStartOfDay());
+      }
       execution.setStatus(MigrationExecutionStatus.COMPLETED);
       execution.setFileTypeCountCompleted(execution.getFileTypes().size());
       execution.setErrorCode(null);
       execution.setErrorMsg(null);
       migrationExecutionRepository.save(execution);
     } catch (RuntimeException failure) {
+      execution.setLastSuccessfulExtractionAt(previousCheckpoint);
       execution.setStatus(MigrationExecutionStatus.FAILED);
       execution.setErrorCode(failure instanceof BaseBusinessException businessException
         ? businessException.getCode()
