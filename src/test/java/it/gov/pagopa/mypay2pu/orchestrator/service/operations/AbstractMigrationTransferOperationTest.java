@@ -2,7 +2,6 @@ package it.gov.pagopa.mypay2pu.orchestrator.service.operations;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.config.MigrationTransferProperties;
-import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.auth.PuAuthnService;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.migration.PuMigrationService;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
@@ -11,7 +10,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionTransferService;
-import it.gov.pagopa.pu.migration.dto.generated.MigrationFileTypeEnum;
+import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationTransferArchiveService;
 import it.gov.pagopa.pu.migration.dto.generated.UploadMigrationFileResponseDTO;
 import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
 import org.junit.jupiter.api.AfterEach;
@@ -49,7 +48,6 @@ class AbstractMigrationTransferOperationTest {
 
   private static final UUID MIGRATION_ID = UUID.fromString("6c4a0f25-3709-43b7-9e03-3d457c7aa14a");
   private static final LocalDateTime STARTED_AT = LocalDateTime.of(2026, Month.NOVEMBER, 11, 10, 55);
-  private static final String BROKER_IPA_CODE = "BROKER_IPA";
 
   @TempDir
   private Path extractorOutputPath;
@@ -59,8 +57,6 @@ class AbstractMigrationTransferOperationTest {
   @Mock
   private PuMigrationService puMigrationServiceMock;
   @Mock
-  private PuAuthnService puAuthnServiceMock;
-  @Mock
   private UploadMigrationFileResponseDTO uploadResponseMock;
 
   @AfterEach
@@ -68,7 +64,6 @@ class AbstractMigrationTransferOperationTest {
     verifyNoMoreInteractions(
       transferServiceMock,
       puMigrationServiceMock,
-      puAuthnServiceMock,
       uploadResponseMock
     );
   }
@@ -93,12 +88,9 @@ class AbstractMigrationTransferOperationTest {
       argThat(Objects::nonNull)
     )).thenReturn(fileExecution);
     when(uploadResponseMock.getUploadId()).thenReturn(42L);
-    when(puAuthnServiceMock.getAccessToken()).thenReturn("access-token");
     when(puMigrationServiceMock.uploadMigrationFile(
-      eq(BROKER_IPA_CODE),
-      eq(MigrationFileTypeEnum.ORGANIZATIONS),
-      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
-      eq("access-token")
+      eq(MigrationFileType.ORGANIZATIONS),
+      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists())
     )).thenReturn(uploadResponseMock);
 
     operation(MigrationFileType.ORGANIZATIONS).execute(request(List.of("ORG_IPA")));
@@ -114,12 +106,9 @@ class AbstractMigrationTransferOperationTest {
       eq(UploadsStatusEnum.UPLOADED),
       argThat(Objects::nonNull)
     );
-    verify(puAuthnServiceMock).getAccessToken();
     verify(puMigrationServiceMock).uploadMigrationFile(
-      eq(BROKER_IPA_CODE),
-      eq(MigrationFileTypeEnum.ORGANIZATIONS),
-      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
-      eq("access-token")
+      eq(MigrationFileType.ORGANIZATIONS),
+      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists())
     );
     verify(uploadResponseMock).getUploadId();
   }
@@ -180,12 +169,9 @@ class AbstractMigrationTransferOperationTest {
       argThat(Objects::nonNull)
     )).thenReturn(fileExecution);
     when(uploadResponseMock.getUploadId()).thenReturn(42L);
-    when(puAuthnServiceMock.getAccessToken()).thenReturn("access-token");
     when(puMigrationServiceMock.uploadMigrationFile(
-      eq(BROKER_IPA_CODE),
-      eq(MigrationFileTypeEnum.PAYMENTS_REPORTING),
-      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
-      eq("access-token")
+      eq(MigrationFileType.PAYMENTS_REPORTING_MYPAY),
+      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists())
     )).thenReturn(uploadResponseMock);
 
     operation(MigrationFileType.PAYMENTS_REPORTING_MYPAY)
@@ -202,12 +188,9 @@ class AbstractMigrationTransferOperationTest {
       eq(UploadsStatusEnum.UPLOADED),
       argThat(Objects::nonNull)
     );
-    verify(puAuthnServiceMock).getAccessToken();
     verify(puMigrationServiceMock).uploadMigrationFile(
-      eq(BROKER_IPA_CODE),
-      eq(MigrationFileTypeEnum.PAYMENTS_REPORTING),
-      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
-      eq("access-token")
+      eq(MigrationFileType.PAYMENTS_REPORTING_MYPAY),
+      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists())
     );
     verify(uploadResponseMock).getUploadId();
   }
@@ -243,12 +226,9 @@ class AbstractMigrationTransferOperationTest {
       "PU returned no valid upload ID for migration %s and file type ORGANIZATIONS".formatted(MIGRATION_ID)
     )).thenReturn(fileExecution);
     when(uploadResponseMock.getUploadId()).thenReturn(null);
-    when(puAuthnServiceMock.getAccessToken()).thenReturn("access-token");
     when(puMigrationServiceMock.uploadMigrationFile(
-      eq(BROKER_IPA_CODE),
-      eq(MigrationFileTypeEnum.ORGANIZATIONS),
-      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
-      eq("access-token")
+      eq(MigrationFileType.ORGANIZATIONS),
+      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists())
     )).thenReturn(uploadResponseMock);
 
     AbstractMigrationTransferOperation transferOperation = operation(MigrationFileType.ORGANIZATIONS);
@@ -269,12 +249,9 @@ class AbstractMigrationTransferOperationTest {
       "TRANSFER_INVALID_UPLOAD_RESPONSE",
       "PU returned no valid upload ID for migration %s and file type ORGANIZATIONS".formatted(MIGRATION_ID)
     );
-    verify(puAuthnServiceMock).getAccessToken();
     verify(puMigrationServiceMock).uploadMigrationFile(
-      eq(BROKER_IPA_CODE),
-      eq(MigrationFileTypeEnum.ORGANIZATIONS),
-      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
-      eq("access-token")
+      eq(MigrationFileType.ORGANIZATIONS),
+      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists())
     );
     verify(uploadResponseMock).getUploadId();
   }
@@ -419,51 +396,20 @@ class AbstractMigrationTransferOperationTest {
   }
 
   @ParameterizedTest
-  @MethodSource("supportedFileTypeMappings")
+  @EnumSource(MigrationFileType.class)
   void givenSupportedFileTypeWhenExecuteThenUploadsMappedPuFileType(
-    MigrationFileType fileType,
-    MigrationFileTypeEnum expectedPuFileType
+    MigrationFileType fileType
   ) throws IOException {
     String dataArchive = "data.zip";
     MigrationFileExecution fileExecution = exportedExecution(fileType, dataArchive);
     createArchive(fileExecution, dataArchive);
-    stubSuccessfulUpload(fileExecution, fileType, expectedPuFileType, dataArchive);
+    stubSuccessfulUpload(fileExecution, fileType, dataArchive);
 
     AbstractMigrationTransferOperation transferOperation = operation(fileType);
     assertEquals(fileType, transferOperation.getMigrationFileType());
     transferOperation.execute(request(List.of("ORG_IPA")));
 
-    verifySuccessfulUpload(fileType, expectedPuFileType, dataArchive);
-  }
-
-  @Test
-  void givenMissingBrokerIpaCodeWhenExecuteThenPersistsTransferFailure() throws IOException {
-    String dataArchive = "organizations.zip";
-    MigrationFileExecution fileExecution = exportedExecution(MigrationFileType.ORGANIZATIONS, dataArchive);
-    createArchive(fileExecution, dataArchive);
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
-    when(transferServiceMock.markTransferFailed(
-      MIGRATION_ID,
-      MigrationFileType.ORGANIZATIONS,
-      "TRANSFER_BROKER_IPA_CODE_MISSING",
-      "Broker IPA code is not configured"
-    )).thenReturn(fileExecution);
-
-    AbstractMigrationTransferOperation transferOperation = operation(MigrationFileType.ORGANIZATIONS, " ");
-    MigrationRequestDto migrationRequest = request(List.of("ORG_IPA"));
-    InvalidValueException exception = assertThrows(
-      InvalidValueException.class,
-      () -> transferOperation.execute(migrationRequest)
-    );
-
-    assertEquals("TRANSFER_BROKER_IPA_CODE_MISSING", exception.getCode());
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
-    verify(transferServiceMock).markTransferFailed(
-      MIGRATION_ID,
-      MigrationFileType.ORGANIZATIONS,
-      "TRANSFER_BROKER_IPA_CODE_MISSING",
-      "Broker IPA code is not configured"
-    );
+    verifySuccessfulUpload(fileType, dataArchive);
   }
 
   @Test
@@ -479,12 +425,9 @@ class AbstractMigrationTransferOperationTest {
       eq("TRANSFER_INVALID_UPLOAD_RESPONSE"),
       argThat(Objects::nonNull)
     )).thenReturn(fileExecution);
-    when(puAuthnServiceMock.getAccessToken()).thenReturn("access-token");
     when(puMigrationServiceMock.uploadMigrationFile(
-      eq(BROKER_IPA_CODE),
-      eq(MigrationFileTypeEnum.ORGANIZATIONS),
-      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
-      eq("access-token")
+      eq(MigrationFileType.ORGANIZATIONS),
+      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists())
     )).thenReturn(null);
 
     AbstractMigrationTransferOperation transferOperation = operation(MigrationFileType.ORGANIZATIONS);
@@ -503,12 +446,9 @@ class AbstractMigrationTransferOperationTest {
       eq("TRANSFER_INVALID_UPLOAD_RESPONSE"),
       argThat(Objects::nonNull)
     );
-    verify(puAuthnServiceMock).getAccessToken();
     verify(puMigrationServiceMock).uploadMigrationFile(
-      eq(BROKER_IPA_CODE),
-      eq(MigrationFileTypeEnum.ORGANIZATIONS),
-      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
-      eq("access-token")
+      eq(MigrationFileType.ORGANIZATIONS),
+      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists())
     );
   }
 
@@ -527,12 +467,9 @@ class AbstractMigrationTransferOperationTest {
       argThat(Objects::nonNull)
     )).thenReturn(fileExecution);
     when(uploadResponseMock.getUploadId()).thenReturn(uploadId);
-    when(puAuthnServiceMock.getAccessToken()).thenReturn("access-token");
     when(puMigrationServiceMock.uploadMigrationFile(
-      eq(BROKER_IPA_CODE),
-      eq(MigrationFileTypeEnum.ORGANIZATIONS),
-      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
-      eq("access-token")
+      eq(MigrationFileType.ORGANIZATIONS),
+      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists())
     )).thenReturn(uploadResponseMock);
 
     AbstractMigrationTransferOperation transferOperation = operation(MigrationFileType.ORGANIZATIONS);
@@ -551,12 +488,9 @@ class AbstractMigrationTransferOperationTest {
       eq("TRANSFER_INVALID_UPLOAD_RESPONSE"),
       argThat(Objects::nonNull)
     );
-    verify(puAuthnServiceMock).getAccessToken();
     verify(puMigrationServiceMock).uploadMigrationFile(
-      eq(BROKER_IPA_CODE),
-      eq(MigrationFileTypeEnum.ORGANIZATIONS),
-      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
-      eq("access-token")
+      eq(MigrationFileType.ORGANIZATIONS),
+      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists())
     );
     verify(uploadResponseMock).getUploadId();
   }
@@ -581,12 +515,9 @@ class AbstractMigrationTransferOperationTest {
       "TOO_MANY_REQUESTS",
       tooManyRequests.getMessage()
     )).thenReturn(fileExecution);
-    when(puAuthnServiceMock.getAccessToken()).thenReturn("access-token");
     when(puMigrationServiceMock.uploadMigrationFile(
-      eq(BROKER_IPA_CODE),
-      eq(MigrationFileTypeEnum.ORGANIZATIONS),
-      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
-      eq("access-token")
+      eq(MigrationFileType.ORGANIZATIONS),
+      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists())
     )).thenThrow(tooManyRequests);
 
     AbstractMigrationTransferOperation transferOperation = operation(MigrationFileType.ORGANIZATIONS);
@@ -605,12 +536,9 @@ class AbstractMigrationTransferOperationTest {
       "TOO_MANY_REQUESTS",
       tooManyRequests.getMessage()
     );
-    verify(puAuthnServiceMock).getAccessToken();
     verify(puMigrationServiceMock).uploadMigrationFile(
-      eq(BROKER_IPA_CODE),
-      eq(MigrationFileTypeEnum.ORGANIZATIONS),
-      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
-      eq("access-token")
+      eq(MigrationFileType.ORGANIZATIONS),
+      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists())
     );
   }
 
@@ -630,12 +558,9 @@ class AbstractMigrationTransferOperationTest {
       "TRANSFER_FAILED",
       "IllegalStateException"
     )).thenThrow(persistenceFailure);
-    when(puAuthnServiceMock.getAccessToken()).thenReturn("access-token");
     when(puMigrationServiceMock.uploadMigrationFile(
-      eq(BROKER_IPA_CODE),
-      eq(MigrationFileTypeEnum.ORGANIZATIONS),
-      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
-      eq("access-token")
+      eq(MigrationFileType.ORGANIZATIONS),
+      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists())
     )).thenThrow(uploadFailure);
 
     AbstractMigrationTransferOperation transferOperation = operation(MigrationFileType.ORGANIZATIONS);
@@ -656,12 +581,9 @@ class AbstractMigrationTransferOperationTest {
       "TRANSFER_FAILED",
       "IllegalStateException"
     );
-    verify(puAuthnServiceMock).getAccessToken();
     verify(puMigrationServiceMock).uploadMigrationFile(
-      eq(BROKER_IPA_CODE),
-      eq(MigrationFileTypeEnum.ORGANIZATIONS),
-      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
-      eq("access-token")
+      eq(MigrationFileType.ORGANIZATIONS),
+      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists())
     );
   }
 
@@ -680,31 +602,9 @@ class AbstractMigrationTransferOperationTest {
     );
   }
 
-  private static Stream<Arguments> supportedFileTypeMappings() {
-    return Stream.of(
-      Arguments.of(MigrationFileType.ORGANIZATIONS, MigrationFileTypeEnum.ORGANIZATIONS),
-      Arguments.of(MigrationFileType.ORG_SIL_SERVICES, MigrationFileTypeEnum.ORG_SIL_SERVICES),
-      Arguments.of(MigrationFileType.DEBT_POSITIONS_TYPE, MigrationFileTypeEnum.DEBT_POSITIONS_TYPE),
-      Arguments.of(MigrationFileType.DEBT_POSITIONS_TYPE_ORG, MigrationFileTypeEnum.DEBT_POSITIONS_TYPE_ORG),
-      Arguments.of(
-        MigrationFileType.DEBT_POSITIONS_TYPE_ORG_OPERATORS,
-        MigrationFileTypeEnum.DEBT_POSITIONS_TYPE_ORG_OPERATORS
-      ),
-      Arguments.of(MigrationFileType.DEBT_POSITIONS, MigrationFileTypeEnum.DEBT_POSITIONS),
-      Arguments.of(MigrationFileType.DEBT_POSITIONS_PAID, MigrationFileTypeEnum.DEBT_POSITIONS_PAID),
-      Arguments.of(MigrationFileType.PAYMENT_NOTIFICATION, MigrationFileTypeEnum.PAYMENT_NOTIFICATION),
-      Arguments.of(MigrationFileType.PAYMENTS_REPORTING_MYPAY, MigrationFileTypeEnum.PAYMENTS_REPORTING),
-      Arguments.of(MigrationFileType.PAYMENTS_REPORTING_MYPIVOT, MigrationFileTypeEnum.PAYMENTS_REPORTING),
-      Arguments.of(MigrationFileType.TREASURY_CSV_COMPLETE, MigrationFileTypeEnum.TREASURY_CSV_COMPLETE),
-      Arguments.of(MigrationFileType.ASSESSMENTS, MigrationFileTypeEnum.ASSESSMENTS),
-      Arguments.of(MigrationFileType.ASSESSMENTS_REGISTRY, MigrationFileTypeEnum.ASSESSMENTS_REGISTRY)
-    );
-  }
-
   private void stubSuccessfulUpload(
     MigrationFileExecution fileExecution,
     MigrationFileType fileType,
-    MigrationFileTypeEnum puFileType,
     String dataArchive
   ) {
     when(transferServiceMock.getRequired(MIGRATION_ID, fileType)).thenReturn(fileExecution);
@@ -717,18 +617,14 @@ class AbstractMigrationTransferOperationTest {
       argThat(Objects::nonNull)
     )).thenReturn(fileExecution);
     when(uploadResponseMock.getUploadId()).thenReturn(42L);
-    when(puAuthnServiceMock.getAccessToken()).thenReturn("access-token");
     when(puMigrationServiceMock.uploadMigrationFile(
-      eq(BROKER_IPA_CODE),
-      eq(puFileType),
-      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
-      eq("access-token")
+      eq(fileType),
+      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists())
     )).thenReturn(uploadResponseMock);
   }
 
   private void verifySuccessfulUpload(
     MigrationFileType fileType,
-    MigrationFileTypeEnum puFileType,
     String dataArchive
   ) {
     verify(transferServiceMock).getRequired(MIGRATION_ID, fileType);
@@ -740,12 +636,9 @@ class AbstractMigrationTransferOperationTest {
       eq(UploadsStatusEnum.UPLOADED),
       argThat(Objects::nonNull)
     );
-    verify(puAuthnServiceMock).getAccessToken();
     verify(puMigrationServiceMock).uploadMigrationFile(
-      eq(BROKER_IPA_CODE),
-      eq(puFileType),
-      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists()),
-      eq("access-token")
+      eq(fileType),
+      argThat(resource -> dataArchive.equals(resource.getFilename()) && resource.exists())
     );
     verify(uploadResponseMock).getUploadId();
   }
@@ -763,19 +656,13 @@ class AbstractMigrationTransferOperationTest {
   }
 
   private AbstractMigrationTransferOperation operation(MigrationFileType fileType) {
-    return operation(fileType, BROKER_IPA_CODE);
-  }
-
-  private AbstractMigrationTransferOperation operation(MigrationFileType fileType, String brokerIpaCode) {
     return new AbstractMigrationTransferOperation(
       fileType,
       transferServiceMock,
-      puMigrationServiceMock,
-      puAuthnServiceMock,
-      new MigrationTransferProperties(
-        new MigrationTransferProperties.Storage(extractorOutputPath.toString()),
-        new MigrationTransferProperties.Transfer(brokerIpaCode)
-      )
+      new MigrationTransferArchiveService(
+        new MigrationTransferProperties(new MigrationTransferProperties.Storage(extractorOutputPath.toString()))
+      ),
+      puMigrationServiceMock
     ) { };
   }
 

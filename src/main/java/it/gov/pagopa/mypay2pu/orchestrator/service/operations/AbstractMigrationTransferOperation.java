@@ -1,30 +1,22 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service.operations;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
-import it.gov.pagopa.mypay2pu.orchestrator.config.MigrationTransferProperties;
-import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.auth.PuAuthnService;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.migration.PuMigrationService;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.BaseBusinessException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.NotFoundException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionTransferService;
-import it.gov.pagopa.pu.migration.dto.generated.MigrationFileTypeEnum;
+import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationTransferArchiveService;
 import it.gov.pagopa.pu.migration.dto.generated.UploadMigrationFileResponseDTO;
 import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.web.client.HttpClientErrorException;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -40,26 +32,19 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
 
   private final MigrationFileType fileType;
   private final MigrationFileExecutionTransferService transferService;
+  private final MigrationTransferArchiveService archiveService;
   private final PuMigrationService puMigrationService;
-  private final PuAuthnService puAuthnService;
-  private final Path extractorOutputPath;
-  private final String brokerIpaCode;
 
   protected AbstractMigrationTransferOperation(
     MigrationFileType fileType,
     MigrationFileExecutionTransferService transferService,
-    PuMigrationService puMigrationService,
-    PuAuthnService puAuthnService,
-    MigrationTransferProperties transferProperties
+    MigrationTransferArchiveService archiveService,
+    PuMigrationService puMigrationService
   ) {
     this.fileType = Objects.requireNonNull(fileType, "fileType");
     this.transferService = Objects.requireNonNull(transferService, "transferService");
+    this.archiveService = Objects.requireNonNull(archiveService, "archiveService");
     this.puMigrationService = Objects.requireNonNull(puMigrationService, "puMigrationService");
-    this.puAuthnService = Objects.requireNonNull(puAuthnService, "puAuthnService");
-    this.extractorOutputPath = Path.of(transferProperties.storage().extractorOutputPath())
-      .toAbsolutePath()
-      .normalize();
-    this.brokerIpaCode = transferProperties.transfer().brokerIpaCode();
   }
 
   @Override
@@ -103,12 +88,8 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
   private void uploadExportedFile(MigrationRequestDto request, MigrationFileExecution fileExecution) {
     UUID migrationId = request.getMigrationId();
     Resource archive;
-    String orgIpaCode;
-    MigrationFileTypeEnum puFileType;
     try {
-      archive = dataArchive(fileExecution);
-      orgIpaCode = brokerIpaCodeForUpload();
-      puFileType = puFileType();
+      archive = archiveService.getDataArchive(fileExecution, fileType);
     } catch (RuntimeException failure) {
       markTransferFailed(migrationId, failure);
       throw failure;
@@ -117,10 +98,8 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
     transferService.markTransferring(migrationId, fileType, LocalDateTime.now(ZoneOffset.UTC));
     try {
       UploadMigrationFileResponseDTO response = puMigrationService.uploadMigrationFile(
-        orgIpaCode,
-        puFileType,
-        archive,
-        puAuthnService.getAccessToken()
+        fileType,
+        archive
       );
       Long uploadId = response == null ? null : response.getUploadId();
       if (uploadId == null || uploadId <= 0) {
@@ -140,89 +119,6 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
       markTransferFailed(migrationId, failure);
       throw failure;
     }
-  }
-
-  private Resource dataArchive(MigrationFileExecution fileExecution) {
-    String filePath = fileExecution.getFilePath();
-    if (filePath == null || filePath.isBlank()) {
-      throw new NotFoundException(
-        "TRANSFER_ARCHIVE_NOT_FOUND",
-        "No exported archive is available for migration %s and file type %s"
-          .formatted(fileExecution.getMigrationId(), fileType)
-      );
-    }
-
-    List<String> archives = List.of(filePath.split(",")).stream()
-      .map(String::trim)
-      .filter(name -> !name.isEmpty())
-      .filter(name -> !name.toLowerCase(Locale.ROOT).endsWith(".errors.zip"))
-      .toList();
-    if (archives.isEmpty()) {
-      throw new NotFoundException(
-        "TRANSFER_ARCHIVE_NOT_FOUND",
-        "No data archive is available for migration %s and file type %s"
-          .formatted(fileExecution.getMigrationId(), fileType)
-      );
-    }
-    if (archives.size() != 1) {
-      throw new InvalidValueException(
-        "TRANSFER_MULTIPLE_ARCHIVES_NOT_SUPPORTED",
-        "Expected one data archive for migration %s and file type %s, found %d"
-          .formatted(fileExecution.getMigrationId(), fileType, archives.size())
-      );
-    }
-
-    String extractionId = fileExecution.getExtractionId();
-    if (extractionId == null || extractionId.isBlank()
-      || extractionId.contains("/") || extractionId.contains("\\")
-      || ".".equals(extractionId) || "..".equals(extractionId)) {
-      throw new InvalidValueException(
-        "TRANSFER_EXTRACTION_ID_INVALID",
-        "A valid extraction ID is required to locate the archive for migration %s and file type %s"
-          .formatted(fileExecution.getMigrationId(), fileType)
-      );
-    }
-
-    Path extractionDirectory = extractorOutputPath.resolve(extractionId).normalize();
-    Path archivePath = extractionDirectory.resolve(archives.getFirst()).normalize();
-    boolean withinExpectedDirectory = extractionDirectory.startsWith(extractorOutputPath)
-      && archivePath.startsWith(extractionDirectory);
-    boolean regularFile = withinExpectedDirectory && Files.isRegularFile(archivePath);
-    boolean readable = withinExpectedDirectory && Files.isReadable(archivePath);
-    if (!withinExpectedDirectory || !regularFile || !readable) {
-      throw new NotFoundException(
-        "TRANSFER_ARCHIVE_NOT_FOUND",
-        "Exported archive %s is missing or unreadable".formatted(archives.getFirst())
-      );
-    }
-    return new FileSystemResource(archivePath);
-  }
-
-  private String brokerIpaCodeForUpload() {
-    if (brokerIpaCode == null || brokerIpaCode.isBlank()) {
-      throw new InvalidValueException(
-        "TRANSFER_BROKER_IPA_CODE_MISSING",
-        "Broker IPA code is not configured"
-      );
-    }
-    return brokerIpaCode;
-  }
-
-  private MigrationFileTypeEnum puFileType() {
-    return switch (fileType) {
-      case ORGANIZATIONS -> MigrationFileTypeEnum.ORGANIZATIONS;
-      case ORG_SIL_SERVICES -> MigrationFileTypeEnum.ORG_SIL_SERVICES;
-      case DEBT_POSITIONS_TYPE -> MigrationFileTypeEnum.DEBT_POSITIONS_TYPE;
-      case DEBT_POSITIONS_TYPE_ORG -> MigrationFileTypeEnum.DEBT_POSITIONS_TYPE_ORG;
-      case DEBT_POSITIONS_TYPE_ORG_OPERATORS -> MigrationFileTypeEnum.DEBT_POSITIONS_TYPE_ORG_OPERATORS;
-      case DEBT_POSITIONS -> MigrationFileTypeEnum.DEBT_POSITIONS;
-      case DEBT_POSITIONS_PAID -> MigrationFileTypeEnum.DEBT_POSITIONS_PAID;
-      case PAYMENT_NOTIFICATION -> MigrationFileTypeEnum.PAYMENT_NOTIFICATION;
-      case PAYMENTS_REPORTING_MYPAY, PAYMENTS_REPORTING_MYPIVOT -> MigrationFileTypeEnum.PAYMENTS_REPORTING;
-      case TREASURY_CSV_COMPLETE -> MigrationFileTypeEnum.TREASURY_CSV_COMPLETE;
-      case ASSESSMENTS -> MigrationFileTypeEnum.ASSESSMENTS;
-      case ASSESSMENTS_REGISTRY -> MigrationFileTypeEnum.ASSESSMENTS_REGISTRY;
-    };
   }
 
   private void markTransferFailed(UUID migrationId, RuntimeException failure) {

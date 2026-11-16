@@ -1,8 +1,13 @@
 package it.gov.pagopa.mypay2pu.orchestrator.connector.pu.migration.client;
 
-import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.migration.config.PuMigrationApisHolder;
+import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.auth.PuAuthnService;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.migration.PuMigrationService;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.migration.PuMigrationServiceImpl;
+import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.migration.config.PuMigrationApiClientConfig;
+import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.migration.config.PuMigrationApisHolder;
+import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.migration.mapper.PuMigrationFileTypeMapper;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.pu.migration.controller.generated.MigrationFileApi;
 import it.gov.pagopa.pu.migration.dto.generated.MigrationFileTypeEnum;
 import it.gov.pagopa.pu.migration.dto.generated.UploadDetails;
@@ -32,12 +37,16 @@ class PuMigrationClientTest {
   private MigrationFileApi migrationApiMock;
   @Mock
   private PuMigrationFileClient puMigrationFileClientMock;
+  @Mock
+  private PuAuthnService puAuthnServiceMock;
 
   private PuMigrationFileClient puMigrationFileClient;
+  private PuMigrationFileTypeMapper puMigrationFileTypeMapper;
 
   @BeforeEach
   void setUp() {
     puMigrationFileClient = new PuMigrationFileClient(puMigrationApisHolderMock);
+    puMigrationFileTypeMapper = new PuMigrationFileTypeMapper();
   }
 
   @AfterEach
@@ -45,7 +54,8 @@ class PuMigrationClientTest {
     Mockito.verifyNoMoreInteractions(
       puMigrationApisHolderMock,
       migrationApiMock,
-      puMigrationFileClientMock
+      puMigrationFileClientMock,
+      puAuthnServiceMock
     );
   }
 
@@ -129,25 +139,25 @@ class PuMigrationClientTest {
   }
 
   @Test
-  void whenServiceUploadsMigrationFileThenInvokeClient() {
+  void givenFileTypeWhenServiceUploadsMigrationFileThenInvokeClientWithMappedType() {
     String orgIpaCode = "orgIpaCode";
-    MigrationFileTypeEnum fileType = MigrationFileTypeEnum.ORGANIZATIONS;
     Resource file = new ByteArrayResource(new byte[] {1, 2, 3});
     String accessToken = "accessToken";
     UploadMigrationFileResponseDTO expectedResponse =
       new UploadMigrationFileResponseDTO(123L, "workflowId", "runId");
     Mockito.when(puMigrationFileClientMock.uploadMigrationFile(
-      orgIpaCode, fileType, file, accessToken
+      orgIpaCode, MigrationFileTypeEnum.ORGANIZATIONS, file, accessToken
     )).thenReturn(expectedResponse);
-    PuMigrationService service = new PuMigrationServiceImpl(puMigrationFileClientMock);
+    PuMigrationService service = migrationService(orgIpaCode);
 
     UploadMigrationFileResponseDTO response =
-      service.uploadMigrationFile(orgIpaCode, fileType, file, accessToken);
+      service.uploadMigrationFile(MigrationFileType.ORGANIZATIONS, file);
 
     Assertions.assertSame(expectedResponse, response);
     Mockito.verify(puMigrationFileClientMock).uploadMigrationFile(
-      orgIpaCode, fileType, file, accessToken
+      orgIpaCode, MigrationFileTypeEnum.ORGANIZATIONS, file, accessToken
     );
+    Mockito.verify(puAuthnServiceMock).getAccessToken();
   }
 
   @Test
@@ -159,14 +169,15 @@ class PuMigrationClientTest {
     Mockito.when(puMigrationFileClientMock.getMigrationUpload(
       orgIpaCode, uploadId, accessToken
     )).thenReturn(expectedResponse);
-    PuMigrationService service = new PuMigrationServiceImpl(puMigrationFileClientMock);
+    PuMigrationService service = migrationService(orgIpaCode);
 
-    Uploads response = service.getMigrationUpload(orgIpaCode, uploadId, accessToken);
+    Uploads response = service.getMigrationUpload(uploadId);
 
     Assertions.assertSame(expectedResponse, response);
     Mockito.verify(puMigrationFileClientMock).getMigrationUpload(
       orgIpaCode, uploadId, accessToken
     );
+    Mockito.verify(puAuthnServiceMock).getAccessToken();
   }
 
   @Test
@@ -178,15 +189,16 @@ class PuMigrationClientTest {
     Mockito.when(puMigrationFileClientMock.getMigrationUploadDetails(
       orgIpaCode, uploadId, accessToken
     )).thenReturn(expectedResponse);
-    PuMigrationService service = new PuMigrationServiceImpl(puMigrationFileClientMock);
+    PuMigrationService service = migrationService(orgIpaCode);
 
     List<UploadDetails> response =
-      service.getMigrationUploadDetails(orgIpaCode, uploadId, accessToken);
+      service.getMigrationUploadDetails(uploadId);
 
     Assertions.assertSame(expectedResponse, response);
     Mockito.verify(puMigrationFileClientMock).getMigrationUploadDetails(
       orgIpaCode, uploadId, accessToken
     );
+    Mockito.verify(puAuthnServiceMock).getAccessToken();
   }
 
   @Test
@@ -198,13 +210,49 @@ class PuMigrationClientTest {
     Mockito.when(puMigrationFileClientMock.getMigrationErrors(
       orgIpaCode, uploadId, accessToken
     )).thenReturn(expectedResponse);
-    PuMigrationService service = new PuMigrationServiceImpl(puMigrationFileClientMock);
+    PuMigrationService service = migrationService(orgIpaCode);
 
-    Resource response = service.getMigrationErrors(orgIpaCode, uploadId, accessToken);
+    Resource response = service.getMigrationErrors(uploadId);
 
     Assertions.assertSame(expectedResponse, response);
     Mockito.verify(puMigrationFileClientMock).getMigrationErrors(
       orgIpaCode, uploadId, accessToken
     );
+    Mockito.verify(puAuthnServiceMock).getAccessToken();
   }
+
+  @Test
+  void givenBlankBrokerIpaCodeWhenUploadMigrationFileThenThrowsInvalidValueException() {
+    PuMigrationService service = new PuMigrationServiceImpl(
+      puMigrationFileClientMock, migrationConfig(" "), puAuthnServiceMock, puMigrationFileTypeMapper
+    );
+    Resource archive = new ByteArrayResource(new byte[] {1});
+
+    InvalidValueException exception = Assertions.assertThrows(
+      InvalidValueException.class,
+      () -> service.uploadMigrationFile(
+        MigrationFileType.ORGANIZATIONS,
+        archive
+      )
+    );
+
+    Assertions.assertEquals("TRANSFER_BROKER_IPA_CODE_MISSING", exception.getCode());
+  }
+
+  private static PuMigrationApiClientConfig migrationConfig(String brokerIpaCode) {
+    return PuMigrationApiClientConfig.builder()
+      .brokerIpaCode(brokerIpaCode)
+      .build();
+  }
+
+  private PuMigrationService migrationService(String brokerIpaCode) {
+    Mockito.when(puAuthnServiceMock.getAccessToken()).thenReturn(ACCESS_TOKEN);
+    return new PuMigrationServiceImpl(
+      puMigrationFileClientMock,
+      migrationConfig(brokerIpaCode),
+      puAuthnServiceMock,
+      puMigrationFileTypeMapper
+    );
+  }
+
 }
