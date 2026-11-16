@@ -1,5 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
+import io.micrometer.tracing.Tracer;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
@@ -60,7 +61,7 @@ class MigrationFacadeServiceTest {
       "debtPositionsTransfer", debtPositionsTransferMock
     ));
 
-    facade = new MigrationFacadeService(new MigrationPlanExecutorService(), applicationContextMock);
+    facade = new MigrationFacadeService(new MigrationPlanExecutorService(Tracer.NOOP), applicationContextMock);
   }
 
   @AfterEach

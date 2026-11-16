@@ -1,5 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
+import io.micrometer.tracing.CurrentTraceContext;
+import io.micrometer.tracing.Tracer;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationOperation;
@@ -17,6 +19,12 @@ import java.util.function.Function;
 @Service
 public class MigrationPlanExecutorService {
   private static final MigrationFileType PLAN_ROOT = MigrationFileType.DEBT_POSITIONS_TYPE;
+
+  private final CurrentTraceContext currentTraceContext;
+
+  public MigrationPlanExecutorService(Tracer tracer) {
+    this.currentTraceContext = tracer.currentTraceContext();
+  }
 
   static final Map<MigrationFileType, Set<MigrationFileType>> MIGRATION_PLAN = Map.ofEntries(
     Map.entry(PLAN_ROOT, Set.of(
@@ -50,7 +58,7 @@ public class MigrationPlanExecutorService {
         PLAN_ROOT,
         selectedFileTypes,
         operationMap,
-        task -> executor.execute(ThreadUtils.configureThreadContext(task))
+        task -> executor.execute(ThreadUtils.configureThreadContext(task, currentTraceContext))
       ).join();
     } catch (CompletionException exception) {
       if (exception.getCause() instanceof RuntimeException cause) {

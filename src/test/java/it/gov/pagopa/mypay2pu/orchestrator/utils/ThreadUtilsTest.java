@@ -1,5 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.utils;
 
+import io.micrometer.tracing.Tracer;
 import java.util.Map;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -25,7 +26,7 @@ class ThreadUtilsTest {
         if (fail) {
           throw failure;
         }
-      });
+      }, Tracer.NOOP.currentTraceContext());
       MDC.setContextMap(Map.of("traceId", "worker"));
       if (fail) {
         assertSame(failure, assertThrows(IllegalStateException.class, task::run));
@@ -36,7 +37,7 @@ class ThreadUtilsTest {
 
       MDC.clear();
       Runnable noContextTask = ThreadUtils.configureThreadContext(
-        () -> assertNull(MDC.getCopyOfContextMap()));
+        () -> assertNull(MDC.getCopyOfContextMap()), Tracer.NOOP.currentTraceContext());
       MDC.put("traceId", "worker");
       noContextTask.run();
       assertEquals(Map.of("traceId", "worker"), MDC.getCopyOfContextMap());
