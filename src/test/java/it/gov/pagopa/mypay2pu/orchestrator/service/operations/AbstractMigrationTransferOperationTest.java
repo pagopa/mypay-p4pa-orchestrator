@@ -10,7 +10,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionTransferService;
-import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationTransferArchiveService;
+import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationToolkitSharedFolderService;
 import it.gov.pagopa.pu.migration.dto.generated.UploadMigrationFileResponseDTO;
 import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
 import org.junit.jupiter.api.AfterEach;
@@ -496,7 +496,7 @@ class AbstractMigrationTransferOperationTest {
   }
 
   @Test
-  void givenTooManyRequestsWhenExecuteThenPersistsSpecificFailureCode() throws IOException {
+  void givenTooManyRequestsWhenExecuteThenPersistsGenericFailureCode() throws IOException {
     String dataArchive = "organizations.zip";
     MigrationFileExecution fileExecution = exportedExecution(MigrationFileType.ORGANIZATIONS, dataArchive);
     createArchive(fileExecution, dataArchive);
@@ -512,7 +512,7 @@ class AbstractMigrationTransferOperationTest {
     when(transferServiceMock.markTransferFailed(
       MIGRATION_ID,
       MigrationFileType.ORGANIZATIONS,
-      "TOO_MANY_REQUESTS",
+      "TRANSFER_FAILED",
       tooManyRequests.getMessage()
     )).thenReturn(fileExecution);
     when(puMigrationServiceMock.uploadMigrationFile(
@@ -533,7 +533,7 @@ class AbstractMigrationTransferOperationTest {
     verify(transferServiceMock).markTransferFailed(
       MIGRATION_ID,
       MigrationFileType.ORGANIZATIONS,
-      "TOO_MANY_REQUESTS",
+      "TRANSFER_FAILED",
       tooManyRequests.getMessage()
     );
     verify(puMigrationServiceMock).uploadMigrationFile(
@@ -659,7 +659,7 @@ class AbstractMigrationTransferOperationTest {
     return new AbstractMigrationTransferOperation(
       fileType,
       transferServiceMock,
-      new MigrationTransferArchiveService(
+      new MigrationToolkitSharedFolderService(
         new MigrationTransferProperties(new MigrationTransferProperties.Storage(extractorOutputPath.toString()))
       ),
       puMigrationServiceMock

@@ -5,6 +5,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.config.MigrationTransferProperties;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.NotFoundException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -15,19 +16,25 @@ import java.util.List;
 import java.util.Locale;
 
 @Service
-public class MigrationTransferArchiveService {
+public class MigrationToolkitSharedFolderService {
 
   private final Path extractorOutputPath;
 
-  public MigrationTransferArchiveService(MigrationTransferProperties transferProperties) {
+  public MigrationToolkitSharedFolderService(MigrationTransferProperties transferProperties) {
     this.extractorOutputPath = Path.of(transferProperties.storage().extractorOutputPath())
       .toAbsolutePath()
       .normalize();
+    if (!Files.isDirectory(extractorOutputPath)) {
+      throw new InvalidValueException(
+        "TRANSFER_SHARED_FOLDER_INVALID",
+        "Extractor output path %s does not exist or is not a directory".formatted(extractorOutputPath)
+      );
+    }
   }
 
   public Resource getDataArchive(MigrationFileExecution fileExecution, MigrationFileType fileType) {
     String filePath = fileExecution.getFilePath();
-    if (filePath == null || filePath.isBlank()) {
+    if (StringUtils.isBlank(filePath)) {
       throw new NotFoundException(
         "TRANSFER_ARCHIVE_NOT_FOUND",
         "No exported archive is available for migration %s and file type %s"
@@ -56,7 +63,7 @@ public class MigrationTransferArchiveService {
     }
 
     String extractionId = fileExecution.getExtractionId();
-    if (extractionId == null || extractionId.isBlank()
+    if (StringUtils.isBlank(extractionId)
       || extractionId.contains("/") || extractionId.contains("\\")
       || ".".equals(extractionId) || "..".equals(extractionId)) {
       throw new InvalidValueException(

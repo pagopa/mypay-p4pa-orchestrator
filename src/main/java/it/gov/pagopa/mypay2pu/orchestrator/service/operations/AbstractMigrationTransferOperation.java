@@ -9,11 +9,11 @@ import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionTransferService;
-import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationTransferArchiveService;
+import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationToolkitSharedFolderService;
 import it.gov.pagopa.pu.migration.dto.generated.UploadMigrationFileResponseDTO;
 import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.core.io.Resource;
-import org.springframework.web.client.HttpClientErrorException;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -32,13 +32,13 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
 
   private final MigrationFileType fileType;
   private final MigrationFileExecutionTransferService transferService;
-  private final MigrationTransferArchiveService archiveService;
+  private final MigrationToolkitSharedFolderService archiveService;
   private final PuMigrationService puMigrationService;
 
   protected AbstractMigrationTransferOperation(
     MigrationFileType fileType,
     MigrationFileExecutionTransferService transferService,
-    MigrationTransferArchiveService archiveService,
+    MigrationToolkitSharedFolderService archiveService,
     PuMigrationService puMigrationService
   ) {
     this.fileType = Objects.requireNonNull(fileType, "fileType");
@@ -123,7 +123,7 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
 
   private void markTransferFailed(UUID migrationId, RuntimeException failure) {
     String errorCode = transferErrorCode(failure);
-    String errorMessage = failure.getMessage() == null || failure.getMessage().isBlank()
+    String errorMessage = StringUtils.isBlank(failure.getMessage())
       ? failure.getClass().getSimpleName()
       : failure.getMessage();
     try {
@@ -137,25 +137,22 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
     if (failure instanceof BaseBusinessException businessFailure) {
       return businessFailure.getCode();
     }
-    if (failure instanceof HttpClientErrorException.TooManyRequests) {
-      return "TOO_MANY_REQUESTS";
-    }
     return DEFAULT_TRANSFER_ERROR;
   }
 
   private ConflictException alreadyFailed(MigrationFileExecution fileExecution) {
     String errorCode = fileExecution.getUploadErrorCode();
-    if (errorCode == null || errorCode.isBlank()) {
+    if (StringUtils.isBlank(errorCode)) {
       errorCode = fileExecution.getExtractionErrorCode();
     }
-    if (errorCode == null || errorCode.isBlank()) {
+    if (StringUtils.isBlank(errorCode)) {
       errorCode = "TRANSFER_ALREADY_FAILED";
     }
     String errorMessage = fileExecution.getUploadErrorMsg();
-    if (errorMessage == null || errorMessage.isBlank()) {
+    if (StringUtils.isBlank(errorMessage)) {
       errorMessage = fileExecution.getExtractionErrorMsg();
     }
-    if (errorMessage == null || errorMessage.isBlank()) {
+    if (StringUtils.isBlank(errorMessage)) {
       errorMessage = "Transfer is already FAILED";
     }
     return new ConflictException(errorCode, errorMessage);
