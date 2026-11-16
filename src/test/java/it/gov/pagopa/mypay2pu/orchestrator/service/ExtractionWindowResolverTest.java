@@ -6,13 +6,11 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
-import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationRequestValidator;
 import java.time.LocalDate;
 import java.time.Month;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,19 +38,17 @@ class ExtractionWindowResolverTest {
 
   @Mock
   private MigrationRequestValidator migrationRequestValidatorMock;
-  @Mock
-  private MigrationExecutionRepository migrationExecutionRepositoryMock;
 
   private ExtractionWindowResolver resolver;
 
   @BeforeEach
   void setUp() {
-    resolver = new ExtractionWindowResolver(migrationRequestValidatorMock, migrationExecutionRepositoryMock);
+    resolver = new ExtractionWindowResolver(migrationRequestValidatorMock);
   }
 
   @AfterEach
   void verifyMocks() {
-    verifyNoMoreInteractions(migrationRequestValidatorMock, migrationExecutionRepositoryMock);
+    verifyNoMoreInteractions(migrationRequestValidatorMock);
   }
 
   @Test
@@ -60,15 +56,15 @@ class ExtractionWindowResolverTest {
     MigrationRequestDto request = request(OrchestrationMode.FULL).migrationId(MIGRATION_ID);
     LocalDate from = LocalDate.of(2026, Month.JANUARY, 1);
     LocalDate to = LocalDate.of(2026, Month.JANUARY, 3);
-    when(migrationExecutionRepositoryMock.findById(MIGRATION_ID)).thenReturn(Optional.of(
-      MigrationExecution.builder().dateFrom(from).dateTo(to).orchestrationMode(OrchestrationMode.FULL).build()));
+    when(migrationRequestValidatorMock.requireExistingMigration(MIGRATION_ID)).thenReturn(
+      MigrationExecution.builder().dateFrom(from).dateTo(to).orchestrationMode(OrchestrationMode.FULL).build());
 
     ExtractionWindow window = resolver.resolvePersistedWindow(request);
 
     assertEquals(from.atStartOfDay().atOffset(ZoneOffset.UTC), window.dateFrom());
     assertEquals(to.atStartOfDay().atOffset(ZoneOffset.UTC), window.dateTo());
     assertFalse(window.delta());
-    verify(migrationExecutionRepositoryMock).findById(MIGRATION_ID);
+    verify(migrationRequestValidatorMock).requireExistingMigration(MIGRATION_ID);
   }
 
   @Test
@@ -76,15 +72,15 @@ class ExtractionWindowResolverTest {
     MigrationRequestDto request = request(OrchestrationMode.DELTA).migrationId(MIGRATION_ID);
     LocalDate from = LocalDate.of(2026, Month.JANUARY, 2);
     LocalDate to = LocalDate.of(2026, Month.JANUARY, 3);
-    when(migrationExecutionRepositoryMock.findById(MIGRATION_ID)).thenReturn(Optional.of(
-      MigrationExecution.builder().dateFrom(from).dateTo(to).orchestrationMode(OrchestrationMode.DELTA).build()));
+    when(migrationRequestValidatorMock.requireExistingMigration(MIGRATION_ID)).thenReturn(
+      MigrationExecution.builder().dateFrom(from).dateTo(to).orchestrationMode(OrchestrationMode.DELTA).build());
 
     ExtractionWindow window = resolver.resolvePersistedWindow(request);
 
     assertEquals(OffsetDateTime.of(from.atStartOfDay(), ZoneOffset.UTC), window.dateFrom());
     assertEquals(OffsetDateTime.of(to.atStartOfDay(), ZoneOffset.UTC), window.dateTo());
     assertTrue(window.delta());
-    verify(migrationExecutionRepositoryMock).findById(MIGRATION_ID);
+    verify(migrationRequestValidatorMock).requireExistingMigration(MIGRATION_ID);
   }
 
   @Test
@@ -92,26 +88,27 @@ class ExtractionWindowResolverTest {
     MigrationRequestDto request = request(OrchestrationMode.FULL).migrationId(MIGRATION_ID)
       .period(new PeriodDto(
         LocalDate.of(2026, Month.JANUARY, 1), LocalDate.of(2026, Month.JANUARY, 3)));
-    when(migrationExecutionRepositoryMock.findById(MIGRATION_ID)).thenReturn(Optional.empty());
+    when(migrationRequestValidatorMock.requireExistingMigration(MIGRATION_ID)).thenThrow(
+      new IllegalStateException("Missing migration execution " + MIGRATION_ID));
 
     IllegalStateException failure = assertThrows(
       IllegalStateException.class, () -> resolver.resolvePersistedWindow(request));
 
     assertEquals("Missing migration execution " + MIGRATION_ID, failure.getMessage());
-    verify(migrationExecutionRepositoryMock).findById(MIGRATION_ID);
+    verify(migrationRequestValidatorMock).requireExistingMigration(MIGRATION_ID);
   }
 
   @Test
   void givenMissingPersistedEndWhenResolvePersistedWindowThenRejectsWindow() {
     MigrationRequestDto request = request(OrchestrationMode.FULL).migrationId(MIGRATION_ID);
-    when(migrationExecutionRepositoryMock.findById(MIGRATION_ID)).thenReturn(Optional.of(
-      MigrationExecution.builder().dateFrom(CHECKPOINT_DATE).orchestrationMode(OrchestrationMode.FULL).build()));
+    when(migrationRequestValidatorMock.requireExistingMigration(MIGRATION_ID)).thenReturn(
+      MigrationExecution.builder().dateFrom(CHECKPOINT_DATE).orchestrationMode(OrchestrationMode.FULL).build());
 
     NullPointerException failure = assertThrows(
       NullPointerException.class, () -> resolver.resolvePersistedWindow(request));
 
     assertEquals("Persisted extraction end is required for migration " + MIGRATION_ID, failure.getMessage());
-    verify(migrationExecutionRepositoryMock).findById(MIGRATION_ID);
+    verify(migrationRequestValidatorMock).requireExistingMigration(MIGRATION_ID);
   }
 
   @ParameterizedTest

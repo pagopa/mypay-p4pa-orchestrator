@@ -105,7 +105,7 @@ public class MigrationRequestValidator {
     return previous;
   }
 
-  private MigrationExecution requireExistingMigration(UUID migrationId) {
+  public MigrationExecution requireExistingMigration(UUID migrationId) {
     return migrationExecutionRepository.findById(migrationId)
       .orElseThrow(() -> new InvalidValueException(
         "INVALID_MIGRATION_REQUEST",

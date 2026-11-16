@@ -5,7 +5,6 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
-import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationRequestValidator;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -19,12 +18,9 @@ import org.springframework.stereotype.Component;
 public class ExtractionWindowResolver {
 
   private final MigrationRequestValidator migrationRequestValidator;
-  private final MigrationExecutionRepository migrationExecutionRepository;
 
-  public ExtractionWindowResolver(MigrationRequestValidator migrationRequestValidator,
-                                  MigrationExecutionRepository migrationExecutionRepository) {
+  public ExtractionWindowResolver(MigrationRequestValidator migrationRequestValidator) {
     this.migrationRequestValidator = migrationRequestValidator;
-    this.migrationExecutionRepository = migrationExecutionRepository;
   }
 
   /**
@@ -45,8 +41,7 @@ public class ExtractionWindowResolver {
     }
 
     UUID migrationId = request.getMigrationId();
-    MigrationExecution execution = migrationExecutionRepository.findById(migrationId)
-      .orElseThrow(() -> new IllegalStateException("Missing migration execution " + migrationId));
+    MigrationExecution execution = migrationRequestValidator.requireExistingMigration(migrationId);
     LocalDate to = Objects.requireNonNull(
       execution.getDateTo(), "Persisted extraction end is required for migration " + migrationId);
     return new ExtractionWindow(
