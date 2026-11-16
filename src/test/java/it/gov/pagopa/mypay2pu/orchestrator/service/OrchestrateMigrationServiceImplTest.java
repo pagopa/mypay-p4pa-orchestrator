@@ -68,7 +68,7 @@ class OrchestrateMigrationServiceImplTest {
       new MigrationExecutionMapper(),
       new MigrationResponseMapper(),
       new ExtractionWindowResolver(new MigrationRequestValidator(
-        migrationExecutionRepositoryMock, migrationFileExecutionRepositoryMock), migrationExecutionRepositoryMock)
+        migrationExecutionRepositoryMock, migrationFileExecutionRepositoryMock))
     );
   }
 
