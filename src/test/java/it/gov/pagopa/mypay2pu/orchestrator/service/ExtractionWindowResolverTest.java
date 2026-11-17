@@ -6,11 +6,14 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
+import it.gov.pagopa.mypay2pu.orchestrator.utils.Constants;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationRequestValidator;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.Month;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,7 +25,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -33,8 +35,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ExtractionWindowResolverTest {
 
-  private static final UUID MIGRATION_ID = UUID.randomUUID();
-  private static final LocalDate CHECKPOINT_DATE = LocalDate.of(2026, Month.JANUARY, 2);
+  private static final LocalDateTime CHECKPOINT =
+    LocalDateTime.of(2026, Month.JANUARY, 2, 12, 30, 45, 123456000);
 
   @Mock
   private MigrationRequestValidator migrationRequestValidatorMock;
@@ -52,177 +54,186 @@ class ExtractionWindowResolverTest {
   }
 
   @Test
-  void givenPersistedFullBoundsWhenResolvePersistedWindowThenConvertsDatesToUtc() {
-    MigrationRequestDto request = request(OrchestrationMode.FULL).migrationId(MIGRATION_ID);
-    LocalDate from = LocalDate.of(2026, Month.JANUARY, 1);
-    LocalDate to = LocalDate.of(2026, Month.JANUARY, 3);
-    when(migrationRequestValidatorMock.requireExistingMigration(MIGRATION_ID)).thenReturn(
-      MigrationExecution.builder().dateFrom(from).dateTo(to).orchestrationMode(OrchestrationMode.FULL).build());
+  void givenExplicitFullTimestampsWhenResolveThenAlignsRequestAndExecutionWithoutTruncating() {
+    OffsetDateTime from = CHECKPOINT.atZone(Constants.ZONEID).toOffsetDateTime();
+    OffsetDateTime to = from.plusHours(2).plusNanos(1000);
+    MigrationRequestDto request = request(OrchestrationMode.FULL).period(new PeriodDto(from, to));
+    MigrationExecution execution = new MigrationExecution();
 
-    ExtractionWindow window = resolver.resolvePersistedWindow(request);
+    resolver.resolve(request, execution);
 
-    assertEquals(from.atStartOfDay().atOffset(ZoneOffset.UTC), window.dateFrom());
-    assertEquals(to.atStartOfDay().atOffset(ZoneOffset.UTC), window.dateTo());
-    assertFalse(window.delta());
-    verify(migrationRequestValidatorMock).requireExistingMigration(MIGRATION_ID);
-  }
-
-  @Test
-  void givenPersistedDeltaBoundsWhenResolvePersistedWindowThenMarksWindowAsDelta() {
-    MigrationRequestDto request = request(OrchestrationMode.DELTA).migrationId(MIGRATION_ID);
-    LocalDate from = LocalDate.of(2026, Month.JANUARY, 2);
-    LocalDate to = LocalDate.of(2026, Month.JANUARY, 3);
-    when(migrationRequestValidatorMock.requireExistingMigration(MIGRATION_ID)).thenReturn(
-      MigrationExecution.builder().dateFrom(from).dateTo(to).orchestrationMode(OrchestrationMode.DELTA).build());
-
-    ExtractionWindow window = resolver.resolvePersistedWindow(request);
-
-    assertEquals(OffsetDateTime.of(from.atStartOfDay(), ZoneOffset.UTC), window.dateFrom());
-    assertEquals(OffsetDateTime.of(to.atStartOfDay(), ZoneOffset.UTC), window.dateTo());
-    assertTrue(window.delta());
-    verify(migrationRequestValidatorMock).requireExistingMigration(MIGRATION_ID);
-  }
-
-  @Test
-  void givenMissingPersistedExecutionWhenResolvePersistedWindowThenFailsWithoutFallback() {
-    MigrationRequestDto request = request(OrchestrationMode.FULL).migrationId(MIGRATION_ID)
-      .period(new PeriodDto(
-        LocalDate.of(2026, Month.JANUARY, 1), LocalDate.of(2026, Month.JANUARY, 3)));
-    when(migrationRequestValidatorMock.requireExistingMigration(MIGRATION_ID)).thenThrow(
-      new IllegalStateException("Missing migration execution " + MIGRATION_ID));
-
-    IllegalStateException failure = assertThrows(
-      IllegalStateException.class, () -> resolver.resolvePersistedWindow(request));
-
-    assertEquals("Missing migration execution " + MIGRATION_ID, failure.getMessage());
-    verify(migrationRequestValidatorMock).requireExistingMigration(MIGRATION_ID);
-  }
-
-  @Test
-  void givenMissingPersistedEndWhenResolvePersistedWindowThenRejectsWindow() {
-    MigrationRequestDto request = request(OrchestrationMode.FULL).migrationId(MIGRATION_ID);
-    when(migrationRequestValidatorMock.requireExistingMigration(MIGRATION_ID)).thenReturn(
-      MigrationExecution.builder().dateFrom(CHECKPOINT_DATE).orchestrationMode(OrchestrationMode.FULL).build());
-
-    NullPointerException failure = assertThrows(
-      NullPointerException.class, () -> resolver.resolvePersistedWindow(request));
-
-    assertEquals("Persisted extraction end is required for migration " + MIGRATION_ID, failure.getMessage());
-    verify(migrationRequestValidatorMock).requireExistingMigration(MIGRATION_ID);
-  }
-
-  @ParameterizedTest
-  @EnumSource(value = OrchestrationMode.class, names = {"REJECTS_ONLY"})
-  void givenModeWithoutWindowWhenResolvePersistedWindowThenReturnsNull(OrchestrationMode mode) {
-    assertNull(resolver.resolvePersistedWindow(request(mode).migrationId(MIGRATION_ID)));
-  }
-
-  @Test
-  void givenTransferActionWhenResolvePersistedWindowThenReturnsNull() {
-    MigrationRequestDto request = request(OrchestrationMode.FULL)
-      .action(MigrationAction.TRANSFER).migrationId(MIGRATION_ID);
-
-    assertNull(resolver.resolvePersistedWindow(request));
-  }
-
-  @Test
-  void givenExplicitFullBoundsWhenResolveThenPreservesBothDatesWithoutParent() {
-    MigrationExecution execution = MigrationExecution.builder()
-      .dateFrom(CHECKPOINT_DATE).dateTo(CHECKPOINT_DATE.plusDays(1)).build();
-
-    resolver.resolve(request(OrchestrationMode.FULL), execution);
-
-    assertEquals(CHECKPOINT_DATE, execution.getDateFrom());
-    assertEquals(CHECKPOINT_DATE.plusDays(1), execution.getDateTo());
+    assertEquals(from, request.getPeriod().getFromDate());
+    assertEquals(to, request.getPeriod().getToDate());
+    assertEquals(CHECKPOINT, execution.getDateFrom());
+    assertEquals(CHECKPOINT.plusHours(2).plusNanos(1000), execution.getDateTo());
     assertNull(execution.getParentExecutionId());
     assertNull(execution.getSinceDate());
   }
 
-  @Test
-  void givenFutureUpperBoundWhenResolveThenRejectsWindow() {
-    MigrationRequestDto request = request(OrchestrationMode.FULL);
-    MigrationExecution execution = MigrationExecution.builder()
-      .dateTo(LocalDate.now(ZoneOffset.UTC).plusDays(2)).build();
-
-    InvalidValueException failure = assertThrows(InvalidValueException.class, () -> resolver.resolve(request, execution));
-
-    assertEquals("period.toDate must not be after the current UTC date", failure.getMessage());
-  }
-
-  @Test
-  void givenInvertedWindowWhenResolveThenRejectsWindow() {
-    MigrationRequestDto request = request(OrchestrationMode.FULL);
-    MigrationExecution execution = MigrationExecution.builder()
-      .dateFrom(CHECKPOINT_DATE.plusDays(1)).dateTo(CHECKPOINT_DATE).build();
-
-    InvalidValueException failure = assertThrows(InvalidValueException.class, () -> resolver.resolve(request, execution));
-
-    assertEquals("extraction period must have a start before its exclusive end", failure.getMessage());
-  }
-
-  @Test
-  void givenMatchingExplicitDeltaStartWhenResolveThenPersistsExactCheckpointAndParent() {
-    MigrationRequestDto request = request(OrchestrationMode.DELTA);
-    MigrationExecution previous = previous();
-    MigrationExecution execution = MigrationExecution.builder()
-      .dateFrom(CHECKPOINT_DATE).dateTo(CHECKPOINT_DATE.plusDays(1)).build();
+  @ParameterizedTest
+  @EnumSource(value = Month.class, names = {"JANUARY", "JULY"})
+  void givenPreviousIntradayEndWhenResolveThenUsesExactTimestampWithSeasonalOffset(Month month) {
+    LocalDateTime end = CHECKPOINT.withMonth(month.getValue());
+    MigrationExecution previous = previous(end);
+    OffsetDateTime to = end.plusHours(1).atZone(Constants.ZONEID).toOffsetDateTime();
+    MigrationRequestDto request = request(OrchestrationMode.DELTA).period(new PeriodDto(null, to));
+    MigrationExecution execution = new MigrationExecution();
     when(migrationRequestValidatorMock.requireDeltaPreviousMigration(request)).thenReturn(previous);
 
     resolver.resolve(request, execution);
 
-    assertEquals(previous.getLastSuccessfulExtractionAt(), execution.getDateFrom().atStartOfDay());
+    OffsetDateTime expectedFrom = end.atZone(Constants.ZONEID).toOffsetDateTime();
+    assertEquals(expectedFrom, request.getPeriod().getFromDate());
+    assertEquals(to, request.getPeriod().getToDate());
+    assertEquals(end, execution.getDateFrom());
+    assertEquals(to.toLocalDateTime(), execution.getDateTo());
     assertEquals(previous.getId(), execution.getParentExecutionId());
     assertNull(execution.getSinceDate());
     verify(migrationRequestValidatorMock).requireDeltaPreviousMigration(request);
   }
 
   @Test
-  void givenDifferentExplicitDeltaStartWhenResolveThenRejectsWithoutPersistingParent() {
+  void givenMatchingDeltaStartWithDifferentOffsetWhenResolveThenAcceptsSameInstant() {
+    MigrationExecution previous = previous(CHECKPOINT);
+    OffsetDateTime from = CHECKPOINT.atZone(Constants.ZONEID).toOffsetDateTime();
+    OffsetDateTime to = from.plusHours(1).withOffsetSameInstant(ZoneOffset.UTC);
+    MigrationRequestDto request = request(OrchestrationMode.DELTA)
+      .period(new PeriodDto(from.withOffsetSameInstant(ZoneOffset.UTC), to));
+    MigrationExecution execution = new MigrationExecution();
+    when(migrationRequestValidatorMock.requireDeltaPreviousMigration(request)).thenReturn(previous);
+
+    resolver.resolve(request, execution);
+
+    assertTrue(from.isEqual(request.getPeriod().getFromDate()));
+    assertEquals(CHECKPOINT, execution.getDateFrom());
+    assertEquals(CHECKPOINT.plusHours(1), execution.getDateTo());
+    verify(migrationRequestValidatorMock).requireDeltaPreviousMigration(request);
+  }
+
+  @Test
+  void givenDeltaWithoutPeriodWhenResolveThenUsesStartOfYesterdayInApplicationZone() {
+    MigrationExecution previous = previous(CHECKPOINT);
     MigrationRequestDto request = request(OrchestrationMode.DELTA);
-    MigrationExecution execution = MigrationExecution.builder()
-      .dateFrom(CHECKPOINT_DATE.minusDays(1)).dateTo(CHECKPOINT_DATE.plusDays(1)).build();
-    when(migrationRequestValidatorMock.requireDeltaPreviousMigration(request)).thenReturn(previous());
+    MigrationExecution execution = new MigrationExecution();
+    when(migrationRequestValidatorMock.requireDeltaPreviousMigration(request)).thenReturn(previous);
+    OffsetDateTime before = LocalDate.now(Constants.ZONEID).minusDays(1)
+      .atStartOfDay(Constants.ZONEID).toOffsetDateTime();
+
+    resolver.resolve(request, execution);
+
+    OffsetDateTime after = LocalDate.now(Constants.ZONEID).minusDays(1)
+      .atStartOfDay(Constants.ZONEID).toOffsetDateTime();
+    assertTrue(List.of(before, after).contains(request.getPeriod().getToDate()));
+    assertEquals(request.getPeriod().getToDate().toLocalDateTime(), execution.getDateTo());
+    assertEquals(CHECKPOINT, execution.getDateFrom());
+    verify(migrationRequestValidatorMock).requireDeltaPreviousMigration(request);
+  }
+
+  @Test
+  void givenFullWithoutEndWhenResolveThenUsesStartOfTodayInApplicationZone() {
+    MigrationRequestDto request = request(OrchestrationMode.FULL).period(new PeriodDto());
+    MigrationExecution execution = new MigrationExecution();
+    OffsetDateTime before = LocalDate.now(Constants.ZONEID).atStartOfDay(Constants.ZONEID).toOffsetDateTime();
+
+    resolver.resolve(request, execution);
+
+    OffsetDateTime after = LocalDate.now(Constants.ZONEID).atStartOfDay(Constants.ZONEID).toOffsetDateTime();
+    assertTrue(List.of(before, after).contains(request.getPeriod().getToDate()));
+    assertEquals(request.getPeriod().getToDate().toLocalDateTime(), execution.getDateTo());
+    assertNull(request.getPeriod().getFromDate());
+    assertNull(execution.getDateFrom());
+  }
+
+  @Test
+  void givenDifferentExplicitDeltaStartWhenResolveThenRejectsWithoutChangingRequestOrExecution() {
+    OffsetDateTime from = CHECKPOINT.minusNanos(1000).atZone(Constants.ZONEID).toOffsetDateTime();
+    MigrationRequestDto request = request(OrchestrationMode.DELTA).period(new PeriodDto(from, from.plusHours(1)));
+    MigrationExecution execution = new MigrationExecution();
+    when(migrationRequestValidatorMock.requireDeltaPreviousMigration(request)).thenReturn(previous(CHECKPOINT));
 
     InvalidValueException failure = assertThrows(InvalidValueException.class, () -> resolver.resolve(request, execution));
 
     assertEquals("period.fromDate must equal the previous extraction checkpoint", failure.getMessage());
+    assertEquals(from, request.getPeriod().getFromDate());
+    assertNull(execution.getDateFrom());
     assertNull(execution.getParentExecutionId());
     verify(migrationRequestValidatorMock).requireDeltaPreviousMigration(request);
   }
 
   @Test
-  void givenMidnightCheckpointDifferentFromPreviousEndWhenResolveThenRejectsWindow() {
+  void givenCheckpointDifferentFromPreviousEndWhenResolveThenRejectsWindow() {
+    MigrationExecution previous = previous(CHECKPOINT);
+    previous.setLastSuccessfulExtractionAt(CHECKPOINT.minusNanos(1000));
     MigrationRequestDto request = request(OrchestrationMode.DELTA);
-    MigrationExecution previous = previous();
-    previous.setDateTo(CHECKPOINT_DATE.minusDays(1));
-    MigrationExecution execution = MigrationExecution.builder().dateTo(CHECKPOINT_DATE.plusDays(1)).build();
+    MigrationExecution execution = new MigrationExecution();
     when(migrationRequestValidatorMock.requireDeltaPreviousMigration(request)).thenReturn(previous);
 
     InvalidValueException failure = assertThrows(InvalidValueException.class, () -> resolver.resolve(request, execution));
 
-    assertEquals("previous checkpoint must equal its exclusive period.toDate at midnight UTC", failure.getMessage());
+    assertEquals("previous checkpoint must equal its exclusive period.toDate", failure.getMessage());
     verify(migrationRequestValidatorMock).requireDeltaPreviousMigration(request);
+  }
+
+  @Test
+  void givenMissingPreviousEndWhenResolveThenRejectsWindow() {
+    MigrationExecution previous = previous(CHECKPOINT);
+    previous.setDateTo(null);
+    MigrationRequestDto request = request(OrchestrationMode.DELTA);
+    MigrationExecution execution = new MigrationExecution();
+    when(migrationRequestValidatorMock.requireDeltaPreviousMigration(request)).thenReturn(previous);
+
+    InvalidValueException failure = assertThrows(InvalidValueException.class, () -> resolver.resolve(request, execution));
+
+    assertEquals("previous checkpoint must equal its exclusive period.toDate", failure.getMessage());
+    verify(migrationRequestValidatorMock).requireDeltaPreviousMigration(request);
+  }
+
+  @Test
+  void givenFutureUpperBoundWhenResolveThenRejectsWindow() {
+    MigrationRequestDto request = request(OrchestrationMode.FULL)
+      .period(new PeriodDto(null, OffsetDateTime.now(Constants.ZONEID).plusDays(1)));
+    MigrationExecution execution = new MigrationExecution();
+
+    InvalidValueException failure = assertThrows(InvalidValueException.class, () -> resolver.resolve(request, execution));
+
+    assertEquals("period.toDate must not be in the future", failure.getMessage());
+  }
+
+  @Test
+  void givenEqualOrInvertedBoundsWhenResolveThenRejectsWindow() {
+    OffsetDateTime from = CHECKPOINT.atZone(Constants.ZONEID).toOffsetDateTime();
+    MigrationExecution execution = new MigrationExecution();
+    for (OffsetDateTime to : List.of(from, from.minusSeconds(1))) {
+      MigrationRequestDto request = request(OrchestrationMode.FULL).period(new PeriodDto(from, to));
+
+      InvalidValueException failure = assertThrows(InvalidValueException.class, () -> resolver.resolve(request, execution));
+
+      assertEquals("extraction period must have a start before its exclusive end", failure.getMessage());
+    }
   }
 
   @ParameterizedTest
   @EnumSource(value = OrchestrationMode.class, names = {"FULL", "DELTA"})
-  void givenTransferWhenResolveThenDoesNotResolveOrChangeWindow(OrchestrationMode mode) {
-    MigrationExecution execution = previous();
+  void givenTransferWhenResolveThenLeavesRequestAndExecutionUnchanged(OrchestrationMode mode) {
+    MigrationExecution execution = previous(CHECKPOINT);
     MigrationRequestDto request = request(mode).action(MigrationAction.TRANSFER);
 
     resolver.resolve(request, execution);
 
+    assertNull(request.getPeriod());
     assertNull(execution.getDateFrom());
-    assertEquals(CHECKPOINT_DATE, execution.getDateTo());
-    assertEquals(CHECKPOINT_DATE.atStartOfDay(), execution.getLastSuccessfulExtractionAt());
+    assertEquals(CHECKPOINT, execution.getDateTo());
+    assertEquals(CHECKPOINT, execution.getLastSuccessfulExtractionAt());
   }
 
   @Test
   void givenRejectsOnlyWhenResolveThenDoesNotAcquireWindow() {
     MigrationExecution execution = new MigrationExecution();
+    MigrationRequestDto request = request(OrchestrationMode.REJECTS_ONLY);
 
-    resolver.resolve(request(OrchestrationMode.REJECTS_ONLY), execution);
+    resolver.resolve(request, execution);
 
+    assertNull(request.getPeriod());
     assertNull(execution.getDateFrom());
     assertNull(execution.getDateTo());
     assertNull(execution.getParentExecutionId());
@@ -232,8 +243,7 @@ class ExtractionWindowResolverTest {
     return new MigrationRequestDto().action(MigrationAction.COMPLETE).orchestrationMode(mode);
   }
 
-  private MigrationExecution previous() {
-    return MigrationExecution.builder().id(UUID.randomUUID()).dateTo(CHECKPOINT_DATE)
-      .lastSuccessfulExtractionAt(CHECKPOINT_DATE.atStartOfDay()).build();
+  private MigrationExecution previous(LocalDateTime end) {
+    return MigrationExecution.builder().id(UUID.randomUUID()).dateTo(end).lastSuccessfulExtractionAt(end).build();
   }
 }

@@ -15,11 +15,11 @@ import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionReposito
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationExecutionMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationResponseMapper;
+import it.gov.pagopa.mypay2pu.orchestrator.utils.Constants;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationRequestValidator;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.time.Month;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -109,30 +109,24 @@ class OrchestrateMigrationServiceImplTest {
     calls.verify(migrationActionExecutorMock).execute(same(request), same(saved));
   }
 
-  @Test
-  void givenRejectsOnlyCompleteWhenStartMigrationThenPreservesParentReference() {
-    MigrationRequestDto request = request(MigrationAction.COMPLETE);
+  @ParameterizedTest
+  @EnumSource(value = MigrationAction.class, names = {"EXPORT", "COMPLETE"})
+  void givenRejectsOnlyWithUnavailableDiscardKeysWhenStartMigrationThenRejectsBeforeSavingOrDispatching(
+    MigrationAction action
+  ) {
+    MigrationRequestDto request = request(action);
     request.setOrchestrationMode(OrchestrationMode.REJECTS_ONLY);
     UUID parentId = UUID.randomUUID();
     request.setMigrationId(parentId);
     when(migrationExecutionRepositoryMock.findById(parentId)).thenReturn(Optional.of(execution(parentId)));
-    when(migrationExecutionRepositoryMock.save(isA(MigrationExecution.class))).thenAnswer(invocation -> {
-      MigrationExecution saved = invocation.getArgument(0);
-      saved.setId(UUID.randomUUID());
-      return saved;
-    });
-    when(migrationActionExecutorMock.execute(same(request), isA(MigrationExecution.class)))
-      .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("action failed")));
 
-    MigrationResponseDto response = service.startMigration(request);
+    InvalidValueException failure = assertThrows(InvalidValueException.class, () -> service.startMigration(request));
 
-    ArgumentCaptor<MigrationExecution> captor = ArgumentCaptor.forClass(MigrationExecution.class);
-    verify(migrationActionExecutorMock).execute(same(request), captor.capture());
-    assertEquals(parentId, captor.getValue().getParentExecutionId());
-    assertEquals(response.getMigrationId(), captor.getValue().getId());
-    assertEquals(parentId, request.getMigrationId());
+    assertEquals(
+      "orchestrationMode REJECTS_ONLY is unavailable because discard-key data is not yet available",
+      failure.getMessage()
+    );
     verify(migrationExecutionRepositoryMock).findById(parentId);
-    verify(migrationExecutionRepositoryMock).save(same(captor.getValue()));
   }
 
   @Test
@@ -151,11 +145,12 @@ class OrchestrateMigrationServiceImplTest {
       .orchestrationMode(OrchestrationMode.DELTA)
       .migrationId(parentId)
       .fileTypesToInclude(List.of(MigrationFileType.DEBT_POSITIONS))
-      .period(new PeriodDto(null, LocalDate.of(2026, Month.JANUARY, 3)));
+      .period(new PeriodDto(null, LocalDateTime.of(2026, Month.JANUARY, 3, 15, 45, 0, 987654000)
+        .atZone(Constants.ZONEID).toOffsetDateTime()));
     MigrationExecution previous = execution(parentId);
     previous.setFileTypes(List.of(MigrationFileType.DEBT_POSITIONS));
-    previous.setDateTo(LocalDate.of(2026, Month.JANUARY, 2));
-    previous.setLastSuccessfulExtractionAt(previous.getDateTo().atStartOfDay());
+    previous.setDateTo(LocalDateTime.of(2026, Month.JANUARY, 2, 12, 30, 45, 123456000));
+    previous.setLastSuccessfulExtractionAt(previous.getDateTo());
     MigrationFileExecution completed = MigrationFileExecution.builder()
       .migrationId(parentId).fileType(MigrationFileType.DEBT_POSITIONS)
       .status(MigrationFileExecutionStatus.EXPORTED).build();
@@ -168,7 +163,12 @@ class OrchestrateMigrationServiceImplTest {
       return saved;
     });
     when(migrationActionExecutorMock.execute(same(request), isA(MigrationExecution.class)))
-      .thenReturn(CompletableFuture.completedFuture(null));
+      .thenAnswer(invocation -> {
+        MigrationExecution saved = invocation.getArgument(1);
+        assertEquals(saved.getDateFrom(), request.getPeriod().getFromDate().toLocalDateTime());
+        assertEquals(saved.getDateTo(), request.getPeriod().getToDate().toLocalDateTime());
+        return CompletableFuture.completedFuture(null);
+      });
 
     service.startMigration(request);
 
@@ -179,8 +179,9 @@ class OrchestrateMigrationServiceImplTest {
     verify(migrationActionExecutorMock).execute(same(request), same(executionCaptor.getValue()));
     assertEquals(parentId, executionCaptor.getValue().getParentExecutionId());
     assertNull(executionCaptor.getValue().getSinceDate());
-    assertEquals(previous.getLastSuccessfulExtractionAt(), executionCaptor.getValue().getDateFrom().atStartOfDay());
-    assertEquals(LocalDate.of(2026, Month.JANUARY, 3), executionCaptor.getValue().getDateTo());
+    assertEquals(previous.getDateTo(), executionCaptor.getValue().getDateFrom());
+    assertEquals(LocalDateTime.of(2026, Month.JANUARY, 3, 15, 45, 0, 987654000),
+      executionCaptor.getValue().getDateTo());
   }
 
   @Test
@@ -210,7 +211,7 @@ class OrchestrateMigrationServiceImplTest {
   }
 
   @Test
-  void givenNonMidnightCheckpointWhenStartMigrationThenRejectsWithoutTruncating() {
+  void givenCheckpointDifferentFromPreviousEndWhenStartMigrationThenRejectsWithoutTruncating() {
     UUID parentId = UUID.randomUUID();
     MigrationRequestDto request = request(MigrationAction.EXPORT)
       .orchestrationMode(OrchestrationMode.DELTA)
@@ -218,8 +219,8 @@ class OrchestrateMigrationServiceImplTest {
       .fileTypesToInclude(List.of(MigrationFileType.DEBT_POSITIONS));
     MigrationExecution previous = execution(parentId);
     previous.setFileTypes(request.getFileTypesToInclude());
-    previous.setDateTo(LocalDate.of(2026, Month.JANUARY, 2));
-    previous.setLastSuccessfulExtractionAt(previous.getDateTo().atTime(12, 30, 0, 123000000));
+    previous.setDateTo(LocalDateTime.of(2026, Month.JANUARY, 2, 12, 30, 0, 123456000));
+    previous.setLastSuccessfulExtractionAt(previous.getDateTo().minusNanos(1000));
     MigrationFileExecution completed = MigrationFileExecution.builder()
       .fileType(MigrationFileType.DEBT_POSITIONS).status(MigrationFileExecutionStatus.EXPORTED).build();
     when(migrationExecutionRepositoryMock.findById(parentId)).thenReturn(Optional.of(previous));
@@ -228,15 +229,15 @@ class OrchestrateMigrationServiceImplTest {
 
     InvalidValueException failure = assertThrows(InvalidValueException.class, () -> service.startMigration(request));
 
-    assertEquals("previous checkpoint must equal its exclusive period.toDate at midnight UTC", failure.getMessage());
+    assertEquals("previous checkpoint must equal its exclusive period.toDate", failure.getMessage());
     verify(migrationExecutionRepositoryMock).findById(parentId);
     verify(migrationFileExecutionRepositoryMock).findAllByMigrationIdOrderByCreationDateAscIdAsc(parentId);
   }
 
   @Test
-  void givenFullWithoutEndWhenStartMigrationThenUsesCurrentUtcMidnight() {
+  void givenFullWithoutEndWhenStartMigrationThenUsesCurrentApplicationMidnight() {
     MigrationRequestDto request = request(MigrationAction.EXPORT);
-    LocalDate before = LocalDate.now(ZoneOffset.UTC);
+    LocalDateTime before = LocalDate.now(Constants.ZONEID).atStartOfDay();
     when(migrationExecutionRepositoryMock.save(isA(MigrationExecution.class))).thenAnswer(invocation -> {
       MigrationExecution saved = invocation.getArgument(0);
       saved.setId(UUID.randomUUID());
@@ -247,7 +248,7 @@ class OrchestrateMigrationServiceImplTest {
 
     service.startMigration(request);
 
-    LocalDate after = LocalDate.now(ZoneOffset.UTC);
+    LocalDateTime after = LocalDate.now(Constants.ZONEID).atStartOfDay();
     ArgumentCaptor<MigrationExecution> executionCaptor = ArgumentCaptor.forClass(MigrationExecution.class);
     verify(migrationExecutionRepositoryMock).save(executionCaptor.capture());
     verify(migrationActionExecutorMock).execute(same(request), same(executionCaptor.getValue()));
@@ -258,7 +259,7 @@ class OrchestrateMigrationServiceImplTest {
   @Test
   void givenEmptyFullWindowWhenStartMigrationThenRejectsBeforeSaving() {
     MigrationRequestDto request = request(MigrationAction.EXPORT);
-    LocalDate day = LocalDate.of(2026, Month.JANUARY, 2);
+    var day = LocalDate.of(2026, Month.JANUARY, 2).atStartOfDay(Constants.ZONEID).toOffsetDateTime();
     request.setPeriod(new PeriodDto(day, day));
 
     InvalidValueException failure = assertThrows(InvalidValueException.class, () -> service.startMigration(request));

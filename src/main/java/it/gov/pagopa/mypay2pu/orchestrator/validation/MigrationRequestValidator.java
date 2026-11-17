@@ -9,15 +9,15 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
+import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
-import java.time.LocalDate;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.time.OffsetDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /** Validates migration requests and resolves referenced migration executions. */
 @Component
@@ -80,32 +80,45 @@ public class MigrationRequestValidator {
 
   public MigrationExecution requireDeltaPreviousMigration(MigrationRequestDto request) {
     MigrationExecution previous = requireExistingMigration(request.getMigrationId());
-    if (previous.getStatus() != MigrationExecutionStatus.COMPLETED
-      || (previous.getAction() != MigrationAction.EXPORT && previous.getAction() != MigrationAction.COMPLETE)
-      || (previous.getOrchestrationMode() != OrchestrationMode.FULL
-        && previous.getOrchestrationMode() != OrchestrationMode.DELTA)
-      || previous.getLastSuccessfulExtractionAt() == null
-      || previous.getIpacodes() == null
-      || previous.getIpacodes().stream().anyMatch(ipa -> ipa == null || ipa.isBlank())
-      || !Set.copyOf(previous.getIpacodes()).equals(Set.copyOf(request.getIpaCodes()))
-      || previous.getFileTypes() == null
-      || !previous.getFileTypes().containsAll(request.getFileTypesToInclude())) {
+    if (!isSuccessfulExtraction(previous) || !hasMatchingDeltaScope(previous, request)) {
       throw new InvalidValueException("INVALID_MIGRATION_REQUEST",
         "migrationId must identify a completed extraction with a checkpoint and matching IPA codes and file types");
     }
-    var fileExecutions = migrationFileExecutionRepository.findAllByMigrationIdOrderByCreationDateAscIdAsc(previous.getId());
-    for (MigrationFileType type : Set.copyOf(request.getFileTypesToInclude())) {
-      var matching = fileExecutions.stream().filter(file -> file.getFileType() == type).toList();
+    validateDeltaPreviousFiles(previous.getId(), request.getFileTypesToInclude());
+    return previous;
+  }
+
+  private boolean isSuccessfulExtraction(MigrationExecution execution) {
+    return execution.getStatus() == MigrationExecutionStatus.COMPLETED
+      && (execution.getAction() == MigrationAction.EXPORT || execution.getAction() == MigrationAction.COMPLETE)
+      && (execution.getOrchestrationMode() == OrchestrationMode.FULL || execution.getOrchestrationMode() == OrchestrationMode.DELTA)
+      && execution.getLastSuccessfulExtractionAt() != null;
+  }
+
+  private boolean hasMatchingDeltaScope(MigrationExecution previous, MigrationRequestDto request) {
+    return previous.getIpacodes() != null
+      && previous.getIpacodes().stream().noneMatch(ipa -> ipa == null || ipa.isBlank())
+      && new HashSet<>(previous.getIpacodes()).equals(new HashSet<>(request.getIpaCodes()))
+      && previous.getFileTypes() != null
+      && previous.getFileTypes().containsAll(request.getFileTypesToInclude());
+  }
+
+  private void validateDeltaPreviousFiles(UUID migrationId, List<MigrationFileType> requestedTypes) {
+    Map<MigrationFileType, List<MigrationFileExecution>> filesByType = migrationFileExecutionRepository
+      .findAllByMigrationIdOrderByCreationDateAscIdAsc(migrationId)
+      .stream()
+      .collect(Collectors.groupingBy(MigrationFileExecution::getFileType));
+    for (MigrationFileType type : requestedTypes) {
+      List<MigrationFileExecution> matching = filesByType.getOrDefault(type, List.of());
       if (matching.size() != 1 || (matching.getFirst().getStatus() != MigrationFileExecutionStatus.EXPORTED
         && matching.getFirst().getStatus() != MigrationFileExecutionStatus.COMPLETED)) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST",
           "previous extraction must have one successful file execution for every requested file type");
       }
     }
-    return previous;
   }
 
-  public MigrationExecution requireExistingMigration(UUID migrationId) {
+  private MigrationExecution requireExistingMigration(UUID migrationId) {
     return migrationExecutionRepository.findById(migrationId)
       .orElseThrow(() -> new InvalidValueException(
         "INVALID_MIGRATION_REQUEST",
@@ -159,10 +172,11 @@ public class MigrationRequestValidator {
     if (request.getAction() == MigrationAction.TRANSFER) {
       return;
     }
-    if (request.getAction() == MigrationAction.EXPORT && request.getOrchestrationMode() == OrchestrationMode.REJECTS_ONLY) {
+    if (request.getOrchestrationMode() == OrchestrationMode.REJECTS_ONLY) {
+      requirePreviousMigration(request);
       throw new InvalidValueException(
         "INVALID_MIGRATION_REQUEST",
-        "orchestrationMode %s is not yet implemented for EXPORT".formatted(request.getOrchestrationMode())
+        "orchestrationMode REJECTS_ONLY is unavailable because discard-key data is not yet available"
       );
     }
     if (request.getOrchestrationMode() == OrchestrationMode.DELTA) {
@@ -173,8 +187,8 @@ public class MigrationRequestValidator {
       if (period == null) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST", "period is required when orchestrationMode is FULL");
       }
-      LocalDate fromDate = period.getFromDate();
-      LocalDate toDate = period.getToDate();
+      OffsetDateTime fromDate = period.getFromDate();
+      OffsetDateTime toDate = period.getToDate();
       if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
         throw new InvalidValueException(
           "INVALID_MIGRATION_REQUEST",

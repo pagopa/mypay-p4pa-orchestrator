@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 /** Executes a migration action asynchronously and persists its terminal outcome. */
 @Component
@@ -19,29 +20,22 @@ public class MigrationActionExecutor {
   private final MigrationFacadeService migrationFacadeService;
   private final MigrationExecutionRepository migrationExecutionRepository;
 
-  public MigrationActionExecutor(
-    MigrationFacadeService migrationFacadeService,
-    MigrationExecutionRepository migrationExecutionRepository
-  ) {
+  public MigrationActionExecutor(MigrationFacadeService migrationFacadeService,
+                                 MigrationExecutionRepository migrationExecutionRepository) {
     this.migrationFacadeService = migrationFacadeService;
     this.migrationExecutionRepository = migrationExecutionRepository;
   }
 
   @Async("orchestratorTaskExecutor")
   public CompletableFuture<Void> execute(MigrationRequestDto request, MigrationExecution execution) {
-    return executeInternal(request, execution);
-  }
-
-  private CompletableFuture<Void> executeInternal(MigrationRequestDto request, MigrationExecution execution) {
-    // Operations persist file executions under the current execution, not the client-supplied migrationId.
     request.setMigrationId(execution.getId());
     LocalDateTime previousCheckpoint = execution.getLastSuccessfulExtractionAt();
     try {
       migrationFacadeService.execute(request);
       if ((execution.getAction() == MigrationAction.EXPORT || execution.getAction() == MigrationAction.COMPLETE)
-        && (execution.getOrchestrationMode() == OrchestrationMode.FULL
-          || execution.getOrchestrationMode() == OrchestrationMode.DELTA)) {
-        execution.setLastSuccessfulExtractionAt(execution.getDateTo().atStartOfDay());
+        && (execution.getOrchestrationMode() == OrchestrationMode.FULL || execution.getOrchestrationMode() == OrchestrationMode.DELTA)
+      ) {
+        execution.setLastSuccessfulExtractionAt(execution.getDateTo());
       }
       execution.setStatus(MigrationExecutionStatus.COMPLETED);
       execution.setFileTypeCountCompleted(execution.getFileTypes().size());
@@ -55,9 +49,7 @@ public class MigrationActionExecutor {
         ? businessException.getCode()
         : request.getAction() + "_FAILED");
       execution.setErrorMsg(
-        failure.getMessage() == null || failure.getMessage().isBlank()
-          ? failure.getClass().getSimpleName()
-          : failure.getMessage()
+        StringUtils.hasText(failure.getMessage()) ? failure.getMessage() : failure.getClass().getSimpleName()
       );
       try {
         migrationExecutionRepository.save(execution);

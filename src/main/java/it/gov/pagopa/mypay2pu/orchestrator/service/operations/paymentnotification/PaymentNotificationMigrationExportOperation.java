@@ -3,7 +3,6 @@ package it.gov.pagopa.mypay2pu.orchestrator.service.operations.paymentnotificati
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.config.ExtractionPollingProperties;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.ExtractorService;
-import it.gov.pagopa.mypay2pu.orchestrator.service.ExtractionWindowResolver;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionExportService;
 import it.gov.pagopa.mypay2pu.orchestrator.service.operations.AbstractMigrationExportOperation;
 import org.springframework.stereotype.Service;
@@ -13,8 +12,7 @@ public class PaymentNotificationMigrationExportOperation extends AbstractMigrati
 
   public PaymentNotificationMigrationExportOperation(ExtractorService extractorService,
                                                      MigrationFileExecutionExportService migrationFileExecutionExportService,
-                                                     ExtractionPollingProperties pollingProperties,
-                                                     ExtractionWindowResolver extractionWindowResolver) {
-    super(MigrationFileType.PAYMENT_NOTIFICATION, extractorService, migrationFileExecutionExportService, pollingProperties, extractionWindowResolver);
+                                                     ExtractionPollingProperties pollingProperties) {
+    super(MigrationFileType.PAYMENT_NOTIFICATION, extractorService, migrationFileExecutionExportService, pollingProperties);
   }
 }

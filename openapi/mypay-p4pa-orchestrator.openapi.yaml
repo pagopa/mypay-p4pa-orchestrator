@@ -172,7 +172,7 @@ components:
           items:
             type: MigrationFileType
         period:
-          description: Required when orchestrationMode is FULL for EXPORT and COMPLETE actions. The UTC dateTo is an exclusive upper bound and defaults to the current UTC date; DELTA dateFrom, when supplied, must equal the previous checkpoint.
+          description: Required when orchestrationMode is FULL for EXPORT and COMPLETE actions. Bounds are timestamps defining an inclusive start and exclusive end. DELTA fromDate is derived from the previous successful extraction's toDate; an explicit fromDate must identify the same instant. DELTA toDate may be supplied by the operator and defaults to the start of yesterday in Europe/Rome. FULL toDate defaults to the start of today in Europe/Rome. Future ends and empty or inverted windows are rejected.
           $ref: '#/components/schemas/PeriodDto'
         migrationId:
           description: For TRANSFER, must identify an existing completed EXPORT migration; for DELTA and REJECTS_ONLY EXPORT and COMPLETE, identifies the previous migration
@@ -185,10 +185,10 @@ components:
       properties:
         fromDate:
           type: string
-          format: date
+          format: date-time
         toDate:
           type: string
-          format: date
+          format: date-time
     MigrationResponseDto:
       type: object
       properties:

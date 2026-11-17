@@ -8,7 +8,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.Month;
 import java.util.List;
 import java.util.UUID;
@@ -68,7 +68,7 @@ class MigrationActionExecutorTest {
     assertNull(execution.getErrorCode());
     assertNull(execution.getErrorMsg());
     assertEquals(execution.getId(), request.getMigrationId());
-    assertEquals(action == MigrationAction.TRANSFER ? null : execution.getDateTo().atStartOfDay(),
+    assertEquals(action == MigrationAction.TRANSFER ? null : execution.getDateTo(),
       execution.getLastSuccessfulExtractionAt());
     verify(migrationFacadeServiceMock).execute(same(request));
     verify(migrationExecutionRepositoryMock).save(same(execution));
@@ -100,7 +100,7 @@ class MigrationActionExecutorTest {
 
     executor.execute(request, execution);
 
-    assertEquals(execution.getDateTo().atStartOfDay(), execution.getLastSuccessfulExtractionAt());
+    assertEquals(execution.getDateTo(), execution.getLastSuccessfulExtractionAt());
     verify(migrationFacadeServiceMock).execute(same(request));
     verify(migrationExecutionRepositoryMock).save(same(execution));
   }
@@ -123,7 +123,7 @@ class MigrationActionExecutorTest {
   void givenTerminalSaveFailureWhenExecuteThenRestoresCheckpointBeforeSavingFailure() {
     MigrationRequestDto request = new MigrationRequestDto().action(MigrationAction.EXPORT);
     MigrationExecution execution = execution(MigrationAction.EXPORT);
-    var previousCheckpoint = execution.getDateTo().minusDays(1).atStartOfDay();
+    var previousCheckpoint = execution.getDateTo().minusDays(1);
     execution.setLastSuccessfulExtractionAt(previousCheckpoint);
     IllegalStateException failure = new IllegalStateException("save failed");
     when(migrationExecutionRepositoryMock.save(same(execution))).thenThrow(failure).thenReturn(execution);
@@ -142,7 +142,7 @@ class MigrationActionExecutorTest {
     MigrationRequestDto request = new MigrationRequestDto().action(MigrationAction.TRANSFER);
     MigrationExecution execution = execution(MigrationAction.TRANSFER);
     execution.setOrchestrationMode(mode);
-    var previousCheckpoint = execution.getDateTo().minusDays(1).atStartOfDay();
+    var previousCheckpoint = execution.getDateTo().minusDays(1);
     execution.setLastSuccessfulExtractionAt(previousCheckpoint);
 
     executor.execute(request, execution);
@@ -211,7 +211,7 @@ class MigrationActionExecutorTest {
       .id(UUID.randomUUID())
       .action(action)
       .orchestrationMode(OrchestrationMode.FULL)
-      .dateTo(LocalDate.of(2026, Month.JANUARY, 2))
+      .dateTo(LocalDateTime.of(2026, Month.JANUARY, 2, 12, 30, 45, 123456000))
       .status(MigrationExecutionStatus.RUNNING)
       .fileTypeCountCompleted(7)
       .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))

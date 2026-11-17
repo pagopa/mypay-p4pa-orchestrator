@@ -307,7 +307,7 @@
           },
           "period" : {
             "$ref" : "#/components/schemas/PeriodDto",
-            "description" : "Required when orchestrationMode is FULL for EXPORT and COMPLETE actions. The UTC dateTo is an exclusive upper bound and defaults to the current UTC date; DELTA dateFrom, when supplied, must equal the previous checkpoint."
+            "description" : "Required when orchestrationMode is FULL for EXPORT and COMPLETE actions. Bounds are timestamps defining an inclusive start and exclusive end. DELTA fromDate is derived from the previous successful extraction's toDate; an explicit fromDate must identify the same instant. DELTA toDate may be supplied by the operator and defaults to the start of yesterday in Europe/Rome. FULL toDate defaults to the start of today in Europe/Rome. Future ends and empty or inverted windows are rejected."
           },
           "migrationId" : {
             "type" : [ "string", "null" ],
@@ -325,11 +325,11 @@
         "properties" : {
           "fromDate" : {
             "type" : [ "string", "null" ],
-            "format" : "date"
+            "format" : "date-time"
           },
           "toDate" : {
             "type" : [ "string", "null" ],
-            "format" : "date"
+            "format" : "date-time"
           }
         }
       },
