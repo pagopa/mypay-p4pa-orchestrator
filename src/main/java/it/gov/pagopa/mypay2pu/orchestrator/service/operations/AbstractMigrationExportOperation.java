@@ -157,6 +157,9 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
     migrationFileExecutionExportService.markExporting(migrationId, fileType, LocalDateTime.now(ZoneOffset.UTC));
     try {
       PeriodDto period = request.getOrchestrationMode() == OrchestrationMode.REJECTS_ONLY ? null : request.getPeriod();
+      if (request.getOrchestrationMode() != OrchestrationMode.REJECTS_ONLY) {
+        Objects.requireNonNull(period, "Resolved extraction period is required");
+      }
       ExtractionFilters filters = period == null ? null : new ExtractionFilters(period.getFromDate(), period.getToDate(), null);
       ExtractionAcceptedResponse accepted = extractorService.createExtraction(
         new ExtractionRequest(
