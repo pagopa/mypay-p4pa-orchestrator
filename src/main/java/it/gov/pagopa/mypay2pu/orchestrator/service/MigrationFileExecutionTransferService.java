@@ -18,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -98,18 +97,16 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
    */
   @Transactional
   public List<MigrationFileExecutionDetail> recordUploadDetails(
-    UUID migrationId,
-    MigrationFileType fileType,
-    Long uploadId,
+    MigrationFileExecution fileExecution,
     List<UploadDetails> uploadDetails
   ) {
+    Long uploadId = fileExecution.getUploadId();
     validateUploadId(uploadId);
-    MigrationFileExecution fileExecution = findRequiredMigrationFileExecutionForUpdate(migrationId, fileType);
-    validateAcceptedUpload(fileExecution, migrationId, fileType, uploadId);
     if (uploadDetails == null) {
       throw new InvalidValueException(
         "TRANSFER_INVALID_UPLOAD_DETAILS",
-        "PU returned no upload details for migration %s and file type %s".formatted(migrationId, fileType)
+        "PU returned no upload details for migration %s and file type %s"
+          .formatted(fileExecution.getMigrationId(), fileExecution.getFileType())
       );
     }
 
@@ -139,22 +136,6 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
     }
   }
 
-  private void validateAcceptedUpload(
-    MigrationFileExecution fileExecution,
-    UUID migrationId,
-    MigrationFileType fileType,
-    Long uploadId
-  ) {
-    if (fileExecution.getStatus() != MigrationFileExecutionStatus.WAITING_PU
-      || !Objects.equals(fileExecution.getUploadId(), uploadId)) {
-      throw new ConflictException(
-        "INVALID_MIGRATION_FILE_EXECUTION_TRANSITION",
-        "Upload details do not match the accepted upload for migration %s and file type %s"
-          .formatted(migrationId, fileType)
-      );
-    }
-  }
-
   public MigrationFileExecution markTransferFailed(
     UUID migrationId,
     MigrationFileType fileType,
@@ -180,14 +161,4 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
       ));
   }
 
-  private MigrationFileExecution findRequiredMigrationFileExecutionForUpdate(
-    UUID migrationId,
-    MigrationFileType fileType
-  ) {
-    return migrationFileExecutionRepository.findByMigrationIdAndFileTypeForUpdate(migrationId, fileType)
-      .orElseThrow(() -> new NotFoundException(
-        "MIGRATION_FILE_EXECUTION_NOT_FOUND",
-        "File execution does not exist for migration %s and file type %s".formatted(migrationId, fileType)
-      ));
-  }
 }

@@ -67,7 +67,7 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
     MigrationFileExecutionStatus status = fileExecution.getStatus();
     if (status == MigrationFileExecutionStatus.WAITING_PU) {
       if (!transferService.hasUploadDetails(fileExecution)) {
-        fetchAndRecordUploadDetails(migrationId, fileExecution.getUploadId());
+        fetchAndRecordUploadDetails(fileExecution);
       }
       return;
     }
@@ -103,6 +103,7 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
 
     transferService.markTransferring(migrationId, fileType, LocalDateTime.now(ZoneOffset.UTC));
     Long uploadId;
+    MigrationFileExecution acceptedFileExecution;
     try {
       UploadMigrationFileResponseDTO response = puMigrationService.uploadMigrationFile(
         fileType,
@@ -115,7 +116,7 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
           "PU returned no valid upload ID for migration %s and file type %s".formatted(migrationId, fileType)
         );
       }
-      transferService.recordUploadAccepted(
+      acceptedFileExecution = transferService.recordUploadAccepted(
         migrationId,
         fileType,
         uploadId,
@@ -127,12 +128,13 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
       throw failure;
     }
 
-    fetchAndRecordUploadDetails(migrationId, uploadId);
+    fetchAndRecordUploadDetails(acceptedFileExecution);
   }
 
-  private void fetchAndRecordUploadDetails(UUID migrationId, Long uploadId) {
+  private void fetchAndRecordUploadDetails(MigrationFileExecution fileExecution) {
+    Long uploadId = fileExecution.getUploadId();
     List<UploadDetails> uploadDetails = puMigrationService.getMigrationUploadDetails(uploadId);
-    transferService.recordUploadDetails(migrationId, fileType, uploadId, uploadDetails);
+    transferService.recordUploadDetails(fileExecution, uploadDetails);
   }
 
   private void markTransferFailed(UUID migrationId, RuntimeException failure) {
