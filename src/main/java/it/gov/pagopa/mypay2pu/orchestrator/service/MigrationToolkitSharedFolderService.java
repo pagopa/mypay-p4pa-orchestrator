@@ -1,5 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.ArchiveFile;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.config.MigrationTransferProperties;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
@@ -10,10 +11,15 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 @Service
 public class MigrationToolkitSharedFolderService {
@@ -62,6 +68,62 @@ public class MigrationToolkitSharedFolderService {
       );
     }
 
+    return new FileSystemResource(resolveArchive(fileExecution, archives.getFirst()));
+  }
+
+  public Map<String, Long> getExportedFileSizes(
+    MigrationFileExecution fileExecution,
+    List<ArchiveFile> archives
+  ) {
+    Map<String, Long> fileSizes = new LinkedHashMap<>();
+    for (ArchiveFile archive : archives) {
+      if (archive.getName().trim().toLowerCase(Locale.ROOT).endsWith(".errors.zip")) {
+        continue;
+      }
+      Path archivePath = resolveArchive(fileExecution, archive.getName().trim());
+      try (ZipFile zip = new ZipFile(archivePath.toFile())) {
+        collectArchiveFileSizes(zip, archive.getName(), archive.getFiles(), fileSizes);
+      } catch (IOException failure) {
+        throw new InvalidValueException(
+          "EXTRACTOR_ARCHIVE_UNREADABLE",
+          "Cannot read extracted archive %s: %s".formatted(archive.getName(), failure.getMessage())
+        );
+      }
+    }
+    return fileSizes;
+  }
+
+  private void collectArchiveFileSizes(
+    ZipFile zip, String archiveName, List<String> files, Map<String, Long> fileSizes
+  ) {
+    if (files == null) {
+      throw new InvalidValueException("EXTRACTOR_INVALID_FILE_DETAILS", "Extractor returned no file list");
+    }
+    List<String> entries = zip.stream().filter(entry -> !entry.isDirectory()).map(ZipEntry::getName).toList();
+    if (entries.size() != files.size() || !files.containsAll(entries)) {
+      throw new InvalidValueException(
+        "EXTRACTOR_INVALID_FILE_DETAILS",
+        "Extractor file list does not match archive %s".formatted(archiveName)
+      );
+    }
+    for (String fileName : files) {
+      ZipEntry entry = StringUtils.isBlank(fileName) ? null : zip.getEntry(fileName);
+      if (entry == null || entry.isDirectory() || entry.getSize() < 0) {
+        throw new InvalidValueException(
+          "EXTRACTOR_INVALID_FILE_DETAILS",
+          "Extracted file %s is missing or invalid in archive %s".formatted(fileName, archiveName)
+        );
+      }
+      if (fileSizes.putIfAbsent(fileName, entry.getSize()) != null) {
+        throw new InvalidValueException(
+          "EXTRACTOR_INVALID_FILE_DETAILS", "Duplicate extracted file %s".formatted(fileName)
+        );
+      }
+    }
+  }
+
+  private Path resolveArchive(MigrationFileExecution fileExecution, String archiveName) {
+    MigrationFileType fileType = fileExecution.getFileType();
     String extractionId = fileExecution.getExtractionId();
     if (StringUtils.isBlank(extractionId)
       || extractionId.contains("/") || extractionId.contains("\\")
@@ -74,7 +136,7 @@ public class MigrationToolkitSharedFolderService {
     }
 
     Path extractionDirectory = extractorOutputPath.resolve(extractionId).normalize();
-    Path archivePath = extractionDirectory.resolve(archives.getFirst()).normalize();
+    Path archivePath = extractionDirectory.resolve(archiveName).normalize();
     boolean withinExpectedDirectory = extractionDirectory.startsWith(extractorOutputPath)
       && archivePath.startsWith(extractionDirectory);
     boolean regularFile = withinExpectedDirectory && Files.isRegularFile(archivePath);
@@ -82,11 +144,11 @@ public class MigrationToolkitSharedFolderService {
     if (!withinExpectedDirectory || !regularFile || !readable) {
       throw new NotFoundException(
         "TRANSFER_ARCHIVE_NOT_FOUND",
-        "Exported archive %s is missing or unreadable".formatted(archives.getFirst())
+        "Exported archive %s is missing or unreadable".formatted(archiveName)
       );
     }
 
     // TODO: Decrypt the archive here when encryption is enabled (follow-up PR).
-    return new FileSystemResource(archivePath);
+    return archivePath;
   }
 }
