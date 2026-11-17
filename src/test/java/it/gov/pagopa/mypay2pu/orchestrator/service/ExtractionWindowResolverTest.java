@@ -92,10 +92,12 @@ class ExtractionWindowResolverTest {
     verify(migrationRequestValidatorMock).requireDeltaPreviousMigration(request);
   }
 
-  @Test
-  void givenMatchingDeltaStartWithDifferentOffsetWhenResolveThenAcceptsSameInstant() {
-    MigrationExecution previous = previous(CHECKPOINT);
-    OffsetDateTime from = CHECKPOINT.atZone(Constants.ZONEID).toOffsetDateTime();
+  @ParameterizedTest
+  @EnumSource(value = Month.class, names = {"JANUARY", "JULY"})
+  void givenMatchingDeltaStartWithDifferentOffsetWhenResolveThenAcceptsSameInstant(Month month) {
+    LocalDateTime checkpoint = CHECKPOINT.withMonth(month.getValue());
+    MigrationExecution previous = previous(checkpoint);
+    OffsetDateTime from = checkpoint.atZone(Constants.ZONEID).toOffsetDateTime();
     OffsetDateTime to = from.plusHours(1).withOffsetSameInstant(ZoneOffset.UTC);
     MigrationRequestDto request = request(OrchestrationMode.DELTA)
       .period(new PeriodDto(from.withOffsetSameInstant(ZoneOffset.UTC), to));
@@ -105,8 +107,26 @@ class ExtractionWindowResolverTest {
     resolver.resolve(request, execution);
 
     assertTrue(from.isEqual(request.getPeriod().getFromDate()));
-    assertEquals(CHECKPOINT, execution.getDateFrom());
-    assertEquals(CHECKPOINT.plusHours(1), execution.getDateTo());
+    assertEquals(checkpoint, execution.getDateFrom());
+    assertEquals(checkpoint.plusHours(1), execution.getDateTo());
+    verify(migrationRequestValidatorMock).requireDeltaPreviousMigration(request);
+  }
+
+  @Test
+  void givenSameLocalDeltaStartWithDifferentOffsetWhenResolveThenRejectsDifferentInstant() {
+    OffsetDateTime previousEnd = CHECKPOINT.atZone(Constants.ZONEID).toOffsetDateTime();
+    OffsetDateTime from = previousEnd.withOffsetSameLocal(ZoneOffset.UTC);
+    MigrationRequestDto request = request(OrchestrationMode.DELTA)
+      .period(new PeriodDto(from, from.plusHours(1)));
+    MigrationExecution execution = new MigrationExecution();
+    when(migrationRequestValidatorMock.requireDeltaPreviousMigration(request)).thenReturn(previous(CHECKPOINT));
+
+    InvalidValueException failure = assertThrows(InvalidValueException.class, () -> resolver.resolve(request, execution));
+
+    assertEquals("period.fromDate must equal the previous extraction checkpoint", failure.getMessage());
+    assertEquals(from, request.getPeriod().getFromDate());
+    assertNull(execution.getDateFrom());
+    assertNull(execution.getParentExecutionId());
     verify(migrationRequestValidatorMock).requireDeltaPreviousMigration(request);
   }
 

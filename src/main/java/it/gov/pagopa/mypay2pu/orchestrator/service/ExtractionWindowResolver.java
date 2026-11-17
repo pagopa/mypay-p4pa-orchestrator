@@ -47,13 +47,14 @@ public class ExtractionWindowResolver {
     boolean delta = request.getOrchestrationMode() == OrchestrationMode.DELTA;
     if (delta) {
       previous = migrationRequestValidator.requireDeltaPreviousMigration(request);
-      if (previous.getDateTo() == null || !previous.getDateTo().equals(previous.getLastSuccessfulExtractionAt())) {
+      if (previous.getDateTo() == null || previous.getLastSuccessfulExtractionAt() == null
+        || previous.getDateTo().compareTo(previous.getLastSuccessfulExtractionAt()) != 0) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST",
           "previous checkpoint must equal its exclusive period.toDate");
       }
       OffsetDateTime previousEnd =
         LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(previous.getDateTo());
-      if (from != null && !from.isEqual(previousEnd)) {
+      if (from != null && from.toInstant().compareTo(previousEnd.toInstant()) != 0) {
         throw new InvalidValueException("INVALID_MIGRATION_REQUEST",
           "period.fromDate must equal the previous extraction checkpoint");
       }
