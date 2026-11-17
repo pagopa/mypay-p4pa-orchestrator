@@ -10,6 +10,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionTransferService;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationToolkitSharedFolderService;
+import it.gov.pagopa.pu.migration.dto.generated.UploadDetails;
 import it.gov.pagopa.pu.migration.dto.generated.UploadMigrationFileResponseDTO;
 import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
 import org.apache.commons.lang3.StringUtils;
@@ -17,6 +18,7 @@ import org.springframework.core.io.Resource;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -63,9 +65,13 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
     MigrationFileExecution fileExecution = transferService.getRequired(migrationId, fileType);
 
     MigrationFileExecutionStatus status = fileExecution.getStatus();
-    if (status == MigrationFileExecutionStatus.WAITING_PU
-      || status == MigrationFileExecutionStatus.COMPLETED
-      || status == MigrationFileExecutionStatus.WARNING) {
+    if (status == MigrationFileExecutionStatus.WAITING_PU) {
+      if (!transferService.hasUploadDetails(fileExecution)) {
+        fetchAndRecordUploadDetails(fileExecution);
+      }
+      return;
+    }
+    if (status == MigrationFileExecutionStatus.COMPLETED || status == MigrationFileExecutionStatus.WARNING) {
       return;
     }
 
@@ -96,19 +102,21 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
     }
 
     transferService.markTransferring(migrationId, fileType, LocalDateTime.now(ZoneOffset.UTC));
+    Long uploadId;
+    MigrationFileExecution acceptedFileExecution;
     try {
       UploadMigrationFileResponseDTO response = puMigrationService.uploadMigrationFile(
         fileType,
         archive
       );
-      Long uploadId = response == null ? null : response.getUploadId();
+      uploadId = response == null ? null : response.getUploadId();
       if (uploadId == null || uploadId <= 0) {
         throw new InvalidValueException(
           "TRANSFER_INVALID_UPLOAD_RESPONSE",
           "PU returned no valid upload ID for migration %s and file type %s".formatted(migrationId, fileType)
         );
       }
-      transferService.recordUploadAccepted(
+      acceptedFileExecution = transferService.recordUploadAccepted(
         migrationId,
         fileType,
         uploadId,
@@ -119,6 +127,14 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
       markTransferFailed(migrationId, failure);
       throw failure;
     }
+
+    fetchAndRecordUploadDetails(acceptedFileExecution);
+  }
+
+  private void fetchAndRecordUploadDetails(MigrationFileExecution fileExecution) {
+    Long uploadId = fileExecution.getUploadId();
+    List<UploadDetails> uploadDetails = puMigrationService.getMigrationUploadDetails(uploadId);
+    transferService.recordUploadDetails(fileExecution, uploadDetails);
   }
 
   private void markTransferFailed(UUID migrationId, RuntimeException failure) {
