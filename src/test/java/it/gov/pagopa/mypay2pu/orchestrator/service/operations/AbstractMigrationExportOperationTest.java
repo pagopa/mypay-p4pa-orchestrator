@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -172,9 +173,10 @@ class AbstractMigrationExportOperationTest {
     verify(migrationFileExecutionServiceMock).markExported(MIGRATION_ID, FILE_TYPE, "", COMPLETED_AT);
   }
 
-  @Test
-  void givenUnresolvedRequestWhenExecuteThenFailsWithoutSubmittingOrRecalculatingBounds() {
-    MigrationRequestDto request = request().period(null);
+  @ParameterizedTest
+  @EnumSource(value = OrchestrationMode.class, names = {"FULL", "DELTA"})
+  void givenUnresolvedRequestWhenExecuteThenFailsWithoutSubmittingOrRecalculatingBounds(OrchestrationMode mode) {
+    MigrationRequestDto request = request().orchestrationMode(mode).period(null);
     givenFileExecution(MigrationFileExecutionStatus.PENDING, null);
 
     NullPointerException failure = assertThrows(NullPointerException.class, () -> operation.execute(request));
@@ -186,9 +188,13 @@ class AbstractMigrationExportOperationTest {
       MIGRATION_ID, FILE_TYPE, EXTRACTOR_ERROR, failure.getMessage());
   }
 
-  @Test
-  void givenRejectsOnlyWhenExecuteThenDoesNotLookUpFullOrDeltaWindow() {
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void givenRejectsOnlyWhenExecuteThenDoesNotLookUpFullOrDeltaWindow(boolean periodPresent) {
     MigrationRequestDto request = request().orchestrationMode(OrchestrationMode.REJECTS_ONLY);
+    if (!periodPresent) {
+      request.setPeriod(null);
+    }
     ExtractionRequest expected = new ExtractionRequest(List.of("IPA1"), FILE_TYPE, null, null);
     givenFileExecution(MigrationFileExecutionStatus.PENDING, null);
     when(extractorServiceMock.createExtraction(expected)).thenReturn(new ExtractionAcceptedResponse(EXTRACTION_ID));

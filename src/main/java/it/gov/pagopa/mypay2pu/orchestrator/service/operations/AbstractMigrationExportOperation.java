@@ -15,12 +15,14 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionExportService;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import static it.gov.pagopa.mypay2pu.orchestrator.utils.Constants.ZONEID;
 
 /**
  * Executes the shared extraction lifecycle for a single migration file type.
@@ -154,19 +156,21 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
    */
   private String submitExtraction(MigrationRequestDto request) {
     UUID migrationId = request.getMigrationId();
-    migrationFileExecutionExportService.markExporting(migrationId, fileType, LocalDateTime.now(ZoneOffset.UTC));
+    migrationFileExecutionExportService.markExporting(migrationId, fileType, LocalDateTime.now(ZONEID));
     try {
-      PeriodDto period = request.getOrchestrationMode() == OrchestrationMode.REJECTS_ONLY ? null : request.getPeriod();
-      if (request.getOrchestrationMode() != OrchestrationMode.REJECTS_ONLY) {
-        Objects.requireNonNull(period, "Resolved extraction period is required");
+      OrchestrationMode mode = request.getOrchestrationMode();
+      ExtractionFilters filters = null;
+      OffsetDateTime lastExtractionDate = null;
+      if (mode != OrchestrationMode.REJECTS_ONLY) {
+        PeriodDto period = Objects.requireNonNull(request.getPeriod(), "Resolved extraction period is required");
+        filters = new ExtractionFilters(period.getFromDate(), period.getToDate(), null);
+        lastExtractionDate = mode == OrchestrationMode.DELTA ? period.getFromDate() : null;
       }
-      ExtractionFilters filters = period == null ? null : new ExtractionFilters(period.getFromDate(), period.getToDate(), null);
       ExtractionAcceptedResponse accepted = extractorService.createExtraction(
         new ExtractionRequest(
           request.getIpaCodes(),
           fileType,
-          request.getOrchestrationMode() == OrchestrationMode.DELTA
-          ? period.getFromDate() : null,
+          lastExtractionDate,
           filters
         )
       );
