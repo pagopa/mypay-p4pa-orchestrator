@@ -3,21 +3,26 @@ package it.gov.pagopa.mypay2pu.orchestrator.service.operations;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ArchiveFile;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionAcceptedResponse;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionRequest;
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionFilters;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionStatus;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionStatusResponse;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.config.ExtractionPollingProperties;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.ExtractorService;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionExportService;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import static it.gov.pagopa.mypay2pu.orchestrator.utils.Constants.ZONEID;
 
 /**
  * Executes the shared extraction lifecycle for a single migration file type.
@@ -151,10 +156,23 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
    */
   private String submitExtraction(MigrationRequestDto request) {
     UUID migrationId = request.getMigrationId();
-    migrationFileExecutionExportService.markExporting(migrationId, fileType, LocalDateTime.now(ZoneOffset.UTC));
+    migrationFileExecutionExportService.markExporting(migrationId, fileType, LocalDateTime.now(ZONEID));
     try {
+      OrchestrationMode mode = request.getOrchestrationMode();
+      ExtractionFilters filters = null;
+      OffsetDateTime lastExtractionDate = null;
+      if (mode != OrchestrationMode.REJECTS_ONLY) {
+        PeriodDto period = Objects.requireNonNull(request.getPeriod(), "Resolved extraction period is required");
+        filters = new ExtractionFilters(period.getFromDate(), period.getToDate(), null);
+        lastExtractionDate = mode == OrchestrationMode.DELTA ? period.getFromDate() : null;
+      }
       ExtractionAcceptedResponse accepted = extractorService.createExtraction(
-        new ExtractionRequest(List.copyOf(request.getIpaCodes()), fileType, null, null)
+        new ExtractionRequest(
+          request.getIpaCodes(),
+          fileType,
+          lastExtractionDate,
+          filters
+        )
       );
       if (accepted == null || accepted.getExtractionId().isBlank()) {
         throw new IllegalStateException("Extractor returned an invalid accepted extraction ID");

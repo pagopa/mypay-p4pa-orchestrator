@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.utils.Constants;
 import it.gov.pagopa.mypay2pu.orchestrator.utils.TestUtils;
 import lombok.AllArgsConstructor;
@@ -116,6 +117,30 @@ class JsonConfigTest {
     // Then
     Assertions.assertEquals(expectedResult, j2Deserialized);
     Assertions.assertEquals(expectedResult, j3Deserialized);
+  }
+
+  @Test
+  void givenMigrationPeriodWithTimestampBoundsWhenDeserializeThenPreservesOffsetAndFractionalSeconds()
+    throws JsonProcessingException {
+    String json = """
+      {
+        "action": "EXPORT",
+        "orchestrationMode": "FULL",
+        "period": {
+          "fromDate": "2026-07-01T12:30:45.123456+02:00",
+          "toDate": "2026-07-01T15:45:30.654321+02:00"
+        }
+      }
+      """;
+
+    MigrationRequestDto jackson2Request = j2ObjectMapper.readValue(json, MigrationRequestDto.class);
+    MigrationRequestDto jackson3Request = j3JsonMapper.readValue(json, MigrationRequestDto.class);
+
+    Assertions.assertEquals(jackson2Request.getPeriod(), jackson3Request.getPeriod());
+    Assertions.assertEquals(OffsetDateTime.parse("2026-07-01T12:30:45.123456+02:00"),
+      jackson3Request.getPeriod().getFromDate());
+    Assertions.assertEquals(OffsetDateTime.parse("2026-07-01T15:45:30.654321+02:00"),
+      jackson3Request.getPeriod().getToDate());
   }
 
   @Test

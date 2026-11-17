@@ -11,10 +11,11 @@ import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationExecutionMapp
 import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationResponseMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationRequestValidator;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import static it.gov.pagopa.mypay2pu.orchestrator.utils.Constants.ZONEID;
 
 @Service
 @Slf4j
@@ -25,19 +26,22 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
   private final MigrationExecutionRepository migrationExecutionRepository;
   private final MigrationExecutionMapper migrationExecutionMapper;
   private final MigrationResponseMapper migrationResponseMapper;
+  private final ExtractionWindowResolver extractionWindowResolver;
 
   public OrchestrateMigrationServiceImpl(
     MigrationActionExecutor migrationActionExecutor,
     MigrationRequestValidator migrationRequestValidator,
     MigrationExecutionRepository migrationExecutionRepository,
     MigrationExecutionMapper migrationExecutionMapper,
-    MigrationResponseMapper migrationResponseMapper
+    MigrationResponseMapper migrationResponseMapper,
+    ExtractionWindowResolver extractionWindowResolver
   ) {
     this.migrationActionExecutor = migrationActionExecutor;
     this.migrationRequestValidator = migrationRequestValidator;
     this.migrationExecutionRepository = migrationExecutionRepository;
     this.migrationExecutionMapper = migrationExecutionMapper;
     this.migrationResponseMapper = migrationResponseMapper;
+    this.extractionWindowResolver = extractionWindowResolver;
   }
 
   @Override
@@ -46,6 +50,7 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
     MigrationAction action = request.getAction();
 
     MigrationExecution execution = actionRequest2MigrationExecution(request);
+    extractionWindowResolver.resolve(request, execution);
     execution.setStatus(MigrationExecutionStatus.RUNNING);
     MigrationExecution savedExecution = migrationExecutionRepository.save(execution);
 
@@ -80,7 +85,7 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
       newExecution.setParentExecutionId(previousExecution.getId());
     }
     newExecution.setFileTypeCountCompleted(0);
-    newExecution.setCreationDate(LocalDateTime.now(ZoneOffset.UTC));
+    newExecution.setCreationDate(LocalDateTime.now(ZONEID));
     return newExecution;
   }
 }
