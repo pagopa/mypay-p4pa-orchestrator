@@ -11,10 +11,11 @@ import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationExecutionMapp
 import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationResponseMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationRequestValidator;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import static it.gov.pagopa.mypay2pu.orchestrator.utils.Constants.ZONEID;
 
 @Service
 @Slf4j
@@ -84,7 +85,7 @@ public class OrchestrateMigrationServiceImpl implements OrchestrateMigrationServ
       newExecution.setParentExecutionId(previousExecution.getId());
     }
     newExecution.setFileTypeCountCompleted(0);
-    newExecution.setCreationDate(LocalDateTime.now(ZoneOffset.UTC));
+    newExecution.setCreationDate(LocalDateTime.now(ZONEID));
     return newExecution;
   }
 }

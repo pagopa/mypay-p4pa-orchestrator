@@ -60,7 +60,7 @@ public class ExtractionWindowResolver {
       from = previousEnd;
     }
 
-    OffsetDateTime to = resolveEnd(period, delta);
+    OffsetDateTime to = resolveUpperBound(period, delta);
     if (from != null && !from.isBefore(to)) {
       throw new InvalidValueException("INVALID_MIGRATION_REQUEST",
         "extraction period must have a start before its exclusive end");
@@ -73,7 +73,7 @@ public class ExtractionWindowResolver {
     }
   }
 
-  private OffsetDateTime resolveEnd(PeriodDto period, boolean delta) {
+  private OffsetDateTime resolveUpperBound(PeriodDto period, boolean delta) {
     OffsetDateTime to = period == null ? null : period.getToDate();
     if (to == null) {
       LocalDate today = LocalDate.now(Constants.ZONEID);
