@@ -7,6 +7,8 @@ import java.util.Optional;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,6 +18,10 @@ public interface MigrationFileExecutionRepository extends JpaRepository<Migratio
   List<MigrationFileExecution> findAllByMigrationIdOrderByCreationDateAscIdAsc(UUID migrationId);
 
   Optional<MigrationFileExecution> findByMigrationIdAndFileType(UUID migrationId, MigrationFileType fileType);
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select file from MigrationFileExecution file where file.id = :id")
+  Optional<MigrationFileExecution> findByIdForUpdate(@Param("id") UUID id);
 
   @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Transactional

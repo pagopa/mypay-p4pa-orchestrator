@@ -4,7 +4,6 @@ import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.NotFoundException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionDetailRepository;
@@ -44,10 +43,6 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
     this.validator = validator;
   }
 
-  public MigrationFileExecution getRequired(UUID migrationId, MigrationFileType fileType) {
-    return findRequiredMigrationFileExecution(migrationId, fileType);
-  }
-
   /**
    * Atomically claims an exported file so concurrent requests cannot upload it twice.
    */
@@ -57,7 +52,7 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
     MigrationFileType fileType,
     LocalDateTime startedAt
   ) {
-    MigrationFileExecution fileExecution = findRequiredMigrationFileExecution(migrationId, fileType);
+    MigrationFileExecution fileExecution = getRequired(migrationId, fileType);
     validator.validateMarkTransferring(fileExecution);
     int claimed = migrationFileExecutionRepository.claimTransfer(
       migrationId,
@@ -100,6 +95,8 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
     MigrationFileExecution fileExecution,
     List<UploadDetails> uploadDetails
   ) {
+    validateUploadId(fileExecution.getUploadId());
+    fileExecution = findRequiredForUpdate(fileExecution.getId());
     Long uploadId = fileExecution.getUploadId();
     validateUploadId(uploadId);
     if (uploadDetails == null) {
@@ -116,9 +113,10 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
       return existingDetails;
     }
 
+    UUID fileExecutionId = fileExecution.getId();
     List<MigrationFileExecutionDetail> details = uploadDetails.stream()
       .map(uploadDetail -> migrationFileExecutionDetailMapper.toMigrationFileExecutionDetail(
-        fileExecution.getId(), uploadId, uploadDetail
+        fileExecutionId, uploadId, uploadDetail
       ))
       .toList();
     return migrationFileExecutionDetailRepository.saveAll(details);
@@ -148,17 +146,6 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
       fileExecution.setUploadErrorCode(errorCode);
       fileExecution.setUploadErrorMsg(errorMessage);
     });
-  }
-
-  private MigrationFileExecution findRequiredMigrationFileExecution(
-    UUID migrationId,
-    MigrationFileType fileType
-  ) {
-    return migrationFileExecutionRepository.findByMigrationIdAndFileType(migrationId, fileType)
-      .orElseThrow(() -> new NotFoundException(
-        "MIGRATION_FILE_EXECUTION_NOT_FOUND",
-        "File execution does not exist for migration %s and file type %s".formatted(migrationId, fileType)
-      ));
   }
 
 }

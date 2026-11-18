@@ -10,10 +10,15 @@ import io.opentelemetry.context.ContextStorage;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.config.AsyncConfiguration;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.EvidenceException;
 import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationOperation;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.mockito.Mockito;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.MDC;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -25,13 +30,16 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -39,7 +47,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MigrationPlanExecutorServiceTest {
 
-  private final MigrationPlanExecutorService planExecutor = new MigrationPlanExecutorService(Tracer.NOOP);
+  private final EvidenceCollector evidenceCollectorMock = Mockito.mock(EvidenceCollector.class);
+  private final MigrationPlanExecutorService planExecutor = new MigrationPlanExecutorService(Tracer.NOOP, evidenceCollectorMock);
+
+  @AfterEach
+  void verifyMocks() {
+    Mockito.verifyNoMoreInteractions(evidenceCollectorMock);
+  }
 
   @Test
   void givenMigrationPlanWhenValidateThenVisitEveryFileTypeOnceWithoutCycles() {
@@ -181,7 +195,7 @@ class MigrationPlanExecutorServiceTest {
       Slf4JEventListener listener = new Slf4JEventListener();
       Tracer tracer = new OtelTracer(otelTracer, new OtelCurrentTraceContext(), listener::onEvent);
       ContextStorage storage = new EventPublishingContextWrapper(listener::onEvent).apply(ContextStorage.get());
-      MigrationPlanExecutorService tracedPlanExecutor = new MigrationPlanExecutorService(tracer);
+      MigrationPlanExecutorService tracedPlanExecutor = new MigrationPlanExecutorService(tracer, evidenceCollectorMock);
       ThreadPoolTaskExecutor executor = (ThreadPoolTaskExecutor) new AsyncConfiguration()
         .orchestratorTaskExecutor(1, 1, 10, tracer);
       executor.initialize();
@@ -251,6 +265,65 @@ class MigrationPlanExecutorServiceTest {
         MDC.setContextMap(previous);
       }
     }
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = MigrationAction.class, names = {"TRANSFER", "COMPLETE"})
+  void givenParentEvidenceWhenExecuteThenAwaitsItBeforeStartingChild(MigrationAction action) {
+    UUID migrationId = UUID.randomUUID();
+    AtomicBoolean evidenceAvailable = new AtomicBoolean();
+    Mockito.doAnswer(invocation -> {
+      evidenceAvailable.set(true);
+      return null;
+    }).when(evidenceCollectorMock).collect(migrationId, MigrationFileType.ORGANIZATIONS);
+    MigrationOperation parent = operation(MigrationFileType.ORGANIZATIONS,
+      request -> assertFalse(evidenceAvailable.get()));
+    MigrationOperation child = operation(MigrationFileType.ORG_SIL_SERVICES,
+      request -> assertTrue(evidenceAvailable.get()));
+
+    planExecutor.execute(
+      request(MigrationFileType.ORGANIZATIONS, MigrationFileType.ORG_SIL_SERVICES)
+        .migrationId(migrationId).action(action),
+      Map.of(MigrationFileType.ORGANIZATIONS, parent, MigrationFileType.ORG_SIL_SERVICES, child));
+
+    Mockito.verify(evidenceCollectorMock).collect(migrationId, MigrationFileType.ORGANIZATIONS);
+    Mockito.verify(evidenceCollectorMock).collect(migrationId, MigrationFileType.ORG_SIL_SERVICES);
+  }
+
+  @Test
+  void givenFailedParentEvidenceWhenExecuteThenBlocksOnlyItsDescendants() {
+    UUID migrationId = UUID.randomUUID();
+    Set<MigrationFileType> executed = ConcurrentHashMap.newKeySet();
+    EvidenceException failure = new EvidenceException("EVIDENCE_PU_FAILED", "parent failed");
+    Mockito.doThrow(failure).when(evidenceCollectorMock).collect(migrationId, MigrationFileType.DEBT_POSITIONS_TYPE_ORG);
+    Map<MigrationFileType, MigrationOperation> operations = operations(executed,
+      MigrationFileType.ORGANIZATIONS,
+      MigrationFileType.DEBT_POSITIONS_TYPE_ORG,
+      MigrationFileType.DEBT_POSITIONS,
+      MigrationFileType.ORG_SIL_SERVICES);
+    MigrationRequestDto request = request(operations.keySet().toArray(MigrationFileType[]::new))
+      .migrationId(migrationId).action(MigrationAction.TRANSFER);
+
+    EvidenceException thrown = assertThrows(EvidenceException.class, () -> planExecutor.execute(request, operations));
+
+    assertSame(failure, thrown);
+    assertEquals(Set.of(MigrationFileType.ORGANIZATIONS, MigrationFileType.DEBT_POSITIONS_TYPE_ORG,
+      MigrationFileType.ORG_SIL_SERVICES), executed);
+    Mockito.verify(evidenceCollectorMock).collect(migrationId, MigrationFileType.ORGANIZATIONS);
+    Mockito.verify(evidenceCollectorMock).collect(migrationId, MigrationFileType.DEBT_POSITIONS_TYPE_ORG);
+    Mockito.verify(evidenceCollectorMock).collect(migrationId, MigrationFileType.ORG_SIL_SERVICES);
+  }
+
+  @Test
+  void givenExportActionWhenExecuteThenNeverCollectsPuEvidence() {
+    Set<MigrationFileType> executed = ConcurrentHashMap.newKeySet();
+
+    planExecutor.execute(
+      request(MigrationFileType.ORGANIZATIONS).action(MigrationAction.EXPORT),
+      operations(executed, MigrationFileType.ORGANIZATIONS));
+
+    assertEquals(Set.of(MigrationFileType.ORGANIZATIONS), executed);
+    Mockito.verifyNoInteractions(evidenceCollectorMock);
   }
 
   private void visitPlan(MigrationFileType fileType, Set<MigrationFileType> visited) {

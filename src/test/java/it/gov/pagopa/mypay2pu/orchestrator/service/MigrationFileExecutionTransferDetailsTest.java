@@ -24,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -80,7 +81,7 @@ class MigrationFileExecutionTransferDetailsTest {
     List<MigrationFileExecutionDetail> result = service.recordUploadDetails(fileExecution, List.of(uploadDetail));
 
     assertEquals(expectedDetails, result);
-    verifyNoInteractions(migrationFileExecutionRepositoryMock);
+    verify(migrationFileExecutionRepositoryMock).findByIdForUpdate(FILE_EXECUTION_ID);
     verify(migrationFileExecutionDetailRepositoryMock).findAllByMigrationFileExecutionId(FILE_EXECUTION_ID);
     verify(migrationFileExecutionDetailRepositoryMock).saveAll(expectedDetails);
   }
@@ -100,7 +101,7 @@ class MigrationFileExecutionTransferDetailsTest {
     );
 
     assertEquals("TRANSFER_INVALID_UPLOAD_DETAILS", exception.getCode());
-    verifyNoInteractions(migrationFileExecutionRepositoryMock);
+    verify(migrationFileExecutionRepositoryMock).findByIdForUpdate(FILE_EXECUTION_ID);
     verify(migrationFileExecutionDetailRepositoryMock).findAllByMigrationFileExecutionId(FILE_EXECUTION_ID);
   }
 
@@ -122,7 +123,7 @@ class MigrationFileExecutionTransferDetailsTest {
     assertEquals(expectedDetails, result);
     assertNull(result.getFirst().getNumTotalRows());
     assertNull(result.getFirst().getNumCorrectlyImportedRows());
-    verifyNoInteractions(migrationFileExecutionRepositoryMock);
+    verify(migrationFileExecutionRepositoryMock).findByIdForUpdate(FILE_EXECUTION_ID);
     verify(migrationFileExecutionDetailRepositoryMock).findAllByMigrationFileExecutionId(FILE_EXECUTION_ID);
     verify(migrationFileExecutionDetailRepositoryMock).saveAll(expectedDetails);
   }
@@ -142,14 +143,13 @@ class MigrationFileExecutionTransferDetailsTest {
     );
 
     assertEquals("TRANSFER_INVALID_UPLOAD_DETAILS", exception.getCode());
-    verifyNoInteractions(migrationFileExecutionRepositoryMock);
+    verify(migrationFileExecutionRepositoryMock).findByIdForUpdate(FILE_EXECUTION_ID);
     verify(migrationFileExecutionDetailRepositoryMock).findAllByMigrationFileExecutionId(FILE_EXECUTION_ID);
   }
 
   @Test
   void givenNullUploadIdWhenRecordUploadDetailsThenRejectsBeforeReadingDetails() {
-    MigrationFileExecution fileExecution = waitingPuExecution();
-    fileExecution.setUploadId(null);
+    MigrationFileExecution fileExecution = MigrationFileExecution.builder().id(FILE_EXECUTION_ID).build();
 
     InvalidValueException exception = assertThrows(
       InvalidValueException.class,
@@ -178,7 +178,7 @@ class MigrationFileExecutionTransferDetailsTest {
     );
 
     assertEquals(persistedDetails, result);
-    verifyNoInteractions(migrationFileExecutionRepositoryMock);
+    verify(migrationFileExecutionRepositoryMock).findByIdForUpdate(FILE_EXECUTION_ID);
     verify(migrationFileExecutionDetailRepositoryMock).findAllByMigrationFileExecutionId(FILE_EXECUTION_ID);
   }
 
@@ -213,13 +213,16 @@ class MigrationFileExecutionTransferDetailsTest {
   }
 
   private MigrationFileExecution waitingPuExecution() {
-    return MigrationFileExecution.builder()
+    MigrationFileExecution file = MigrationFileExecution.builder()
       .id(FILE_EXECUTION_ID)
       .migrationId(MIGRATION_ID)
       .fileType(FILE_TYPE)
       .status(MigrationFileExecutionStatus.WAITING_PU)
       .uploadId(UPLOAD_ID)
       .build();
+    when(migrationFileExecutionRepositoryMock.findByIdForUpdate(FILE_EXECUTION_ID))
+      .thenReturn(Optional.of(file));
+    return file;
   }
 
   private UploadDetails uploadDetail(IngestionFlowFileStatus status, Long totalRows, Long importedRows) {

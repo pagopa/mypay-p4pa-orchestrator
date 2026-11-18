@@ -159,6 +159,14 @@ two configured defaults; use property references to keep them in sync. Timeouts 
 requests and do not interrupt an HTTP request already in progress. The timeout uses the system clock,
 so adjustments to the clock can shorten or extend the effective wait.
 
+#### Async PU evidence
+
+| ENV | DESCRIPTION | DEFAULT |
+|---|---|---|
+| `EVIDENCE_STATUS_POLL_INTERVAL` | Delay between PU upload/detail checks; positive whole seconds | `30s` |
+| `EVIDENCE_STATUS_TIMEOUT` | Maximum wait from persisted upload acceptance; positive whole seconds, at least the polling interval | `PT12H` |
+
+
 #### 🔑 keys
 | ENV                   | DESCRIPTION                                                                         | DEFAULT |
 |-----------------------|-------------------------------------------------------------------------------------|---------|

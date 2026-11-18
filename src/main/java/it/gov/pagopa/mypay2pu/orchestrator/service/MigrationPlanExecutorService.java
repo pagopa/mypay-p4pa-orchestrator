@@ -4,6 +4,7 @@ import io.micrometer.tracing.CurrentTraceContext;
 import io.micrometer.tracing.Tracer;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
 import it.gov.pagopa.mypay2pu.orchestrator.service.operations.MigrationOperation;
 import it.gov.pagopa.mypay2pu.orchestrator.utils.ThreadUtils;
 import org.springframework.stereotype.Service;
@@ -21,9 +22,11 @@ public class MigrationPlanExecutorService {
   private static final MigrationFileType PLAN_ROOT = MigrationFileType.DEBT_POSITIONS_TYPE;
 
   private final CurrentTraceContext currentTraceContext;
+  private final EvidenceCollector evidenceCollector;
 
-  public MigrationPlanExecutorService(Tracer tracer) {
+  public MigrationPlanExecutorService(Tracer tracer, EvidenceCollector evidenceCollector) {
     this.currentTraceContext = tracer.currentTraceContext();
+    this.evidenceCollector = evidenceCollector;
   }
 
   static final Map<MigrationFileType, Set<MigrationFileType>> MIGRATION_PLAN = Map.ofEntries(
@@ -78,6 +81,9 @@ public class MigrationPlanExecutorService {
                                               Executor executor) {
     if (selectedFileTypes.contains(migrationFileType)) {
       operationMap.get(migrationFileType).execute(request);
+      if (request.getAction() == MigrationAction.TRANSFER || request.getAction() == MigrationAction.COMPLETE) {
+        evidenceCollector.collect(request.getMigrationId(), migrationFileType);
+      }
     }
 
     return CompletableFuture.allOf(MIGRATION_PLAN.getOrDefault(migrationFileType, Set.of()).stream()

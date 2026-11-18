@@ -1,15 +1,20 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service.mapper;
 
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionDetailStatus;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
 import it.gov.pagopa.pu.migration.dto.generated.IngestionFlowFileStatus;
 import it.gov.pagopa.pu.migration.dto.generated.IngestionFlowFileTypeEnum;
 import it.gov.pagopa.pu.migration.dto.generated.UploadDetails;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import static it.gov.pagopa.mypay2pu.orchestrator.utils.TestUtils.checkNotNullFields;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class MigrationFileExecutionDetailMapperTest {
 
@@ -17,6 +22,25 @@ class MigrationFileExecutionDetailMapperTest {
   private static final Long UPLOAD_ID = 42L;
 
   private final MigrationFileExecutionDetailMapper mapper = new MigrationFileExecutionDetailMapper();
+
+  @ParameterizedTest
+  @MethodSource("invalidMetadata")
+  void givenInvalidMetadataWhenToMigrationFileExecutionDetailThenRejectsUploadDetail(UploadDetails uploadDetail) {
+    InvalidValueException failure = assertThrows(InvalidValueException.class,
+      () -> mapper.toMigrationFileExecutionDetail(FILE_EXECUTION_ID, UPLOAD_ID, uploadDetail));
+
+    assertEquals("TRANSFER_INVALID_UPLOAD_DETAILS", failure.getCode());
+    assertEquals("PU returned invalid upload details for upload 42", failure.getMessage());
+  }
+
+  static Stream<UploadDetails> invalidMetadata() {
+    return Stream.of(
+      new UploadDetails().uploadId(UPLOAD_ID).fileName(" ").fileSize(500L)
+        .status(IngestionFlowFileStatus.COMPLETED),
+      new UploadDetails().uploadId(UPLOAD_ID).fileName("organizations.csv").fileSize(-1L)
+        .status(IngestionFlowFileStatus.COMPLETED)
+    );
+  }
 
   @Test
   void givenCompletedUploadDetailWhenToMigrationFileExecutionDetailThenMapsAllFields() {

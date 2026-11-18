@@ -3,6 +3,8 @@ package it.gov.pagopa.mypay2pu.orchestrator.service.mapper;
 import it.gov.pagopa.mypay2pu.orchestrator.config.json.LocalDateTimeToOffsetDateTimeSerializer;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.ExportFileStatusDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationAction;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatus;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionDetailStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExportPhaseDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationStatusDto;
@@ -47,7 +49,7 @@ public class MigrationStatusMapper {
       .errorCode(execution.getErrorCode())
       .errorMsg(execution.getErrorMsg())
       .exportPhase(new MigrationExportPhaseDto()
-        .status(execution.getStatus())
+        .status(exportPhaseStatus(execution, fileExecutions))
         .files(fileExecutions.stream()
           .map(fileExecution -> toExportFileStatusDto(
             fileExecution,
@@ -55,7 +57,7 @@ public class MigrationStatusMapper {
           ))
           .toList()))
       .transferPhase(new MigrationTransferPhaseDto()
-            .status(execution.getStatus())
+            .status(transferPhaseStatus(execution, fileExecutions))
             .files(execution.getAction() == MigrationAction.EXPORT
               ? List.of()
               : fileExecutions.stream()
@@ -73,7 +75,7 @@ public class MigrationStatusMapper {
     FileMetrics metrics = calculateMetrics(fileExecution, details);
     return new ExportFileStatusDto()
       .fileType(fileExecution.getFileType())
-      .status(fileExecution.getStatus())
+      .status(exportStatus(fileExecution))
       .extractionId(fileExecution.getExtractionId())
       .filePath(fileExecution.getFilePath())
       .recordCount(metrics.recordCount())
@@ -98,7 +100,51 @@ public class MigrationStatusMapper {
       .errorCode(fileExecution.getUploadErrorCode())
       .errorMsg(fileExecution.getUploadErrorMsg())
       .uploadedAt(LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(fileExecution.getUploadCompletedAt()))
-      .evidenceCollectedAt(LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(latestTerminalDetailUpdateDate(details)));
+      .evidenceCollectedAt(LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(
+        evidenceCollectedAt(fileExecution, details)));
+  }
+
+  private MigrationFileExecutionStatus exportStatus(MigrationFileExecution file) {
+    return switch (file.getStatus()) {
+      case TRANSFERING, WAITING_PU, COMPLETED, WARNING -> MigrationFileExecutionStatus.EXPORTED;
+      case FAILED -> file.getExtractionCompletedAt() == null
+        ? MigrationFileExecutionStatus.FAILED : MigrationFileExecutionStatus.EXPORTED;
+      default -> file.getStatus();
+    };
+  }
+
+  private MigrationExecutionStatus exportPhaseStatus(MigrationExecution execution, List<MigrationFileExecution> files) {
+    if (files.stream().anyMatch(file -> exportStatus(file) == MigrationFileExecutionStatus.FAILED)) {
+      return MigrationExecutionStatus.FAILED;
+    }
+    if (hasAllSelectedFiles(execution, files)
+      && files.stream().allMatch(file -> exportStatus(file) == MigrationFileExecutionStatus.EXPORTED)) {
+      return MigrationExecutionStatus.COMPLETED;
+    }
+    return execution.getStatus() == MigrationExecutionStatus.FAILED
+      ? MigrationExecutionStatus.FAILED : MigrationExecutionStatus.RUNNING;
+  }
+
+  private MigrationExecutionStatus transferPhaseStatus(MigrationExecution execution, List<MigrationFileExecution> files) {
+    if (execution.getAction() == MigrationAction.EXPORT) {
+      return MigrationExecutionStatus.RUNNING;
+    }
+    if (files.stream().anyMatch(file -> file.getStatus() == MigrationFileExecutionStatus.FAILED)) {
+      return MigrationExecutionStatus.FAILED;
+    }
+    if (!hasAllSelectedFiles(execution, files) || files.stream().anyMatch(file ->
+      file.getStatus() != MigrationFileExecutionStatus.COMPLETED && file.getStatus() != MigrationFileExecutionStatus.WARNING)) {
+      return execution.getStatus() == MigrationExecutionStatus.FAILED
+        ? MigrationExecutionStatus.FAILED : MigrationExecutionStatus.RUNNING;
+    }
+    return files.stream().anyMatch(file -> file.getStatus() == MigrationFileExecutionStatus.WARNING)
+      ? MigrationExecutionStatus.WARNING : MigrationExecutionStatus.COMPLETED;
+  }
+
+  private boolean hasAllSelectedFiles(MigrationExecution execution, List<MigrationFileExecution> files) {
+    return !files.isEmpty() && execution.getFileTypes().size() == files.size()
+      && files.stream().map(MigrationFileExecution::getFileType).collect(java.util.stream.Collectors.toSet())
+        .containsAll(execution.getFileTypes());
   }
 
   private FileMetrics calculateMetrics(
@@ -119,9 +165,15 @@ public class MigrationStatusMapper {
     return new FileMetrics(recordCount, recordsAccepted, recordsRejected);
   }
 
-  private LocalDateTime latestTerminalDetailUpdateDate(List<MigrationFileExecutionDetail> details) {
+  private LocalDateTime evidenceCollectedAt(MigrationFileExecution file, List<MigrationFileExecutionDetail> details) {
+    if ((file.getStatus() != MigrationFileExecutionStatus.COMPLETED
+      && file.getStatus() != MigrationFileExecutionStatus.WARNING
+      && file.getStatus() != MigrationFileExecutionStatus.FAILED)
+      || details.isEmpty() || details.stream().anyMatch(detail -> !TERMINAL_DETAIL_STATUSES.contains(detail.getStatus())
+        || detail.getNumTotalRows() == null || detail.getNumCorrectlyImportedRows() == null)) {
+      return null;
+    }
     return details.stream()
-      .filter(detail -> TERMINAL_DETAIL_STATUSES.contains(detail.getStatus()))
       .map(MigrationFileExecutionDetail::getUpdateDate)
       .filter(Objects::nonNull)
       .max(Comparator.naturalOrder())
