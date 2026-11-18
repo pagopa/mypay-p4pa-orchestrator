@@ -1,6 +1,5 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service.operations;
 
-import it.gov.pagopa.mypay2pu.extractor.dto.generated.ArchiveFile;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionAcceptedResponse;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionRequest;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionFilters;
@@ -20,7 +19,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static it.gov.pagopa.mypay2pu.orchestrator.utils.Constants.ZONEID;
 
@@ -93,7 +91,7 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
       migrationFileExecutionExportService.markExported(
         migrationId,
         fileType,
-        archiveNames(completed.getArchiveFiles()),
+        completed.getArchiveFiles(),
         completed.getUpdatedAt().toLocalDateTime()
       );
     } catch (RuntimeException failure) {
@@ -237,25 +235,6 @@ public abstract class AbstractMigrationExportOperation implements MigrationExpor
       Thread.currentThread().interrupt();
       throw new IllegalStateException("Interrupted while waiting for extraction " + extractionId, interrupted);
     }
-  }
-
-  /**
-   * Collects nonblank archive names into the comma-separated value stored with the execution.
-   *
-   * @param archiveFiles archives returned by a completed extraction
-   * @return trimmed archive names in their original order, separated by commas
-   * @throws IllegalStateException if the archive list is missing
-   */
-  private String archiveNames(List<ArchiveFile> archiveFiles) {
-    if (archiveFiles == null) {
-      throw new IllegalStateException("Extractor completed without an archive list");
-    }
-    return archiveFiles.stream()
-      .map(ArchiveFile::getName)
-      .filter(Objects::nonNull)
-      .map(String::trim)
-      .filter(name -> !name.isEmpty())
-      .collect(Collectors.joining(","));
   }
 
   /**

@@ -1,6 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionDetailStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
@@ -10,7 +11,6 @@ import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionDeta
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationFileExecutionDetailMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionTransferValidator;
-import it.gov.pagopa.pu.migration.dto.generated.UploadDetails;
 import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +43,10 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
     this.validator = validator;
   }
 
+  public MigrationFileExecution getRequired(UUID migrationId, MigrationFileType fileType) {
+    return findRequiredMigrationFileExecution(migrationId, fileType);
+  }
+
   /**
    * Atomically claims an exported file so concurrent requests cannot upload it twice.
    */
@@ -52,7 +56,7 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
     MigrationFileType fileType,
     LocalDateTime startedAt
   ) {
-    MigrationFileExecution fileExecution = getRequired(migrationId, fileType);
+    MigrationFileExecution fileExecution = findRequired(migrationId, fileType);
     validator.validateMarkTransferring(fileExecution);
     int claimed = migrationFileExecutionRepository.claimTransfer(
       migrationId,
@@ -68,9 +72,13 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
     }
     fileExecution.setStatus(MigrationFileExecutionStatus.TRANSFERING);
     fileExecution.setUploadStartedAt(startedAt);
+    updateDetailStatuses(
+      fileExecution.getId(), MigrationFileExecutionDetailStatus.TRANSFERING
+    );
     return fileExecution;
   }
 
+  @Transactional
   public MigrationFileExecution recordUploadAccepted(
     UUID migrationId,
     MigrationFileType fileType,
@@ -84,56 +92,13 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
       fileExecution.setUploadId(uploadId);
       fileExecution.setUploadStatus(uploadStatus);
       fileExecution.setUploadCompletedAt(completedAt);
+      updateDetailStatuses(
+        fileExecution.getId(), MigrationFileExecutionDetailStatus.WAITING_PU
+      );
     });
   }
 
-  /**
-   * Persists the upload metadata returned by PU for the accepted upload.
-   */
   @Transactional
-  public List<MigrationFileExecutionDetail> recordUploadDetails(
-    MigrationFileExecution fileExecution,
-    List<UploadDetails> uploadDetails
-  ) {
-    validateUploadId(fileExecution.getUploadId());
-    fileExecution = findRequiredForUpdate(fileExecution.getId());
-    Long uploadId = fileExecution.getUploadId();
-    validateUploadId(uploadId);
-    if (uploadDetails == null) {
-      throw new InvalidValueException(
-        "TRANSFER_INVALID_UPLOAD_DETAILS",
-        "PU returned no upload details for migration %s and file type %s"
-          .formatted(fileExecution.getMigrationId(), fileExecution.getFileType())
-      );
-    }
-
-    List<MigrationFileExecutionDetail> existingDetails =
-      migrationFileExecutionDetailRepository.findAllByMigrationFileExecutionId(fileExecution.getId());
-    if (!existingDetails.isEmpty()) {
-      return existingDetails;
-    }
-
-    UUID fileExecutionId = fileExecution.getId();
-    List<MigrationFileExecutionDetail> details = uploadDetails.stream()
-      .map(uploadDetail -> migrationFileExecutionDetailMapper.toMigrationFileExecutionDetail(
-        fileExecutionId, uploadId, uploadDetail
-      ))
-      .toList();
-    return migrationFileExecutionDetailRepository.saveAll(details);
-  }
-
-  @Transactional(readOnly = true)
-  public boolean hasUploadDetails(MigrationFileExecution fileExecution) {
-    validateUploadId(fileExecution.getUploadId());
-    return migrationFileExecutionDetailRepository.existsByMigrationFileExecutionId(fileExecution.getId());
-  }
-
-  private void validateUploadId(Long uploadId) {
-    if (uploadId == null || uploadId <= 0) {
-      throw new InvalidValueException("INVALID_UPLOAD_ID", "uploadId must be a positive number");
-    }
-  }
-
   public MigrationFileExecution markTransferFailed(
     UUID migrationId,
     MigrationFileType fileType,
@@ -145,7 +110,16 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
       fileExecution.setStatus(MigrationFileExecutionStatus.FAILED);
       fileExecution.setUploadErrorCode(errorCode);
       fileExecution.setUploadErrorMsg(errorMessage);
+      updateDetailStatuses(
+        fileExecution.getId(), MigrationFileExecutionDetailStatus.FAILED
+      );
     });
   }
 
+  private void updateDetailStatuses(UUID fileExecutionId, MigrationFileExecutionDetailStatus status) {
+    List<MigrationFileExecutionDetail> details =
+      migrationFileExecutionDetailRepository.findAllByMigrationFileExecutionId(fileExecutionId);
+    details.forEach(detail -> detail.setStatus(status));
+    migrationFileExecutionDetailRepository.saveAll(details);
+  }
 }

@@ -1,5 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.ArchiveFile;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionDetailStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
@@ -8,255 +9,240 @@ import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionDetailRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
-import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationFileExecutionDetailMapper;
-import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionTransferValidator;
-import it.gov.pagopa.pu.migration.dto.generated.IngestionFlowFileStatus;
-import it.gov.pagopa.pu.migration.dto.generated.IngestionFlowFileTypeEnum;
-import it.gov.pagopa.pu.migration.dto.generated.UploadDetails;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
+import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.List;
-import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
+@SpringBootTest
+@TestPropertySource(properties = {
+  "spring.datasource.driver-class-name=org.h2.Driver",
+  "spring.datasource.url=jdbc:h2:mem:detail-lifecycle-test;DB_CLOSE_DELAY=-1",
+  "spring.datasource.username=sa",
+  "spring.datasource.password=",
+  "spring.jpa.hibernate.ddl-auto=create-drop"
+})
 class MigrationFileExecutionTransferDetailsTest {
 
-  private static final UUID MIGRATION_ID = UUID.fromString("93cbdb5c-83ca-43d9-8946-68f36b89d8c1");
-  private static final UUID FILE_EXECUTION_ID = UUID.fromString("2f980de8-3891-4f69-96b8-f95de4f1d679");
   private static final MigrationFileType FILE_TYPE = MigrationFileType.ORGANIZATIONS;
-  private static final Long UPLOAD_ID = 42L;
+  private static final String FILE_NAME = "IPA_TEST_2-organizations.csv";
+  private static final LocalDateTime COMPLETED_AT = LocalDateTime.of(2026, Month.NOVEMBER, 17, 16, 0);
 
-  @Mock
-  private MigrationFileExecutionRepository migrationFileExecutionRepositoryMock;
-  @Mock
-  private MigrationFileExecutionDetailRepository migrationFileExecutionDetailRepositoryMock;
+  @TempDir
+  private static Path sharedFolder;
 
-  private MigrationFileExecutionTransferService service;
-
-  @BeforeEach
-  void setUp() {
-    service = new MigrationFileExecutionTransferService(
-      migrationFileExecutionRepositoryMock,
-      migrationFileExecutionDetailRepositoryMock,
-      new MigrationFileExecutionDetailMapper(),
-      new MigrationFileExecutionTransferValidator()
-    );
+  @DynamicPropertySource
+  static void storageProperties(DynamicPropertyRegistry registry) {
+    registry.add("orchestrator.storage.extractor-output-path", () -> sharedFolder.toString());
   }
 
-  @AfterEach
-  void verifyMocks() {
-    verifyNoMoreInteractions(
-      migrationFileExecutionRepositoryMock,
-      migrationFileExecutionDetailRepositoryMock
+  @Autowired
+  private MigrationFileExecutionRepository executionRepository;
+  @Autowired
+  private MigrationFileExecutionDetailRepository detailRepository;
+  @Autowired
+  private MigrationFileExecutionExportService exportService;
+  @Autowired
+  private MigrationFileExecutionTransferService transferService;
+
+  @Test
+  void givenExtractedFileWhenRecordUploadAcceptedThenUpdatesOnlyExistingDetailStatus() throws IOException {
+    MigrationFileExecution execution = completeExtraction();
+    MigrationFileExecutionDetail exportedDetail = details(execution).getFirst();
+    assertEquals(MigrationFileExecutionDetailStatus.EXPORTED, exportedDetail.getStatus());
+    assertEquals(FILE_NAME, exportedDetail.getFileName());
+    assertEquals("IPA_TEST_2", exportedDetail.getIpaCode());
+    assertEquals(5L, exportedDetail.getFileSize());
+    assertNull(exportedDetail.getUploadDetailId());
+    assertNull(exportedDetail.getNumTotalRows());
+
+    transferService.markTransferring(execution.getMigrationId(), FILE_TYPE, COMPLETED_AT);
+    assertEquals(MigrationFileExecutionDetailStatus.TRANSFERING, details(execution).getFirst().getStatus());
+    assertEquals("IPA_TEST_2", details(execution).getFirst().getIpaCode());
+
+    transferService.recordUploadAccepted(
+      execution.getMigrationId(), FILE_TYPE, 42L, UploadsStatusEnum.UPLOADED, COMPLETED_AT
     );
-  }
 
-  @ParameterizedTest
-  @MethodSource("puUploadStatusMappings")
-  void givenPuUploadDetailWhenRecordUploadDetailsThenPersistsNormalizedStatus(
-    IngestionFlowFileStatus puStatus,
-    MigrationFileExecutionDetailStatus expectedStatus
-  ) {
-    MigrationFileExecution fileExecution = waitingPuExecution();
-    when(migrationFileExecutionDetailRepositoryMock.findAllByMigrationFileExecutionId(FILE_EXECUTION_ID))
-      .thenReturn(List.of());
-    UploadDetails uploadDetail = uploadDetail(puStatus, 12L, 10L);
-    MigrationFileExecutionDetail expectedDetail = expectedDetail(expectedStatus, 12, 10);
-    List<MigrationFileExecutionDetail> expectedDetails = List.of(expectedDetail);
-    when(migrationFileExecutionDetailRepositoryMock.saveAll(expectedDetails)).thenReturn(expectedDetails);
-
-    List<MigrationFileExecutionDetail> result = service.recordUploadDetails(fileExecution, List.of(uploadDetail));
-
-    assertEquals(expectedDetails, result);
-    verify(migrationFileExecutionRepositoryMock).findByIdForUpdate(FILE_EXECUTION_ID);
-    verify(migrationFileExecutionDetailRepositoryMock).findAllByMigrationFileExecutionId(FILE_EXECUTION_ID);
-    verify(migrationFileExecutionDetailRepositoryMock).saveAll(expectedDetails);
+    List<MigrationFileExecutionDetail> acceptedDetails = details(execution);
+    assertEquals(1, acceptedDetails.size());
+    MigrationFileExecutionDetail acceptedDetail = acceptedDetails.getFirst();
+    assertEquals(exportedDetail.getId(), acceptedDetail.getId());
+    assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, acceptedDetail.getStatus());
+    assertEquals("IPA_TEST_2", acceptedDetail.getIpaCode());
+    exportedDetail.setStatus(MigrationFileExecutionDetailStatus.WAITING_PU);
+    assertEquals(exportedDetail, acceptedDetail);
   }
 
   @Test
-  void givenUploadDetailWithOutOfRangeRowCountWhenRecordUploadDetailsThenRejectsWithoutSaving() {
-    MigrationFileExecution fileExecution = waitingPuExecution();
-    when(migrationFileExecutionDetailRepositoryMock.findAllByMigrationFileExecutionId(FILE_EXECUTION_ID))
-      .thenReturn(List.of());
-    List<UploadDetails> uploadDetails = List.of(
-      uploadDetail(IngestionFlowFileStatus.COMPLETED, Long.MAX_VALUE, 1L)
-    );
+  void givenExtractedFileWhenMarkTransferFailedThenUpdatesExistingDetails() throws IOException {
+    MigrationFileExecution execution = completeExtraction();
+    UUID detailId = details(execution).getFirst().getId();
 
-    InvalidValueException exception = assertThrows(
-      InvalidValueException.class,
-      () -> service.recordUploadDetails(fileExecution, uploadDetails)
-    );
+    transferService.markTransferFailed(execution.getMigrationId(), FILE_TYPE, "UPLOAD_ERROR", "Upload failed");
 
-    assertEquals("TRANSFER_INVALID_UPLOAD_DETAILS", exception.getCode());
-    verify(migrationFileExecutionRepositoryMock).findByIdForUpdate(FILE_EXECUTION_ID);
-    verify(migrationFileExecutionDetailRepositoryMock).findAllByMigrationFileExecutionId(FILE_EXECUTION_ID);
+    assertEquals(detailId, details(execution).getFirst().getId());
+    assertEquals(MigrationFileExecutionDetailStatus.FAILED, details(execution).getFirst().getStatus());
+    assertEquals("IPA_TEST_2", details(execution).getFirst().getIpaCode());
   }
 
   @Test
-  void givenUploadDetailWithoutRowCountsWhenRecordUploadDetailsThenPersistsNullCounts() {
-    MigrationFileExecution fileExecution = waitingPuExecution();
-    when(migrationFileExecutionDetailRepositoryMock.findAllByMigrationFileExecutionId(FILE_EXECUTION_ID))
-      .thenReturn(List.of());
-    UploadDetails uploadDetail = uploadDetail(IngestionFlowFileStatus.PROCESSING, null, null);
-    List<MigrationFileExecutionDetail> expectedDetails = List.of(expectedDetail(
-      MigrationFileExecutionDetailStatus.WAITING_PU,
-      null,
-      null
+  void givenInvalidAcceptedUploadWhenRecordUploadAcceptedThenKeepsDetailState() throws IOException {
+    MigrationFileExecution execution = completeExtraction();
+    UUID migrationId = execution.getMigrationId();
+    transferService.markTransferring(migrationId, FILE_TYPE, COMPLETED_AT);
+
+    assertThrows(InvalidValueException.class, () -> transferService.recordUploadAccepted(
+      migrationId, FILE_TYPE, 0L, UploadsStatusEnum.UPLOADED, COMPLETED_AT
     ));
-    when(migrationFileExecutionDetailRepositoryMock.saveAll(expectedDetails)).thenReturn(expectedDetails);
 
-    List<MigrationFileExecutionDetail> result = service.recordUploadDetails(fileExecution, List.of(uploadDetail));
-
-    assertEquals(expectedDetails, result);
-    assertNull(result.getFirst().getNumTotalRows());
-    assertNull(result.getFirst().getNumCorrectlyImportedRows());
-    verify(migrationFileExecutionRepositoryMock).findByIdForUpdate(FILE_EXECUTION_ID);
-    verify(migrationFileExecutionDetailRepositoryMock).findAllByMigrationFileExecutionId(FILE_EXECUTION_ID);
-    verify(migrationFileExecutionDetailRepositoryMock).saveAll(expectedDetails);
+    assertEquals(MigrationFileExecutionDetailStatus.TRANSFERING, details(execution).getFirst().getStatus());
+    assertEquals(MigrationFileExecutionStatus.TRANSFERING,
+      executionRepository.findById(execution.getId()).orElseThrow().getStatus());
   }
 
   @Test
-  void givenUploadDetailsForDifferentUploadWhenRecordUploadDetailsThenRejectsWithoutSaving() {
-    MigrationFileExecution fileExecution = waitingPuExecution();
-    when(migrationFileExecutionDetailRepositoryMock.findAllByMigrationFileExecutionId(FILE_EXECUTION_ID))
-      .thenReturn(List.of());
-    UploadDetails uploadDetail = uploadDetail(IngestionFlowFileStatus.COMPLETED, 12L, 10L);
-    uploadDetail.setUploadId(43L);
-    List<UploadDetails> uploadDetails = List.of(uploadDetail);
+  void givenCompletedExtractionWhenMarkExportedAgainThenDoesNotDuplicateDetails() throws IOException {
+    MigrationFileExecution execution = completeExtraction();
+    UUID detailId = details(execution).getFirst().getId();
 
-    InvalidValueException exception = assertThrows(
-      InvalidValueException.class,
-      () -> service.recordUploadDetails(fileExecution, uploadDetails)
-    );
+    exportService.markExported(execution.getMigrationId(), FILE_TYPE, archives(), COMPLETED_AT);
 
-    assertEquals("TRANSFER_INVALID_UPLOAD_DETAILS", exception.getCode());
-    verify(migrationFileExecutionRepositoryMock).findByIdForUpdate(FILE_EXECUTION_ID);
-    verify(migrationFileExecutionDetailRepositoryMock).findAllByMigrationFileExecutionId(FILE_EXECUTION_ID);
+    assertEquals(1, details(execution).size());
+    assertEquals(detailId, details(execution).getFirst().getId());
+    assertEquals("IPA_TEST_2", details(execution).getFirst().getIpaCode());
   }
 
   @Test
-  void givenNullUploadIdWhenRecordUploadDetailsThenRejectsBeforeReadingDetails() {
-    MigrationFileExecution fileExecution = MigrationFileExecution.builder().id(FILE_EXECUTION_ID).build();
-
-    InvalidValueException exception = assertThrows(
-      InvalidValueException.class,
-      () -> service.recordUploadDetails(fileExecution, List.of())
+  void givenMissingZipEntryWhenMarkExportedThenRollsBackDetailsAndCompletion() throws IOException {
+    MigrationFileExecution execution = exportingExecution();
+    UUID migrationId = execution.getMigrationId();
+    createArchive(execution, List.of(FILE_NAME));
+    List<ArchiveFile> invalidArchives = List.of(
+      new ArchiveFile("organizations.zip", List.of(FILE_NAME, "IPA_TEST_2-missing.csv"))
     );
 
-    assertEquals("INVALID_UPLOAD_ID", exception.getCode());
-    verifyNoInteractions(migrationFileExecutionRepositoryMock, migrationFileExecutionDetailRepositoryMock);
+    assertThrows(InvalidValueException.class, () -> exportService.markExported(
+      migrationId, FILE_TYPE, invalidArchives, COMPLETED_AT
+    ));
+
+    assertTrue(details(execution).isEmpty());
+    assertEquals(MigrationFileExecutionStatus.EXPORTING,
+      executionRepository.findById(execution.getId()).orElseThrow().getStatus());
   }
 
   @Test
-  void givenExistingUploadDetailsWhenRecordUploadDetailsThenReturnsPersistedDetails() {
-    MigrationFileExecution fileExecution = waitingPuExecution();
-    MigrationFileExecutionDetail persistedDetail = expectedDetail(
-      MigrationFileExecutionDetailStatus.COMPLETED,
-      12,
-      10
-    );
-    List<MigrationFileExecutionDetail> persistedDetails = List.of(persistedDetail);
-    when(migrationFileExecutionDetailRepositoryMock.findAllByMigrationFileExecutionId(FILE_EXECUTION_ID))
-      .thenReturn(persistedDetails);
+  void givenMultipleExtractedFilesWhenMarkExportedThenCreatesOneDetailPerFile() throws IOException {
+    MigrationFileExecution execution = exportingExecution();
+    List<String> files = List.of("IPA_TEST_2-part-1.csv", "IPA_TEST_3-part-2.csv");
+    createArchive(execution, files);
 
-    List<MigrationFileExecutionDetail> result = service.recordUploadDetails(
-      fileExecution,
-      List.of(uploadDetail(IngestionFlowFileStatus.PROCESSING, 12L, 10L))
-    );
+    exportService.markExported(execution.getMigrationId(), FILE_TYPE, List.of(
+      new ArchiveFile("organizations.zip", files)
+    ), COMPLETED_AT);
 
-    assertEquals(persistedDetails, result);
-    verify(migrationFileExecutionRepositoryMock).findByIdForUpdate(FILE_EXECUTION_ID);
-    verify(migrationFileExecutionDetailRepositoryMock).findAllByMigrationFileExecutionId(FILE_EXECUTION_ID);
+    List<MigrationFileExecutionDetail> exportedDetails = details(execution);
+    assertEquals(2, exportedDetails.size());
+    assertEquals(Set.of("IPA_TEST_2-part-1.csv", "IPA_TEST_3-part-2.csv"),
+      exportedDetails.stream().map(MigrationFileExecutionDetail::getFileName).collect(Collectors.toSet()));
+    assertEquals(Set.of("IPA_TEST_2", "IPA_TEST_3"),
+      exportedDetails.stream().map(MigrationFileExecutionDetail::getIpaCode).collect(Collectors.toSet()));
+    assertTrue(exportedDetails.stream().allMatch(detail -> detail.getFileName().startsWith(detail.getIpaCode() + "-")));
+    exportedDetails.forEach(detail -> {
+      assertEquals(5L, detail.getFileSize());
+      assertEquals(MigrationFileExecutionDetailStatus.EXPORTED, detail.getStatus());
+    });
   }
 
   @Test
-  void givenAcceptedUploadWithoutPersistedDetailsWhenHasUploadDetailsThenReturnsFalse() {
-    MigrationFileExecution fileExecution = MigrationFileExecution.builder()
-      .id(FILE_EXECUTION_ID)
-      .migrationId(MIGRATION_ID)
+  void givenDetailPersistenceFailureWhenMarkExportedThenRollsBackCompletionAndAllDetails() throws IOException {
+    MigrationFileExecution execution = exportingExecution();
+    UUID migrationId = execution.getMigrationId();
+    String longFileName = "IPA_TEST_2-" + "a".repeat(300) + ".csv";
+    List<String> files = List.of("IPA_TEST_2-valid.csv", longFileName);
+    createArchive(execution, files);
+    List<ArchiveFile> oversizedArchives = List.of(
+      new ArchiveFile("organizations.zip", files)
+    );
+
+    assertThrows(DataIntegrityViolationException.class, () -> exportService.markExported(
+      migrationId, FILE_TYPE, oversizedArchives, COMPLETED_AT
+    ));
+
+    assertTrue(details(execution).isEmpty());
+    assertEquals(MigrationFileExecutionStatus.EXPORTING,
+      executionRepository.findById(execution.getId()).orElseThrow().getStatus());
+  }
+
+  @Test
+  void givenFileWithoutIpaWhenMarkExportedThenRollsBackDetailsAndCompletion() throws IOException {
+    MigrationFileExecution execution = exportingExecution();
+    UUID migrationId = execution.getMigrationId();
+    List<String> files = List.of(FILE_NAME, "organizations.csv");
+    createArchive(execution, files);
+    List<ArchiveFile> invalidArchives = List.of(new ArchiveFile("organizations.zip", files));
+
+    InvalidValueException failure = assertThrows(InvalidValueException.class,
+      () -> exportService.markExported(migrationId, FILE_TYPE, invalidArchives, COMPLETED_AT));
+
+    assertEquals("EXTRACTOR_INVALID_FILE_DETAILS", failure.getCode());
+    assertTrue(details(execution).isEmpty());
+    MigrationFileExecution persisted = executionRepository.findById(execution.getId()).orElseThrow();
+    assertEquals(MigrationFileExecutionStatus.EXPORTING, persisted.getStatus());
+    assertNull(persisted.getExtractionCompletedAt());
+    assertNull(persisted.getFilePath());
+  }
+
+  private MigrationFileExecution completeExtraction() throws IOException {
+    MigrationFileExecution execution = exportingExecution();
+    createArchive(execution, List.of(FILE_NAME));
+    return exportService.markExported(execution.getMigrationId(), FILE_TYPE, archives(), COMPLETED_AT);
+  }
+
+  private MigrationFileExecution exportingExecution() {
+    return executionRepository.saveAndFlush(MigrationFileExecution.builder()
+      .migrationId(UUID.randomUUID())
       .fileType(FILE_TYPE)
-      .status(MigrationFileExecutionStatus.WAITING_PU)
-      .uploadId(UPLOAD_ID)
-      .build();
-    when(migrationFileExecutionDetailRepositoryMock.existsByMigrationFileExecutionId(FILE_EXECUTION_ID))
-      .thenReturn(false);
-
-    boolean result = service.hasUploadDetails(fileExecution);
-
-    assertFalse(result);
-    verifyNoInteractions(migrationFileExecutionRepositoryMock);
-    verify(migrationFileExecutionDetailRepositoryMock).existsByMigrationFileExecutionId(FILE_EXECUTION_ID);
+      .status(MigrationFileExecutionStatus.EXPORTING)
+      .extractionId(UUID.randomUUID().toString())
+      .build());
   }
 
-  private static Stream<Arguments> puUploadStatusMappings() {
-    return Stream.of(
-      Arguments.of(IngestionFlowFileStatus.UPLOADED, MigrationFileExecutionDetailStatus.WAITING_PU),
-      Arguments.of(IngestionFlowFileStatus.PROCESSING, MigrationFileExecutionDetailStatus.WAITING_PU),
-      Arguments.of(IngestionFlowFileStatus.WAITING_FILE, MigrationFileExecutionDetailStatus.WAITING_PU),
-      Arguments.of(IngestionFlowFileStatus.COMPLETED, MigrationFileExecutionDetailStatus.COMPLETED),
-      Arguments.of(IngestionFlowFileStatus.WARNING, MigrationFileExecutionDetailStatus.PARTIAL),
-      Arguments.of(IngestionFlowFileStatus.ERROR, MigrationFileExecutionDetailStatus.FAILED)
-    );
+  private void createArchive(MigrationFileExecution execution, List<String> files) throws IOException {
+    Path directory = Files.createDirectory(sharedFolder.resolve(execution.getExtractionId()));
+    try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(directory.resolve("organizations.zip")))) {
+      for (String file : files) {
+        zip.putNextEntry(new ZipEntry(file));
+        zip.write("a\n1\n2".getBytes(StandardCharsets.UTF_8));
+        zip.closeEntry();
+      }
+    }
   }
 
-  private MigrationFileExecution waitingPuExecution() {
-    MigrationFileExecution file = MigrationFileExecution.builder()
-      .id(FILE_EXECUTION_ID)
-      .migrationId(MIGRATION_ID)
-      .fileType(FILE_TYPE)
-      .status(MigrationFileExecutionStatus.WAITING_PU)
-      .uploadId(UPLOAD_ID)
-      .build();
-    when(migrationFileExecutionRepositoryMock.findByIdForUpdate(FILE_EXECUTION_ID))
-      .thenReturn(Optional.of(file));
-    return file;
+  private List<ArchiveFile> archives() {
+    return List.of(new ArchiveFile("organizations.zip", List.of(FILE_NAME)));
   }
 
-  private UploadDetails uploadDetail(IngestionFlowFileStatus status, Long totalRows, Long importedRows) {
-    return UploadDetails.builder()
-      .uploadDetailId(123L)
-      .uploadId(UPLOAD_ID)
-      .organizationId(1L)
-      .ingestionFlowFileType(IngestionFlowFileTypeEnum.ORGANIZATIONS)
-      .filePathName("uploads/organizations.csv")
-      .fileName("organizations.csv")
-      .fileSize(500L)
-      .status(status)
-      .errorDescription("error")
-      .discardFileName("organizations.errors.csv")
-      .numTotalRows(totalRows)
-      .numCorrectlyImportedRows(importedRows)
-      .build();
-  }
-
-  private MigrationFileExecutionDetail expectedDetail(
-    MigrationFileExecutionDetailStatus status,
-    Integer totalRows,
-    Integer importedRows
-  ) {
-    return MigrationFileExecutionDetail.builder()
-      .migrationFileExecutionId(FILE_EXECUTION_ID)
-      .fileName("organizations.csv")
-      .uploadDetailId(123L)
-      .fileSize(500L)
-      .status(status)
-      .errorDescription("error")
-      .discardFileName("organizations.errors.csv")
-      .numTotalRows(totalRows)
-      .numCorrectlyImportedRows(importedRows)
-      .build();
+  private List<MigrationFileExecutionDetail> details(MigrationFileExecution execution) {
+    return detailRepository.findAllByMigrationFileExecutionId(execution.getId());
   }
 }

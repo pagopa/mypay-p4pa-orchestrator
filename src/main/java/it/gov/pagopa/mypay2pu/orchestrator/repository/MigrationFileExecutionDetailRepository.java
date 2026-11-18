@@ -7,8 +7,6 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface MigrationFileExecutionDetailRepository extends JpaRepository<MigrationFileExecutionDetail, UUID> {
-  boolean existsByMigrationFileExecutionId(UUID migrationFileExecutionId);
-
   List<MigrationFileExecutionDetail> findAllByMigrationFileExecutionId(UUID migrationFileExecutionId);
 
   List<MigrationFileExecutionDetail> findAllByMigrationFileExecutionIdIn(Collection<UUID> migrationFileExecutionIds);

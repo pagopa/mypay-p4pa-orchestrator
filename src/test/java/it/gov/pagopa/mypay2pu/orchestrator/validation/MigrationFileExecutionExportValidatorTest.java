@@ -1,17 +1,23 @@
 package it.gov.pagopa.mypay2pu.orchestrator.validation;
 
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.ArchiveFile;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import java.time.LocalDateTime;
 import java.time.Month;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -26,6 +32,40 @@ class MigrationFileExecutionExportValidatorTest {
   private static final LocalDateTime COMPLETED_AT = LocalDateTime.of(2026, Month.OCTOBER, 27, 16, 30);
   private static final String FILE_PATH = "archive/organizations.zip";
   private final MigrationFileExecutionExportValidator validator = new MigrationFileExecutionExportValidator();
+
+  @ParameterizedTest
+  @NullSource
+  @MethodSource("invalidArchiveFiles")
+  void givenInvalidArchivesWhenValidateArchiveFilesThenRejectsMetadata(List<ArchiveFile> archives) {
+    InvalidValueException exception = assertThrows(
+      InvalidValueException.class, () -> validator.validateArchiveFiles(archives)
+    );
+
+    assertEquals("EXTRACTOR_INVALID_FILE_DETAILS", exception.getCode());
+  }
+
+  @Test
+  void givenValidArchivesWhenValidateArchiveFilesThenPreservesNames() {
+    ArchiveFile archive = new ArchiveFile(" data.zip ", List.of("organizations.csv"));
+
+    assertDoesNotThrow(() -> validator.validateArchiveFiles(List.of(archive)));
+
+    assertEquals(" data.zip ", archive.getName());
+  }
+
+  @Test
+  void givenNoArchivesWhenValidateArchiveFilesThenAcceptsEmptyExtraction() {
+    assertDoesNotThrow(() -> validator.validateArchiveFiles(List.of()));
+  }
+
+  private static Stream<List<ArchiveFile>> invalidArchiveFiles() {
+    return Stream.of(
+      Collections.singletonList(null),
+      List.of(new ArchiveFile(null, List.of())),
+      List.of(new ArchiveFile("", List.of())),
+      List.of(new ArchiveFile(" \t", List.of()))
+    );
+  }
 
   @ParameterizedTest
   @EnumSource(MigrationFileExecutionStatus.class)

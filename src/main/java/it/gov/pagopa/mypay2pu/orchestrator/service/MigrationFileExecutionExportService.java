@@ -1,13 +1,19 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.ArchiveFile;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
+import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionDetailRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
+import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationFileExecutionDetailMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionExportValidator;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Persists validated Export updates without modifying upload data.
@@ -16,11 +22,20 @@ import org.springframework.stereotype.Service;
 public class MigrationFileExecutionExportService extends MigrationFileExecutionService {
 
   private final MigrationFileExecutionExportValidator validator;
+  private final MigrationFileExecutionDetailRepository detailRepository;
+  private final MigrationFileExecutionDetailMapper detailMapper;
+  private final MigrationToolkitSharedFolderService sharedFolderService;
 
   public MigrationFileExecutionExportService(MigrationFileExecutionRepository migrationFileExecutionRepository,
-                                             MigrationFileExecutionExportValidator validator) {
+                                             MigrationFileExecutionExportValidator validator,
+                                             MigrationFileExecutionDetailRepository detailRepository,
+                                             MigrationFileExecutionDetailMapper detailMapper,
+                                             MigrationToolkitSharedFolderService sharedFolderService) {
     super(migrationFileExecutionRepository);
     this.validator = validator;
+    this.detailRepository = detailRepository;
+    this.detailMapper = detailMapper;
+    this.sharedFolderService = sharedFolderService;
   }
 
   /**
@@ -46,14 +61,21 @@ public class MigrationFileExecutionExportService extends MigrationFileExecutionS
   }
 
   /**
-   * Records completion; identical notifications may be repeated, but do not start a new export.
+   * Atomically records extracted file details and completion without duplicating an already exported result.
    */
+  @Transactional
   public MigrationFileExecution markExported(UUID migrationId,
                                             MigrationFileType fileType,
-                                            String filePath,
+                                            List<ArchiveFile> archives,
                                             LocalDateTime completedAt) {
+    validator.validateArchiveFiles(archives);
+    String filePath = archives.stream().map(archive -> archive.getName().trim()).collect(Collectors.joining(","));
     return update(migrationId, fileType, fileExecution -> {
       validator.validateMarkExported(fileExecution, filePath, completedAt);
+      if (fileExecution.getStatus() != MigrationFileExecutionStatus.EXPORTED) {
+        var fileSizes = sharedFolderService.getExportedFileSizes(fileExecution, archives);
+        detailRepository.saveAll(detailMapper.toMigrationFileExecutionDetails(fileExecution.getId(), fileSizes));
+      }
       fileExecution.setStatus(MigrationFileExecutionStatus.EXPORTED);
       fileExecution.setFilePath(filePath);
       fileExecution.setExtractionCompletedAt(completedAt);
