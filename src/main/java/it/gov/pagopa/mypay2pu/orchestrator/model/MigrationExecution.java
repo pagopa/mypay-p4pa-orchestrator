@@ -15,7 +15,6 @@ import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -46,8 +45,8 @@ public class MigrationExecution extends BaseEntity {
   @NotNull
   private MigrationAction action;
   private UUID parentExecutionId;
-  private LocalDate dateFrom;
-  private LocalDate dateTo;
+  private LocalDateTime dateFrom;
+  private LocalDateTime dateTo;
   private LocalDateTime sinceDate;
   private LocalDateTime lastSuccessfulExtractionAt;
   private String errorCode;
