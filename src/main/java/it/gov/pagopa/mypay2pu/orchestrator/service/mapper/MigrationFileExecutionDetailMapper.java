@@ -39,8 +39,22 @@ public class MigrationFileExecutionDetailMapper {
     return MigrationFileExecutionDetail.builder()
       .migrationFileExecutionId(migrationFileExecutionId)
       .fileName(fileName)
+      .ipaCode(extractIpaCode(fileName))
       .fileSize(fileSize)
       .status(MigrationFileExecutionDetailStatus.EXPORTED)
       .build();
+  }
+
+  private String extractIpaCode(String fileName) {
+    String baseName = fileName.substring(fileName.lastIndexOf('/') + 1);
+    int separator = baseName.indexOf('-');
+    if (separator <= 0 || separator > 50 || separator == baseName.length() - 1
+      || StringUtils.isBlank(baseName.substring(0, separator))) {
+      throw new InvalidValueException(
+        "EXTRACTOR_INVALID_FILE_DETAILS",
+        "Cannot determine IPA code from extracted file %s".formatted(fileName)
+      );
+    }
+    return baseName.substring(0, separator);
   }
 }

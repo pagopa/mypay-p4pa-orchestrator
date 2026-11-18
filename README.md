@@ -34,6 +34,14 @@ come from the Extractor response and uncompressed sizes are read from the shared
 ZIP files; the file list must match the ZIP contents. Error archives (`.errors.zip`)
 are excluded. Extract completion and detail creation are committed together.
 
+Each detail stores the owning organization's `ipaCode`, taken from the file name
+prefix before the first hyphen (not from the archive name or the request's IPA
+list). For example, `IPA_TEST_2-dovuti-C140-Secondario-1_4.csv` belongs to
+`IPA_TEST_2`. For ZIP entries in a directory, only the base file name is used.
+The IPA prefix must be non-blank and at most 50 characters, followed by a hyphen
+and a non-empty suffix. Invalid names fail export with
+`EXTRACTOR_INVALID_FILE_DETAILS`, without committing details or completion.
+
 Transfer only updates the existing details to `TRANSFERING`, `WAITING_PU` or
 `FAILED` alongside the file execution transition. It does not retrieve or create
 PU upload details. Upload-detail identifiers, import counts, errors and discard

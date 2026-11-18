@@ -42,7 +42,7 @@ class MigrationFileExecutionExportServiceTest {
   private static final LocalDateTime STARTED_AT = LocalDateTime.of(2026, Month.OCTOBER, 27, 16, 0);
   private static final LocalDateTime COMPLETED_AT = LocalDateTime.of(2026, Month.OCTOBER, 27, 16, 30);
   private static final List<ArchiveFile> ARCHIVES =
-    List.of(new ArchiveFile("archive/organizations.zip", List.of("organizations.csv")));
+    List.of(new ArchiveFile("archive/organizations.zip", List.of("IPA_TEST_2-organizations.csv")));
 
   @Mock
   private MigrationFileExecutionRepository migrationFileExecutionRepositoryMock;
@@ -152,14 +152,15 @@ class MigrationFileExecutionExportServiceTest {
       .thenReturn(Optional.of(execution));
     when(migrationFileExecutionRepositoryMock.save(execution)).thenReturn(execution);
     when(sharedFolderServiceMock.getExportedFileSizes(execution, ARCHIVES))
-      .thenReturn(Map.of("organizations.csv", 500L));
+      .thenReturn(Map.of("IPA_TEST_2-organizations.csv", 500L));
     List<MigrationFileExecutionDetail> expectedDetails = List.of(MigrationFileExecutionDetail.builder()
       .migrationFileExecutionId(execution.getId())
-      .fileName("organizations.csv")
+      .fileName("IPA_TEST_2-organizations.csv")
+      .ipaCode("IPA_TEST_2")
       .fileSize(500L)
       .status(MigrationFileExecutionDetailStatus.EXPORTED)
       .build());
-    when(detailMapperMock.toMigrationFileExecutionDetails(execution.getId(), Map.of("organizations.csv", 500L)))
+    when(detailMapperMock.toMigrationFileExecutionDetails(execution.getId(), Map.of("IPA_TEST_2-organizations.csv", 500L)))
       .thenReturn(expectedDetails);
 
     MigrationFileExecution exporting = service.markExporting(MIGRATION_ID, FILE_TYPE, STARTED_AT);
@@ -184,7 +185,7 @@ class MigrationFileExecutionExportServiceTest {
     verify(migrationFileExecutionRepositoryMock, times(3)).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
     verify(migrationFileExecutionRepositoryMock, times(3)).save(execution);
     verify(sharedFolderServiceMock).getExportedFileSizes(execution, ARCHIVES);
-    verify(detailMapperMock).toMigrationFileExecutionDetails(execution.getId(), Map.of("organizations.csv", 500L));
+    verify(detailMapperMock).toMigrationFileExecutionDetails(execution.getId(), Map.of("IPA_TEST_2-organizations.csv", 500L));
     verify(detailRepositoryMock).saveAll(expectedDetails);
   }
 

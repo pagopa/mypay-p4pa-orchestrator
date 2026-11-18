@@ -44,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class MigrationFileExecutionTransferDetailsTest {
 
   private static final MigrationFileType FILE_TYPE = MigrationFileType.ORGANIZATIONS;
+  private static final String FILE_NAME = "IPA_TEST_2-organizations.csv";
   private static final LocalDateTime COMPLETED_AT = LocalDateTime.of(2026, Month.NOVEMBER, 17, 16, 0);
 
   @TempDir
@@ -68,13 +69,15 @@ class MigrationFileExecutionTransferDetailsTest {
     MigrationFileExecution execution = completeExtraction();
     MigrationFileExecutionDetail exportedDetail = details(execution).getFirst();
     assertEquals(MigrationFileExecutionDetailStatus.EXPORTED, exportedDetail.getStatus());
-    assertEquals("organizations.csv", exportedDetail.getFileName());
+    assertEquals(FILE_NAME, exportedDetail.getFileName());
+    assertEquals("IPA_TEST_2", exportedDetail.getIpaCode());
     assertEquals(5L, exportedDetail.getFileSize());
     assertNull(exportedDetail.getUploadDetailId());
     assertNull(exportedDetail.getNumTotalRows());
 
     transferService.markTransferring(execution.getMigrationId(), FILE_TYPE, COMPLETED_AT);
     assertEquals(MigrationFileExecutionDetailStatus.TRANSFERING, details(execution).getFirst().getStatus());
+    assertEquals("IPA_TEST_2", details(execution).getFirst().getIpaCode());
 
     transferService.recordUploadAccepted(
       execution.getMigrationId(), FILE_TYPE, 42L, UploadsStatusEnum.UPLOADED, COMPLETED_AT
@@ -85,6 +88,7 @@ class MigrationFileExecutionTransferDetailsTest {
     MigrationFileExecutionDetail acceptedDetail = acceptedDetails.getFirst();
     assertEquals(exportedDetail.getId(), acceptedDetail.getId());
     assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, acceptedDetail.getStatus());
+    assertEquals("IPA_TEST_2", acceptedDetail.getIpaCode());
     exportedDetail.setStatus(MigrationFileExecutionDetailStatus.WAITING_PU);
     assertEquals(exportedDetail, acceptedDetail);
   }
@@ -98,6 +102,7 @@ class MigrationFileExecutionTransferDetailsTest {
 
     assertEquals(detailId, details(execution).getFirst().getId());
     assertEquals(MigrationFileExecutionDetailStatus.FAILED, details(execution).getFirst().getStatus());
+    assertEquals("IPA_TEST_2", details(execution).getFirst().getIpaCode());
   }
 
   @Test
@@ -124,15 +129,16 @@ class MigrationFileExecutionTransferDetailsTest {
 
     assertEquals(1, details(execution).size());
     assertEquals(detailId, details(execution).getFirst().getId());
+    assertEquals("IPA_TEST_2", details(execution).getFirst().getIpaCode());
   }
 
   @Test
   void givenMissingZipEntryWhenMarkExportedThenRollsBackDetailsAndCompletion() throws IOException {
     MigrationFileExecution execution = exportingExecution();
     UUID migrationId = execution.getMigrationId();
-    createArchive(execution, List.of("organizations.csv"));
+    createArchive(execution, List.of(FILE_NAME));
     List<ArchiveFile> invalidArchives = List.of(
-      new ArchiveFile("organizations.zip", List.of("organizations.csv", "missing.csv"))
+      new ArchiveFile("organizations.zip", List.of(FILE_NAME, "IPA_TEST_2-missing.csv"))
     );
 
     assertThrows(InvalidValueException.class, () -> exportService.markExported(
@@ -147,7 +153,7 @@ class MigrationFileExecutionTransferDetailsTest {
   @Test
   void givenMultipleExtractedFilesWhenMarkExportedThenCreatesOneDetailPerFile() throws IOException {
     MigrationFileExecution execution = exportingExecution();
-    List<String> files = List.of("part-1.csv", "part-2.csv");
+    List<String> files = List.of("IPA_TEST_2-part-1.csv", "IPA_TEST_3-part-2.csv");
     createArchive(execution, files);
 
     exportService.markExported(execution.getMigrationId(), FILE_TYPE, List.of(
@@ -156,8 +162,11 @@ class MigrationFileExecutionTransferDetailsTest {
 
     List<MigrationFileExecutionDetail> exportedDetails = details(execution);
     assertEquals(2, exportedDetails.size());
-    assertEquals(Set.of("part-1.csv", "part-2.csv"),
+    assertEquals(Set.of("IPA_TEST_2-part-1.csv", "IPA_TEST_3-part-2.csv"),
       exportedDetails.stream().map(MigrationFileExecutionDetail::getFileName).collect(Collectors.toSet()));
+    assertEquals(Set.of("IPA_TEST_2", "IPA_TEST_3"),
+      exportedDetails.stream().map(MigrationFileExecutionDetail::getIpaCode).collect(Collectors.toSet()));
+    assertTrue(exportedDetails.stream().allMatch(detail -> detail.getFileName().startsWith(detail.getIpaCode() + "-")));
     exportedDetails.forEach(detail -> {
       assertEquals(5L, detail.getFileSize());
       assertEquals(MigrationFileExecutionDetailStatus.EXPORTED, detail.getStatus());
@@ -168,8 +177,8 @@ class MigrationFileExecutionTransferDetailsTest {
   void givenDetailPersistenceFailureWhenMarkExportedThenRollsBackCompletionAndAllDetails() throws IOException {
     MigrationFileExecution execution = exportingExecution();
     UUID migrationId = execution.getMigrationId();
-    String longFileName = "a".repeat(300) + ".csv";
-    List<String> files = List.of("valid.csv", longFileName);
+    String longFileName = "IPA_TEST_2-" + "a".repeat(300) + ".csv";
+    List<String> files = List.of("IPA_TEST_2-valid.csv", longFileName);
     createArchive(execution, files);
     List<ArchiveFile> oversizedArchives = List.of(
       new ArchiveFile("organizations.zip", files)
@@ -184,9 +193,28 @@ class MigrationFileExecutionTransferDetailsTest {
       executionRepository.findById(execution.getId()).orElseThrow().getStatus());
   }
 
+  @Test
+  void givenFileWithoutIpaWhenMarkExportedThenRollsBackDetailsAndCompletion() throws IOException {
+    MigrationFileExecution execution = exportingExecution();
+    UUID migrationId = execution.getMigrationId();
+    List<String> files = List.of(FILE_NAME, "organizations.csv");
+    createArchive(execution, files);
+    List<ArchiveFile> invalidArchives = List.of(new ArchiveFile("organizations.zip", files));
+
+    InvalidValueException failure = assertThrows(InvalidValueException.class,
+      () -> exportService.markExported(migrationId, FILE_TYPE, invalidArchives, COMPLETED_AT));
+
+    assertEquals("EXTRACTOR_INVALID_FILE_DETAILS", failure.getCode());
+    assertTrue(details(execution).isEmpty());
+    MigrationFileExecution persisted = executionRepository.findById(execution.getId()).orElseThrow();
+    assertEquals(MigrationFileExecutionStatus.EXPORTING, persisted.getStatus());
+    assertNull(persisted.getExtractionCompletedAt());
+    assertNull(persisted.getFilePath());
+  }
+
   private MigrationFileExecution completeExtraction() throws IOException {
     MigrationFileExecution execution = exportingExecution();
-    createArchive(execution, List.of("organizations.csv"));
+    createArchive(execution, List.of(FILE_NAME));
     return exportService.markExported(execution.getMigrationId(), FILE_TYPE, archives(), COMPLETED_AT);
   }
 
@@ -211,7 +239,7 @@ class MigrationFileExecutionTransferDetailsTest {
   }
 
   private List<ArchiveFile> archives() {
-    return List.of(new ArchiveFile("organizations.zip", List.of("organizations.csv")));
+    return List.of(new ArchiveFile("organizations.zip", List.of(FILE_NAME)));
   }
 
   private List<MigrationFileExecutionDetail> details(MigrationFileExecution execution) {
