@@ -16,6 +16,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionS
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionExportService;
 import it.gov.pagopa.mypay2pu.orchestrator.utils.Constants;
@@ -92,18 +93,17 @@ class AbstractMigrationExportOperationTest {
   @Test
   void givenPendingFileWhenExecuteThenSubmitsPollsAndPersistsCompletion() {
     MigrationRequestDto request = request();
+    List<ArchiveFile> archives = List.of(
+      new ArchiveFile(" archive/export-1.zip ", List.of("part-1.csv")),
+      new ArchiveFile("archive/export-2.zip", List.of("part-2.csv"))
+    );
     givenFileExecution(MigrationFileExecutionStatus.PENDING, null);
     when(extractorServiceMock.createExtraction(EXTRACTION_REQUEST))
       .thenReturn(new ExtractionAcceptedResponse(EXTRACTION_ID));
     when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenReturn(
       newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.NEW, List.of()),
       newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.RUNNING, List.of()),
-      newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.COMPLETED, List.of(
-        new ArchiveFile(" archive/export-1.zip ", List.of()),
-        new ArchiveFile("  ", List.of()),
-        new ArchiveFile(null, List.of()),
-        new ArchiveFile("archive/export-2.zip", List.of())
-      ))
+      newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.COMPLETED, archives)
     );
 
     operation.execute(request);
@@ -119,7 +119,7 @@ class AbstractMigrationExportOperationTest {
     calls.verify(migrationFileExecutionServiceMock).markExported(
       MIGRATION_ID,
       FILE_TYPE,
-      "archive/export-1.zip,archive/export-2.zip",
+      archives,
       COMPLETED_AT
     );
   }
@@ -146,7 +146,7 @@ class AbstractMigrationExportOperationTest {
     verify(extractorServiceMock).createExtraction(expected);
     verify(migrationFileExecutionServiceMock).recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, EXTRACTION_ID);
     verify(extractorServiceMock).getExtractionStatus(EXTRACTION_ID);
-    verify(migrationFileExecutionServiceMock).markExported(MIGRATION_ID, FILE_TYPE, "", COMPLETED_AT);
+    verify(migrationFileExecutionServiceMock).markExported(MIGRATION_ID, FILE_TYPE, List.of(), COMPLETED_AT);
   }
 
   @Test
@@ -170,7 +170,7 @@ class AbstractMigrationExportOperationTest {
     verify(extractorServiceMock).createExtraction(expected);
     verify(migrationFileExecutionServiceMock).recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, EXTRACTION_ID);
     verify(extractorServiceMock).getExtractionStatus(EXTRACTION_ID);
-    verify(migrationFileExecutionServiceMock).markExported(MIGRATION_ID, FILE_TYPE, "", COMPLETED_AT);
+    verify(migrationFileExecutionServiceMock).markExported(MIGRATION_ID, FILE_TYPE, List.of(), COMPLETED_AT);
   }
 
   @ParameterizedTest
@@ -208,7 +208,7 @@ class AbstractMigrationExportOperationTest {
     verify(extractorServiceMock).createExtraction(expected);
     verify(migrationFileExecutionServiceMock).recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, EXTRACTION_ID);
     verify(extractorServiceMock).getExtractionStatus(EXTRACTION_ID);
-    verify(migrationFileExecutionServiceMock).markExported(MIGRATION_ID, FILE_TYPE, "", COMPLETED_AT);
+    verify(migrationFileExecutionServiceMock).markExported(MIGRATION_ID, FILE_TYPE, List.of(), COMPLETED_AT);
   }
 
   @Test
@@ -244,12 +244,12 @@ class AbstractMigrationExportOperationTest {
       newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.COMPLETED, List.of())
     );
 
-    operation.execute(request().orchestrationMode(OrchestrationMode.DELTA));
+    operation.execute(request().orchestrationMode(OrchestrationMode.DELTA).period(null));
 
     verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
     verify(extractorServiceMock).getExtractionStatus(EXTRACTION_ID);
     verify(migrationFileExecutionServiceMock).markExported(
-      MIGRATION_ID, FILE_TYPE, "", COMPLETED_AT
+      MIGRATION_ID, FILE_TYPE, List.of(), COMPLETED_AT
     );
   }
 
@@ -319,12 +319,13 @@ class AbstractMigrationExportOperationTest {
                                                                  Class<? extends RuntimeException> exceptionType,
                                                                  String expectedExceptionMessage,
                                                                  String expectedFailureMessage) {
+    MigrationRequestDto request = request();
     givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
     when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenReturn(response);
 
     RuntimeException failure = assertThrows(
       exceptionType,
-      () -> operation.execute(request())
+      () -> operation.execute(request)
     );
 
     if (expectedExceptionMessage != null) {
@@ -337,6 +338,29 @@ class AbstractMigrationExportOperationTest {
       FILE_TYPE,
       EXTRACTOR_ERROR,
       expectedFailureMessage == null ? failure.getMessage() : expectedFailureMessage
+    );
+  }
+
+  @Test
+  void givenInvalidArchivesWhenExecuteThenPropagatesValidationFailureAndMarksFileFailed() {
+    MigrationRequestDto request = request();
+    givenFileExecution(MigrationFileExecutionStatus.EXPORTING, EXTRACTION_ID);
+    when(extractorServiceMock.getExtractionStatus(EXTRACTION_ID)).thenReturn(
+      newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.COMPLETED, null)
+    );
+    InvalidValueException failure = new InvalidValueException(
+      "EXTRACTOR_INVALID_FILE_DETAILS", "Extractor returned an invalid archive list"
+    );
+    when(migrationFileExecutionServiceMock.markExported(MIGRATION_ID, FILE_TYPE, null, COMPLETED_AT))
+      .thenThrow(failure);
+
+    assertSame(failure, assertThrows(InvalidValueException.class, () -> operation.execute(request)));
+
+    verify(migrationFileExecutionServiceMock).ensurePending(MIGRATION_ID, FILE_TYPE);
+    verify(extractorServiceMock).getExtractionStatus(EXTRACTION_ID);
+    verify(migrationFileExecutionServiceMock).markExported(MIGRATION_ID, FILE_TYPE, null, COMPLETED_AT);
+    verify(migrationFileExecutionServiceMock).markExtractionFailed(
+      MIGRATION_ID, FILE_TYPE, EXTRACTOR_ERROR, failure.getMessage()
     );
   }
 
@@ -491,12 +515,6 @@ class AbstractMigrationExportOperationTest {
         IllegalStateException.class,
         "Extractor failed extraction " + EXTRACTION_ID + " with status FAILED: remote failure",
         "Extractor failed extraction " + EXTRACTION_ID + " with status FAILED: remote failure"
-      ),
-      Arguments.of(
-        newExtractionStatusResponse(EXTRACTION_ID, ExtractionStatus.COMPLETED, null),
-        IllegalStateException.class,
-        "Extractor completed without an archive list",
-        "Extractor completed without an archive list"
       ),
       Arguments.of(
         new ExtractionStatusResponse()
