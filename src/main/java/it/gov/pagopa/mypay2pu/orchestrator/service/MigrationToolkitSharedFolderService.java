@@ -62,6 +62,11 @@ public class MigrationToolkitSharedFolderService {
       );
     }
 
+    return new FileSystemResource(resolveArchive(fileExecution, archives.getFirst()));
+  }
+
+  private Path resolveArchive(MigrationFileExecution fileExecution, String archiveName) {
+    MigrationFileType fileType = fileExecution.getFileType();
     String extractionId = fileExecution.getExtractionId();
     if (StringUtils.isBlank(extractionId)
       || extractionId.contains("/") || extractionId.contains("\\")
@@ -74,7 +79,7 @@ public class MigrationToolkitSharedFolderService {
     }
 
     Path extractionDirectory = extractorOutputPath.resolve(extractionId).normalize();
-    Path archivePath = extractionDirectory.resolve(archives.getFirst()).normalize();
+    Path archivePath = extractionDirectory.resolve(archiveName).normalize();
     boolean withinExpectedDirectory = extractionDirectory.startsWith(extractorOutputPath)
       && archivePath.startsWith(extractionDirectory);
     boolean regularFile = withinExpectedDirectory && Files.isRegularFile(archivePath);
@@ -82,11 +87,11 @@ public class MigrationToolkitSharedFolderService {
     if (!withinExpectedDirectory || !regularFile || !readable) {
       throw new NotFoundException(
         "TRANSFER_ARCHIVE_NOT_FOUND",
-        "Exported archive %s is missing or unreadable".formatted(archives.getFirst())
+        "Exported archive %s is missing or unreadable".formatted(archiveName)
       );
     }
 
     // TODO: Decrypt the archive here when encryption is enabled (follow-up PR).
-    return new FileSystemResource(archivePath);
+    return archivePath;
   }
 }

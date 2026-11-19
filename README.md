@@ -26,6 +26,34 @@ See [OpenAPI](openapi/generated.openapi.json), exposed through the following pat
 * `404`: Requested resource not found
 * `409`: Conflict with an existing operation
 
+### File detail lifecycle
+
+At the end of Extract, the orchestrator creates one `migration_file_execution_detail`
+row per file declared in the Extractor response for data ZIP archives, in
+`EXPORTED` status. Archives are not opened or inspected during Extract completion.
+Each detail initially stores `fileSize = 0` as a placeholder, preserving the
+non-null constraint; this value does not indicate a verified empty file.
+Error archives (`.errors.zip`) are excluded. Missing file lists, invalid file
+names and duplicate names are rejected. Extract completion and detail creation
+are committed together.
+
+Each detail stores the owning organization's `ipaCode`, taken from the file name
+prefix before the first hyphen (not from the archive name or the request's IPA
+list). For example, `IPA_TEST_2-dovuti-C140-Secondario-1_4.csv` belongs to
+`IPA_TEST_2`. For ZIP entries in a directory, only the base file name is used.
+The IPA prefix must be non-blank and at most 50 characters, followed by a hyphen
+and a non-empty suffix. Invalid names fail export with
+`EXTRACTOR_INVALID_FILE_DETAILS`, without committing details or completion.
+
+Transfer only updates the existing details to `TRANSFERING`, `WAITING_PU` or
+`FAILED` alongside the file execution transition. It does not retrieve or create
+PU upload details. Upload-detail identifiers, import counts, errors and discard
+files remain unset until the separate Evidence phase enriches the existing rows.
+That phase will also replace the provisional file sizes with values from PU
+`UploadDetails`.
+Previously exported executions without details require backfilling before using
+this lifecycle; Transfer does not recreate missing extraction details.
+
 ## 🔎 Monitoring
 See available actuator endpoints through the following path:
 * `/actuator`

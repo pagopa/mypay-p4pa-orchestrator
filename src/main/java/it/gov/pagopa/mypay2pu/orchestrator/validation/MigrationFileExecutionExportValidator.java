@@ -1,12 +1,16 @@
 package it.gov.pagopa.mypay2pu.orchestrator.validation;
 
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.ArchiveFile;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 /**
@@ -27,6 +31,13 @@ public class MigrationFileExecutionExportValidator extends BaseMigrationFileExec
 
   public MigrationFileExecutionExportValidator() {
     super(TRANSITIONS);
+  }
+
+  public void validateArchiveFiles(List<ArchiveFile> archives) {
+    if (CollectionUtils.isEmpty(archives) || archives.stream().anyMatch(archive ->
+      archive == null || !StringUtils.hasText(archive.getName()))) {
+      throw new InvalidValueException("EXTRACTOR_INVALID_FILE_DETAILS", "Extractor returned an invalid archive list");
+    }
   }
 
   /**

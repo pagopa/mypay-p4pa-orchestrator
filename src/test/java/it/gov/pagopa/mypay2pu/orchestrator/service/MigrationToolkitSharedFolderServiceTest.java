@@ -1,5 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
+import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.config.MigrationTransferProperties;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,34 @@ class MigrationToolkitSharedFolderServiceTest {
     );
 
     assertEquals("TRANSFER_SHARED_FOLDER_INVALID", exception.getCode());
+  }
+
+  @Test
+  void givenDataAndErrorsArchivesWhenGetDataArchiveThenReturnsOnlyDataArchive() throws IOException {
+    MigrationToolkitSharedFolderService service = new MigrationToolkitSharedFolderService(properties(sharedFolder));
+    MigrationFileExecution execution = execution("extract-123");
+    execution.setFilePath("data.zip,data.errors.zip");
+    Path directory = Files.createDirectories(sharedFolder.resolve("extract-123"));
+    Path archive = Files.createFile(directory.resolve("data.zip"));
+
+    assertEquals(archive.toFile(), service.getDataArchive(execution, MigrationFileType.ORGANIZATIONS).getFile());
+  }
+
+  @Test
+  void givenOutsideArchiveWhenGetDataArchiveThenRejectsPath() {
+    MigrationToolkitSharedFolderService service = new MigrationToolkitSharedFolderService(properties(sharedFolder));
+    MigrationFileExecution execution = execution("extract-123");
+    execution.setFilePath("../../data.zip");
+
+    assertThrows(it.gov.pagopa.mypay2pu.orchestrator.exception.NotFoundException.class,
+      () -> service.getDataArchive(execution, MigrationFileType.ORGANIZATIONS));
+  }
+
+  private MigrationFileExecution execution(String extractionId) {
+    return MigrationFileExecution.builder()
+      .extractionId(extractionId)
+      .fileType(MigrationFileType.ORGANIZATIONS)
+      .build();
   }
 
   private MigrationTransferProperties properties(Path outputPath) {

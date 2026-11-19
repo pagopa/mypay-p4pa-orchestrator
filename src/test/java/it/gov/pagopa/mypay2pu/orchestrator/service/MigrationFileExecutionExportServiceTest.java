@@ -1,5 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.ArchiveFile;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
@@ -7,10 +8,15 @@ import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.NotFoundException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
+import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionDetailRepository;
+import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationFileExecutionDetailMapper;
+import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionDetailStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionExportValidator;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,22 +40,31 @@ class MigrationFileExecutionExportServiceTest {
   private static final MigrationFileType FILE_TYPE = MigrationFileType.ORGANIZATIONS;
   private static final LocalDateTime STARTED_AT = LocalDateTime.of(2026, Month.OCTOBER, 27, 16, 0);
   private static final LocalDateTime COMPLETED_AT = LocalDateTime.of(2026, Month.OCTOBER, 27, 16, 30);
+  private static final List<ArchiveFile> ARCHIVES =
+    List.of(new ArchiveFile("archive/organizations.zip", List.of("IPA_TEST_2-organizations.csv")));
 
   @Mock
   private MigrationFileExecutionRepository migrationFileExecutionRepositoryMock;
+  @Mock
+  private MigrationFileExecutionDetailRepository detailRepositoryMock;
+  @Mock
+  private MigrationFileExecutionDetailMapper detailMapperMock;
 
   private MigrationFileExecutionExportService service;
 
   @BeforeEach
   void setUp() {
     service = new MigrationFileExecutionExportService(
-      migrationFileExecutionRepositoryMock, new MigrationFileExecutionExportValidator()
+      migrationFileExecutionRepositoryMock, new MigrationFileExecutionExportValidator(),
+      detailRepositoryMock, detailMapperMock
     );
   }
 
   @AfterEach
   void verifyMocks() {
-    verifyNoMoreInteractions(migrationFileExecutionRepositoryMock);
+    verifyNoMoreInteractions(
+      migrationFileExecutionRepositoryMock, detailRepositoryMock, detailMapperMock
+    );
   }
 
   @Test
@@ -133,11 +148,20 @@ class MigrationFileExecutionExportServiceTest {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
       .thenReturn(Optional.of(execution));
     when(migrationFileExecutionRepositoryMock.save(execution)).thenReturn(execution);
+    List<MigrationFileExecutionDetail> expectedDetails = List.of(MigrationFileExecutionDetail.builder()
+      .migrationFileExecutionId(execution.getId())
+      .fileName("IPA_TEST_2-organizations.csv")
+      .ipaCode("IPA_TEST_2")
+      .fileSize(0L)
+      .status(MigrationFileExecutionDetailStatus.EXPORTED)
+      .build());
+    when(detailMapperMock.toMigrationFileExecutionDetails(execution.getId(), ARCHIVES))
+      .thenReturn(expectedDetails);
 
     MigrationFileExecution exporting = service.markExporting(MIGRATION_ID, FILE_TYPE, STARTED_AT);
     MigrationFileExecution accepted = service.recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, "extractor-123");
     MigrationFileExecution exported = service.markExported(
-      MIGRATION_ID, FILE_TYPE, "archive/organizations.zip", COMPLETED_AT
+      MIGRATION_ID, FILE_TYPE, ARCHIVES, COMPLETED_AT
     );
 
     assertSame(execution, exporting);
@@ -155,6 +179,8 @@ class MigrationFileExecutionExportServiceTest {
     assertEquals(COMPLETED_AT, exported.getUploadCompletedAt());
     verify(migrationFileExecutionRepositoryMock, times(3)).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
     verify(migrationFileExecutionRepositoryMock, times(3)).save(execution);
+    verify(detailMapperMock).toMigrationFileExecutionDetails(execution.getId(), ARCHIVES);
+    verify(detailRepositoryMock).saveAll(expectedDetails);
   }
 
   @Test
@@ -219,7 +245,7 @@ class MigrationFileExecutionExportServiceTest {
     when(migrationFileExecutionRepositoryMock.save(execution)).thenReturn(execution);
 
     MigrationFileExecution result = service.markExported(
-      MIGRATION_ID, FILE_TYPE, "archive/organizations.zip", COMPLETED_AT
+      MIGRATION_ID, FILE_TYPE, ARCHIVES, COMPLETED_AT
     );
 
     assertSame(execution, result);
@@ -239,7 +265,7 @@ class MigrationFileExecutionExportServiceTest {
 
     assertThrows(
       ConflictException.class,
-      () -> service.markExported(MIGRATION_ID, FILE_TYPE, "archive/organizations.zip", COMPLETED_AT)
+      () -> service.markExported(MIGRATION_ID, FILE_TYPE, ARCHIVES, COMPLETED_AT)
     );
     verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
   }
@@ -254,7 +280,7 @@ class MigrationFileExecutionExportServiceTest {
 
     assertThrows(
       ConflictException.class,
-      () -> service.markExported(MIGRATION_ID, FILE_TYPE, "archive/organizations.zip", COMPLETED_AT)
+      () -> service.markExported(MIGRATION_ID, FILE_TYPE, ARCHIVES, COMPLETED_AT)
     );
     verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
   }
@@ -267,7 +293,7 @@ class MigrationFileExecutionExportServiceTest {
 
     assertThrows(
       ConflictException.class,
-      () -> service.markExported(MIGRATION_ID, FILE_TYPE, "archive/organizations.zip", COMPLETED_AT)
+      () -> service.markExported(MIGRATION_ID, FILE_TYPE, ARCHIVES, COMPLETED_AT)
     );
     verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
   }
@@ -281,7 +307,7 @@ class MigrationFileExecutionExportServiceTest {
 
     assertThrows(
       ConflictException.class,
-      () -> service.markExported(MIGRATION_ID, FILE_TYPE, "archive/organizations.zip", COMPLETED_AT)
+      () -> service.markExported(MIGRATION_ID, FILE_TYPE, ARCHIVES, COMPLETED_AT)
     );
     verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
   }
@@ -415,6 +441,65 @@ class MigrationFileExecutionExportServiceTest {
       InvalidValueException.class,
       () -> service.recordExtractionAccepted(MIGRATION_ID, FILE_TYPE, " ")
     );
+  }
+
+  @Test
+  void givenNullArchivesWhenMarkExportedThenRejectsBeforeRepositoryLookup() {
+    InvalidValueException exception = assertThrows(
+      InvalidValueException.class,
+      () -> service.markExported(MIGRATION_ID, FILE_TYPE, null, COMPLETED_AT)
+    );
+
+    assertEquals("EXTRACTOR_INVALID_FILE_DETAILS", exception.getCode());
+  }
+
+  @Test
+  void givenDeclaredFilesWithoutArchiveAccessWhenMarkExportedThenPersistsDetailsWithZeroSize() {
+    MigrationFileExecution execution = newMigrationFileExecution(MigrationFileExecutionStatus.EXPORTING);
+    execution.setExtractionId("extractor-123");
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
+      .thenReturn(Optional.of(execution));
+    when(migrationFileExecutionRepositoryMock.save(execution)).thenReturn(execution);
+    List<MigrationFileExecutionDetail> expectedDetails = List.of(MigrationFileExecutionDetail.builder()
+      .migrationFileExecutionId(execution.getId())
+      .fileName("IPA_TEST_2-organizations.csv")
+      .ipaCode("IPA_TEST_2")
+      .fileSize(0L)
+      .status(MigrationFileExecutionDetailStatus.EXPORTED)
+      .build());
+    MigrationFileExecutionExportService exportService = new MigrationFileExecutionExportService(
+      migrationFileExecutionRepositoryMock, new MigrationFileExecutionExportValidator(),
+      detailRepositoryMock, new MigrationFileExecutionDetailMapper()
+    );
+
+    MigrationFileExecution result = exportService.markExported(MIGRATION_ID, FILE_TYPE, ARCHIVES, COMPLETED_AT);
+
+    assertEquals(MigrationFileExecutionStatus.EXPORTED, result.getStatus());
+    assertEquals("archive/organizations.zip", result.getFilePath());
+    assertEquals(COMPLETED_AT, result.getExtractionCompletedAt());
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
+    verify(detailRepositoryMock).saveAll(expectedDetails);
+    verify(migrationFileExecutionRepositoryMock).save(execution);
+  }
+
+  @Test
+  void givenInvalidFileMetadataWhenMarkExportedThenDoesNotPersistDetailsOrCompletion() {
+    MigrationFileExecution execution = newMigrationFileExecution(MigrationFileExecutionStatus.EXPORTING);
+    execution.setExtractionId("extractor-123");
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
+      .thenReturn(Optional.of(execution));
+    InvalidValueException failure = new InvalidValueException("EXTRACTOR_INVALID_FILE_DETAILS", "Invalid file metadata");
+    when(detailMapperMock.toMigrationFileExecutionDetails(execution.getId(), ARCHIVES)).thenThrow(failure);
+
+    InvalidValueException result = assertThrows(
+      InvalidValueException.class,
+      () -> service.markExported(MIGRATION_ID, FILE_TYPE, ARCHIVES, COMPLETED_AT)
+    );
+
+    assertSame(failure, result);
+    assertEquals(MigrationFileExecutionStatus.EXPORTING, execution.getStatus());
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
+    verify(detailMapperMock).toMigrationFileExecutionDetails(execution.getId(), ARCHIVES);
   }
 
   private MigrationFileExecution newMigrationFileExecution(MigrationFileExecutionStatus status) {
