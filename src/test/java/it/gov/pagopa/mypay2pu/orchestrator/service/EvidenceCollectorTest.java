@@ -94,7 +94,7 @@ class EvidenceCollectorTest {
 
     verify(evidenceServiceMock).getRequired(MIGRATION_ID, FILE_TYPE);
     verify(puMigrationServiceMock, times(2)).getMigrationUpload(42L);
-    verify(puMigrationServiceMock).getMigrationUploadDetails(42L);
+    verify(puMigrationServiceMock, times(2)).getMigrationUploadDetails(42L);
     verify(evidenceServiceMock).recordEvidence(FILE_ID, 42L, processing, details);
     verify(evidenceServiceMock).recordEvidence(FILE_ID, 42L, done, details);
   }
@@ -218,6 +218,7 @@ class EvidenceCollectorTest {
     Uploads upload = upload(UploadsStatusEnum.PROCESSING);
     when(evidenceServiceMock.getRequired(MIGRATION_ID, FILE_TYPE)).thenReturn(pending);
     when(puMigrationServiceMock.getMigrationUpload(42L)).thenReturn(upload);
+    when(puMigrationServiceMock.getMigrationUploadDetails(42L)).thenReturn(List.of());
     when(evidenceServiceMock.recordEvidence(FILE_ID, 42L, upload, List.of())).thenReturn(pending);
     expectFailure("EVIDENCE_INTERRUPTED", "Interrupted while collecting evidence for upload 42");
     EvidenceCollector collector = collector(Clock.fixed(NOW, ZoneOffset.UTC));
@@ -234,6 +235,7 @@ class EvidenceCollectorTest {
     }
     verify(evidenceServiceMock).getRequired(MIGRATION_ID, FILE_TYPE);
     verify(puMigrationServiceMock).getMigrationUpload(42L);
+    verify(puMigrationServiceMock).getMigrationUploadDetails(42L);
     verify(evidenceServiceMock).recordEvidence(FILE_ID, 42L, upload, List.of());
   }
 
@@ -292,6 +294,7 @@ class EvidenceCollectorTest {
     Uploads upload = upload(UploadsStatusEnum.PROCESSING);
     when(evidenceServiceMock.getRequired(MIGRATION_ID, FILE_TYPE)).thenReturn(file(WAITING_PU), file(WARNING));
     when(puMigrationServiceMock.getMigrationUpload(42L)).thenReturn(upload);
+    when(puMigrationServiceMock.getMigrationUploadDetails(42L)).thenReturn(List.of());
     when(evidenceServiceMock.recordEvidence(FILE_ID, 42L, upload, List.of()))
       .thenThrow(new ConflictException("EVIDENCE_CONFLICT", "terminal detail changed"));
 
@@ -299,6 +302,7 @@ class EvidenceCollectorTest {
 
     verify(evidenceServiceMock, times(2)).getRequired(MIGRATION_ID, FILE_TYPE);
     verify(puMigrationServiceMock).getMigrationUpload(42L);
+    verify(puMigrationServiceMock).getMigrationUploadDetails(42L);
     verify(evidenceServiceMock).recordEvidence(FILE_ID, 42L, upload, List.of());
   }
 
@@ -320,7 +324,7 @@ class EvidenceCollectorTest {
   }
 
   @Test
-  void givenUploadedAndProcessingUploadWhenCollectThenFetchesDetailsOnlyOnCompletion() {
+  void givenUploadedAndProcessingUploadWhenCollectThenFetchesDetailsFromProcessing() {
     MigrationFileExecution pending = file(WAITING_PU);
     Uploads uploaded = upload(UploadsStatusEnum.UPLOADED);
     Uploads processing = upload(UploadsStatusEnum.PROCESSING);
@@ -329,7 +333,7 @@ class EvidenceCollectorTest {
     when(evidenceServiceMock.getRequired(MIGRATION_ID, FILE_TYPE)).thenReturn(pending);
     when(puMigrationServiceMock.getMigrationUpload(42L)).thenReturn(uploaded, processing, completed);
     when(evidenceServiceMock.recordEvidence(FILE_ID, 42L, uploaded, List.of())).thenReturn(pending);
-    when(evidenceServiceMock.recordEvidence(FILE_ID, 42L, processing, List.of())).thenReturn(pending);
+    when(evidenceServiceMock.recordEvidence(FILE_ID, 42L, processing, details)).thenReturn(pending);
     when(puMigrationServiceMock.getMigrationUploadDetails(42L)).thenReturn(details);
     when(evidenceServiceMock.recordEvidence(FILE_ID, 42L, completed, details)).thenReturn(file(COMPLETED));
 
@@ -340,7 +344,8 @@ class EvidenceCollectorTest {
     order.verify(puMigrationServiceMock).getMigrationUpload(42L);
     order.verify(evidenceServiceMock).recordEvidence(FILE_ID, 42L, uploaded, List.of());
     order.verify(puMigrationServiceMock).getMigrationUpload(42L);
-    order.verify(evidenceServiceMock).recordEvidence(FILE_ID, 42L, processing, List.of());
+    order.verify(puMigrationServiceMock).getMigrationUploadDetails(42L);
+    order.verify(evidenceServiceMock).recordEvidence(FILE_ID, 42L, processing, details);
     order.verify(puMigrationServiceMock).getMigrationUpload(42L);
     order.verify(puMigrationServiceMock).getMigrationUploadDetails(42L);
     order.verify(evidenceServiceMock).recordEvidence(FILE_ID, 42L, completed, details);
@@ -366,7 +371,7 @@ class EvidenceCollectorTest {
 
   @ParameterizedTest
   @EnumSource(value = UploadsStatusEnum.class, names = {"UPLOADED", "PROCESSING"})
-  void givenPendingUploadThenPuErrorWhenCollectThenFailsWithoutFetchingDetails(UploadsStatusEnum status) {
+  void givenPendingUploadThenPuErrorWhenCollectThenFailsWithoutFetchingErrorDetails(UploadsStatusEnum status) {
     MigrationFileExecution pending = file(WAITING_PU);
     MigrationFileExecution failed = file(FAILED);
     failed.setUploadErrorCode("EVIDENCE_PU_FAILED");
@@ -375,6 +380,9 @@ class EvidenceCollectorTest {
     Uploads error = upload(UploadsStatusEnum.ERROR);
     when(evidenceServiceMock.getRequired(MIGRATION_ID, FILE_TYPE)).thenReturn(pending);
     when(puMigrationServiceMock.getMigrationUpload(42L)).thenReturn(initial, error);
+    if (status == UploadsStatusEnum.PROCESSING) {
+      when(puMigrationServiceMock.getMigrationUploadDetails(42L)).thenReturn(List.of());
+    }
     when(evidenceServiceMock.recordEvidence(FILE_ID, 42L, initial, List.of())).thenReturn(pending);
     when(evidenceServiceMock.recordEvidence(FILE_ID, 42L, error, List.of())).thenReturn(failed);
     when(evidenceServiceMock.markFailed(FILE_ID, 42L, "EVIDENCE_PU_FAILED", "PU rejected upload"))
@@ -388,6 +396,9 @@ class EvidenceCollectorTest {
     var order = inOrder(evidenceServiceMock, puMigrationServiceMock);
     order.verify(evidenceServiceMock).getRequired(MIGRATION_ID, FILE_TYPE);
     order.verify(puMigrationServiceMock).getMigrationUpload(42L);
+    if (status == UploadsStatusEnum.PROCESSING) {
+      order.verify(puMigrationServiceMock).getMigrationUploadDetails(42L);
+    }
     order.verify(evidenceServiceMock).recordEvidence(FILE_ID, 42L, initial, List.of());
     order.verify(puMigrationServiceMock).getMigrationUpload(42L);
     order.verify(evidenceServiceMock).recordEvidence(FILE_ID, 42L, error, List.of());
@@ -396,13 +407,16 @@ class EvidenceCollectorTest {
 
   @ParameterizedTest
   @EnumSource(value = UploadsStatusEnum.class, names = {"UPLOADED", "PROCESSING"})
-  void givenPendingUploadAtDeadlineWhenCollectThenTimesOutWithoutFetchingDetails(UploadsStatusEnum status) {
+  void givenPendingUploadAtDeadlineWhenCollectThenTimesOutWhilePollingStatus(UploadsStatusEnum status) {
     TestClock clock = new TestClock();
     MigrationFileExecution pending = file(WAITING_PU);
     Uploads upload = upload(status);
     String message = "Timed out waiting for PU evidence for upload 42";
     when(evidenceServiceMock.getRequired(MIGRATION_ID, FILE_TYPE)).thenReturn(pending);
     when(puMigrationServiceMock.getMigrationUpload(42L)).thenReturn(upload);
+    if (status == UploadsStatusEnum.PROCESSING) {
+      when(puMigrationServiceMock.getMigrationUploadDetails(42L)).thenReturn(List.of());
+    }
     when(evidenceServiceMock.recordEvidence(FILE_ID, 42L, upload, List.of())).thenAnswer(invocation -> {
       clock.now = NOW.plus(Duration.ofHours(12));
       return pending;
@@ -417,6 +431,9 @@ class EvidenceCollectorTest {
     var order = inOrder(evidenceServiceMock, puMigrationServiceMock);
     order.verify(evidenceServiceMock).getRequired(MIGRATION_ID, FILE_TYPE);
     order.verify(puMigrationServiceMock).getMigrationUpload(42L);
+    if (status == UploadsStatusEnum.PROCESSING) {
+      order.verify(puMigrationServiceMock).getMigrationUploadDetails(42L);
+    }
     order.verify(evidenceServiceMock).recordEvidence(FILE_ID, 42L, upload, List.of());
     order.verify(evidenceServiceMock).markFailed(FILE_ID, 42L, "EVIDENCE_TIMEOUT", message);
   }

@@ -66,13 +66,18 @@ public class MigrationFileExecutionEvidenceService extends MigrationFileExecutio
     }
 
     validator.validateRecordEvidence(file, upload, target);
-    snapshot.forEach(detail -> detailMapper.updateMigrationFileExecutionDetail(
+    List<UploadDetails> terminalDetails = snapshot.stream()
+      .filter(detail -> detail.getStatus() == IngestionFlowFileStatus.COMPLETED
+        || detail.getStatus() == IngestionFlowFileStatus.WARNING
+        || detail.getStatus() == IngestionFlowFileStatus.ERROR)
+      .toList();
+    terminalDetails.forEach(detail -> detailMapper.updateMigrationFileExecutionDetail(
       byFileName.get(detail.getFileName()), detail
     ));
     if (target == FAILED) {
       failWaitingDetails(existing);
     }
-    if (!existing.isEmpty() && (!snapshot.isEmpty() || target == FAILED)) {
+    if (!existing.isEmpty() && (!terminalDetails.isEmpty() || target == FAILED)) {
       detailRepository.saveAll(existing);
     }
     file.setUploadStatus(upload.getStatus());
@@ -135,7 +140,8 @@ public class MigrationFileExecutionEvidenceService extends MigrationFileExecutio
                                                        List<UploadDetails> details,
                                                        boolean missingExisting) {
     if (upload.getStatus() == UploadsStatusEnum.ERROR
-      || details.stream().anyMatch(detail -> detail.getStatus() == IngestionFlowFileStatus.ERROR)) {
+      || (upload.getStatus() == UploadsStatusEnum.COMPLETED
+        && details.stream().anyMatch(detail -> detail.getStatus() == IngestionFlowFileStatus.ERROR))) {
       return FAILED;
     }
     Integer expected = upload.getNumTotalFiles();

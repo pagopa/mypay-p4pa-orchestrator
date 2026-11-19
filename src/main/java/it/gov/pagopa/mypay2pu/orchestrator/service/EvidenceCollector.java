@@ -89,7 +89,8 @@ public class EvidenceCollector {
       Uploads upload = puMigrationService.getMigrationUpload(file.getUploadId());
       checkDeadline(deadline, file);
       validator.validateUpload(file, file.getUploadId(), upload);
-      List<UploadDetails> details = upload.getStatus() == UploadsStatusEnum.COMPLETED
+      List<UploadDetails> details = upload.getStatus() == UploadsStatusEnum.PROCESSING
+        || upload.getStatus() == UploadsStatusEnum.COMPLETED
         ? puMigrationService.getMigrationUploadDetails(file.getUploadId()) : List.of();
       checkDeadline(deadline, file);
       MigrationFileExecution updated = evidenceService.recordEvidence(file.getId(), file.getUploadId(), upload, details);

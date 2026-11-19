@@ -131,8 +131,54 @@ class MigrationEvidencePersistenceTest {
     assertEquals(before.getCreationDate(), after.getCreationDate());
     assertEquals(detailId, after.getId());
     assertEquals("IPA_TEST_2", after.getIpaCode());
-    assertEquals(91L, after.getUploadDetailId());
+    assertEquals(status == UploadsStatusEnum.COMPLETED ? 91L : null, after.getUploadDetailId());
     assertEquals(before.getStatus(), after.getStatus());
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = IngestionFlowFileStatus.class, names = {"COMPLETED", "WARNING", "ERROR"})
+  void givenFinalDetailDuringProcessingWhenRecordEvidenceThenPersistsDetailBeforeUploadCompletes(
+    IngestionFlowFileStatus status
+  ) {
+    createFile();
+    long accepted = status == IngestionFlowFileStatus.COMPLETED ? 2L : 1L;
+    List<UploadDetails> snapshot = List.of(new UploadDetails().uploadId(42L).uploadDetailId(91L)
+      .fileName("IPA_TEST_2-organizations.csv").fileSize(1L).status(status)
+      .numTotalRows(2L).numCorrectlyImportedRows(accepted));
+    MigrationFileExecutionDetailStatus expectedDetailStatus = switch (status) {
+      case COMPLETED -> MigrationFileExecutionDetailStatus.COMPLETED;
+      case WARNING -> MigrationFileExecutionDetailStatus.PARTIAL;
+      case ERROR -> MigrationFileExecutionDetailStatus.FAILED;
+      default -> throw new AssertionError("Unexpected test status: " + status);
+    };
+
+    service.recordEvidence(fileId, 42L,
+      new Uploads().uploadId(42L).status(UploadsStatusEnum.PROCESSING).numTotalFiles(1), snapshot);
+
+    MigrationFileExecution pending = fileRepository.findById(fileId).orElseThrow();
+    MigrationFileExecutionDetail persisted = detailRepository.findById(detailId).orElseThrow();
+    assertEquals(MigrationFileExecutionStatus.WAITING_PU, pending.getStatus());
+    assertEquals(UploadsStatusEnum.PROCESSING, pending.getUploadStatus());
+    assertNull(pending.getUploadErrorCode());
+    assertEquals(expectedDetailStatus, persisted.getStatus());
+    assertEquals(91L, persisted.getUploadDetailId());
+    assertEquals(2, persisted.getNumTotalRows());
+    assertEquals((int) accepted, persisted.getNumCorrectlyImportedRows());
+
+    service.recordEvidence(fileId, 42L,
+      new Uploads().uploadId(42L).status(UploadsStatusEnum.COMPLETED).numTotalFiles(1), snapshot);
+
+    MigrationFileExecutionStatus expectedFileStatus = switch (status) {
+      case COMPLETED -> MigrationFileExecutionStatus.COMPLETED;
+      case WARNING -> MigrationFileExecutionStatus.WARNING;
+      case ERROR -> MigrationFileExecutionStatus.FAILED;
+      default -> throw new AssertionError("Unexpected test status: " + status);
+    };
+    assertEquals(expectedFileStatus, fileRepository.findById(fileId).orElseThrow().getStatus());
+    MigrationFileExecutionDetail completed = detailRepository.findById(detailId).orElseThrow();
+    assertEquals(expectedDetailStatus, completed.getStatus());
+    assertEquals(persisted.getUpdateDate(), completed.getUpdateDate());
+    assertEquals(persisted.getCreationDate(), completed.getCreationDate());
   }
 
   private void createFile() {
