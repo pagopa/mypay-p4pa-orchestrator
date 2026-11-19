@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -27,10 +28,11 @@ public class MigrationFileExecutionDetailMapper {
       if (archive.getName().trim().toLowerCase(Locale.ROOT).endsWith(".errors.zip")) {
         continue;
       }
-      if (archive.getFiles() == null) {
-        throw new InvalidValueException("EXTRACTOR_INVALID_FILE_DETAILS", "Extractor returned no file list");
-      }
-      for (String fileName : archive.getFiles()) {
+      List<String> files = Optional.ofNullable(archive.getFiles())
+        .orElseThrow(() -> new InvalidValueException(
+          "EXTRACTOR_INVALID_FILE_DETAILS", "Extractor returned no file list"
+        ));
+      for (String fileName : files) {
         MigrationFileExecutionDetail detail =
           toMigrationFileExecutionDetail(migrationFileExecutionId, fileName, 0L);
         if (!fileNames.add(fileName)) {
