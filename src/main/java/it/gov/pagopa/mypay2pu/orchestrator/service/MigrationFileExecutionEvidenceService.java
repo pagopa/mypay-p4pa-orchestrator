@@ -55,22 +55,24 @@ public class MigrationFileExecutionEvidenceService extends MigrationFileExecutio
     validator.validateUpload(file, uploadId, upload);
     List<UploadDetails> snapshot = uploadDetails == null ? List.of() : uploadDetails;
     validator.validateDetails(uploadId, snapshot);
-    List<MigrationFileExecutionDetail> existing = detailRepository.findAllByMigrationFileExecutionId(fileId);
-    Map<String, MigrationFileExecutionDetail> byFileName = correlateDetails(file, snapshot, existing);
-    boolean missingExisting = snapshot.size() != existing.size();
-    MigrationFileExecutionStatus target = resolveOutcome(upload, snapshot, missingExisting);
-
-    if (validator.isTerminal(file)) {
-      validator.validateTerminalReplay(file, upload, target, !missingExisting);
-      return file;
-    }
-
-    validator.validateRecordEvidence(file, upload, target);
     List<UploadDetails> terminalDetails = snapshot.stream()
       .filter(detail -> detail.getStatus() == IngestionFlowFileStatus.COMPLETED
         || detail.getStatus() == IngestionFlowFileStatus.WARNING
         || detail.getStatus() == IngestionFlowFileStatus.ERROR)
       .toList();
+    List<MigrationFileExecutionDetail> existing = detailRepository.findAllByMigrationFileExecutionId(fileId);
+    boolean terminalFile = validator.isTerminal(file);
+    Map<String, MigrationFileExecutionDetail> byFileName =
+      correlateDetails(file, terminalFile ? snapshot : terminalDetails, existing);
+    boolean missingExisting = snapshot.size() != existing.size();
+    MigrationFileExecutionStatus target = resolveOutcome(upload, snapshot, missingExisting);
+
+    if (terminalFile) {
+      validator.validateTerminalReplay(file, upload, target, !missingExisting);
+      return file;
+    }
+
+    validator.validateRecordEvidence(file, upload, target);
     terminalDetails.forEach(detail -> detailMapper.updateMigrationFileExecutionDetail(
       byFileName.get(detail.getFileName()), detail
     ));

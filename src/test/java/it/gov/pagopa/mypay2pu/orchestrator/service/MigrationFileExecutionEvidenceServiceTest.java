@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -527,6 +528,78 @@ class MigrationFileExecutionEvidenceServiceTest {
       Arguments.of(IngestionFlowFileStatus.WARNING, 8L, MigrationFileExecutionDetailStatus.PARTIAL, WARNING),
       Arguments.of(IngestionFlowFileStatus.ERROR, 2L, MigrationFileExecutionDetailStatus.FAILED, FAILED)
     );
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = IngestionFlowFileStatus.class, names = {"UPLOADED", "PROCESSING", "WAITING_FILE"})
+  void givenUnknownNonFinalDetailWhenRecordEvidenceThenKeepsPollingWithoutCorrelatingIt(
+    IngestionFlowFileStatus status
+  ) {
+    MigrationFileExecutionDetail original = exportedDetail();
+    prepare(List.of(original));
+    when(fileRepositoryMock.save(file)).thenReturn(file);
+    UploadDetails pending = detail(status, 10L, 3L)
+      .fileName("R_LOMBAR-DEBT_POSITIONS-20261119130346-part001-migration-2_0.csv");
+
+    service.recordEvidence(FILE_ID, 42L, upload(UploadsStatusEnum.PROCESSING), List.of(pending));
+
+    assertEquals(WAITING_PU, file.getStatus());
+    assertEquals(UploadsStatusEnum.PROCESSING, file.getUploadStatus());
+    assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, original.getStatus());
+    assertEquals(FILE_NAME, original.getFileName());
+    assertNull(original.getUploadDetailId());
+    assertNull(original.getNumTotalRows());
+    assertNull(original.getNumCorrectlyImportedRows());
+    assertNull(original.getDiscardFileName());
+    verifyReads();
+    verify(fileRepositoryMock).save(file);
+  }
+
+  @Test
+  void givenCompletedUploadWithUnknownPendingDetailWhenRecordEvidenceThenUpdatesFinalDetailAndKeepsWaiting() {
+    MigrationFileExecutionDetail first = exportedDetail();
+    MigrationFileExecutionDetail second = exportedDetail("IPA_TEST_3-organizations.csv");
+    prepare(List.of(first, second));
+    when(fileRepositoryMock.save(file)).thenReturn(file);
+    UploadDetails completed = detail(IngestionFlowFileStatus.COMPLETED, 10L, 10L);
+    UploadDetails pending = detail(IngestionFlowFileStatus.PROCESSING, 10L, 3L)
+      .uploadDetailId(124L).fileName("R_LOMBAR-DEBT_POSITIONS-20261119130346-part001-migration-2_0.csv");
+
+    service.recordEvidence(FILE_ID, 42L, upload(UploadsStatusEnum.COMPLETED).numTotalFiles(2),
+      List.of(completed, pending));
+
+    assertEquals(WAITING_PU, file.getStatus());
+    assertEquals(UploadsStatusEnum.COMPLETED, file.getUploadStatus());
+    assertEquals(MigrationFileExecutionDetailStatus.COMPLETED, first.getStatus());
+    assertEquals(123L, first.getUploadDetailId());
+    assertEquals(10, first.getNumCorrectlyImportedRows());
+    assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, second.getStatus());
+    assertNull(second.getUploadDetailId());
+    assertNull(second.getNumTotalRows());
+    verifyReads();
+    verify(detailRepositoryMock).saveAll(List.of(first, second));
+    verify(fileRepositoryMock).save(file);
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = IngestionFlowFileStatus.class, names = {"COMPLETED", "WARNING", "ERROR"})
+  void givenUnknownFinalDetailDuringProcessingWhenRecordEvidenceThenRejectsWithoutMutation(
+    IngestionFlowFileStatus status
+  ) {
+    MigrationFileExecutionDetail original = exportedDetail();
+    prepare(List.of(original));
+    Uploads upload = upload(UploadsStatusEnum.PROCESSING);
+    List<UploadDetails> details = List.of(detail(status, 10L, 3L).fileName("IPA_TEST_3-unknown.csv"));
+
+    InvalidValueException failure = assertThrows(InvalidValueException.class,
+      () -> service.recordEvidence(FILE_ID, 42L, upload, details));
+
+    assertEquals("EVIDENCE_INVALID_RESPONSE", failure.getCode());
+    assertEquals(WAITING_PU, file.getStatus());
+    assertEquals(UploadsStatusEnum.UPLOADED, file.getUploadStatus());
+    assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, original.getStatus());
+    assertNull(original.getUploadDetailId());
+    verifyReads();
   }
 
   private void prepare(List<MigrationFileExecutionDetail> existing) {
