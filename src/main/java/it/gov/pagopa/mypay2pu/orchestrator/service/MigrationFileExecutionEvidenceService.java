@@ -3,6 +3,7 @@ package it.gov.pagopa.mypay2pu.orchestrator.service;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionDetailStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionDetailRepository;
@@ -13,9 +14,13 @@ import it.gov.pagopa.pu.migration.dto.generated.IngestionFlowFileStatus;
 import it.gov.pagopa.pu.migration.dto.generated.UploadDetails;
 import it.gov.pagopa.pu.migration.dto.generated.Uploads;
 import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,17 +60,12 @@ public class MigrationFileExecutionEvidenceService extends MigrationFileExecutio
     validator.validateUpload(file, uploadId, upload);
     List<UploadDetails> snapshot = uploadDetails == null ? List.of() : uploadDetails;
     validator.validateDetails(uploadId, snapshot);
-    List<UploadDetails> terminalDetails = snapshot.stream()
-      .filter(detail -> detail.getStatus() == IngestionFlowFileStatus.COMPLETED
-        || detail.getStatus() == IngestionFlowFileStatus.WARNING
-        || detail.getStatus() == IngestionFlowFileStatus.ERROR)
-      .toList();
     List<MigrationFileExecutionDetail> existing = detailRepository.findAllByMigrationFileExecutionId(fileId);
     boolean terminalFile = validator.isTerminal(file);
-    Map<String, MigrationFileExecutionDetail> byFileName =
-      correlateDetails(file, terminalFile ? snapshot : terminalDetails, existing);
+    Map<Long, MigrationFileExecutionDetail> correlated = correlateDetails(file, snapshot, existing);
     boolean missingExisting = snapshot.size() != existing.size();
-    MigrationFileExecutionStatus target = resolveOutcome(upload, snapshot, missingExisting);
+    validator.validateDetailCount(upload, snapshot.size());
+    MigrationFileExecutionStatus target = resolveOutcome(upload, snapshot, correlated, missingExisting);
 
     if (terminalFile) {
       validator.validateTerminalReplay(file, upload, target, !missingExisting);
@@ -73,13 +73,14 @@ public class MigrationFileExecutionEvidenceService extends MigrationFileExecutio
     }
 
     validator.validateRecordEvidence(file, upload, target);
-    terminalDetails.forEach(detail -> detailMapper.updateMigrationFileExecutionDetail(
-      byFileName.get(detail.getFileName()), detail
-    ));
+    snapshot.forEach(detail -> {
+      MigrationFileExecutionDetail original = correlated.get(detail.getUploadDetailId());
+      detailMapper.updateMigrationFileExecutionDetail(original, detail, target != WAITING_PU);
+    });
     if (target == FAILED) {
       failWaitingDetails(existing);
     }
-    if (!existing.isEmpty() && (!terminalDetails.isEmpty() || target == FAILED)) {
+    if (!existing.isEmpty() && (!snapshot.isEmpty() || target == FAILED)) {
       detailRepository.saveAll(existing);
     }
     file.setUploadStatus(upload.getStatus());
@@ -109,28 +110,53 @@ public class MigrationFileExecutionEvidenceService extends MigrationFileExecutio
     return fileRepository.save(file);
   }
 
-  private Map<String, MigrationFileExecutionDetail> correlateDetails(
+  private Map<Long, MigrationFileExecutionDetail> correlateDetails(
     MigrationFileExecution file,
     List<UploadDetails> snapshot,
     List<MigrationFileExecutionDetail> existing
   ) {
-    Map<String, MigrationFileExecutionDetail> byFileName = new HashMap<>();
+    Map<String, List<MigrationFileExecutionDetail>> byBaseName = new HashMap<>();
     Map<Long, MigrationFileExecutionDetail> byUploadDetailId = new HashMap<>();
+    Set<String> fileNames = new HashSet<>();
     for (MigrationFileExecutionDetail detail : existing) {
-      if (byFileName.put(detail.getFileName(), detail) != null
+      if (!fileNames.add(detail.getFileName())
         || (detail.getUploadDetailId() != null
           && byUploadDetailId.put(detail.getUploadDetailId(), detail) != null)) {
         throw new ConflictException("EVIDENCE_CONFLICT", "Duplicate persisted details for file " + file.getId());
       }
+      byBaseName.computeIfAbsent(StringUtils.getFilename(detail.getFileName()), key -> new ArrayList<>()).add(detail);
     }
+    Map<Long, MigrationFileExecutionDetail> correlated = new HashMap<>();
+    Set<UUID> matched = new HashSet<>();
     for (UploadDetails detail : snapshot) {
       MigrationFileExecutionDetail original = byUploadDetailId.get(detail.getUploadDetailId());
       if (original == null) {
-        original = byFileName.get(detail.getFileName());
+        original = findInitialDetail(detail, byBaseName.getOrDefault(detail.getFileName(), List.of()));
       }
       validator.validateDetailUpdate(file, original, detail);
+      if (!matched.add(original.getId())) {
+        throw new InvalidValueException("EVIDENCE_INVALID_RESPONSE",
+          "PU returned multiple results for exported file " + original.getFileName());
+      }
+      correlated.put(detail.getUploadDetailId(), original);
     }
-    return byFileName;
+    return correlated;
+  }
+
+  private MigrationFileExecutionDetail findInitialDetail(UploadDetails detail,
+                                                         List<MigrationFileExecutionDetail> namedDetails) {
+    List<MigrationFileExecutionDetail> matching = namedDetails.stream()
+      .filter(candidate -> Objects.equals(candidate.getFileSize(), detail.getFileSize())).toList();
+    List<MigrationFileExecutionDetail> unbound = matching.stream()
+      .filter(candidate -> candidate.getUploadDetailId() == null).toList();
+    if (unbound.size() == 1) {
+      return unbound.getFirst();
+    }
+    if (unbound.isEmpty() && !matching.isEmpty()) {
+      throw new ConflictException("EVIDENCE_CONFLICT", "PU changed upload detail ID for " + detail.getFileName());
+    }
+    throw new InvalidValueException("EVIDENCE_INVALID_RESPONSE",
+      "PU detail has no unique exported file for upload " + detail.getUploadId() + ": " + detail.getFileName());
   }
 
   private void failWaitingDetails(List<MigrationFileExecutionDetail> details) {
@@ -140,6 +166,7 @@ public class MigrationFileExecutionEvidenceService extends MigrationFileExecutio
 
   private MigrationFileExecutionStatus resolveOutcome(Uploads upload,
                                                        List<UploadDetails> details,
+                                                       Map<Long, MigrationFileExecutionDetail> correlated,
                                                        boolean missingExisting) {
     if (upload.getStatus() == UploadsStatusEnum.ERROR
       || (upload.getStatus() == UploadsStatusEnum.COMPLETED
@@ -147,18 +174,28 @@ public class MigrationFileExecutionEvidenceService extends MigrationFileExecutio
       return FAILED;
     }
     Integer expected = upload.getNumTotalFiles();
-    validator.validateDetailCount(upload, details.size());
     if (upload.getStatus() != UploadsStatusEnum.COMPLETED || details.isEmpty()
       || missingExisting || (expected != null && details.size() != expected)
-      || (expected != null && upload.getNumCorrectlyProcessedFiles() != null
-        && !expected.equals(upload.getNumCorrectlyProcessedFiles()))
-      || details.stream().anyMatch(detail -> (detail.getStatus() != IngestionFlowFileStatus.COMPLETED
-        && detail.getStatus() != IngestionFlowFileStatus.WARNING)
-        || detail.getNumTotalRows() == null || detail.getNumCorrectlyImportedRows() == null)) {
+      || (upload.getNumCorrectlyProcessedFiles() != null
+        && details.size() != upload.getNumCorrectlyProcessedFiles())) {
       return WAITING_PU;
     }
-    long total = details.stream().mapToLong(UploadDetails::getNumTotalRows).sum();
-    long accepted = details.stream().mapToLong(UploadDetails::getNumCorrectlyImportedRows).sum();
+    long total = 0;
+    long accepted = 0;
+    for (UploadDetails detail : details) {
+      MigrationFileExecutionDetail original = correlated.get(detail.getUploadDetailId());
+      Integer detailTotal = detail.getNumTotalRows() == null
+        ? original.getNumTotalRows() : Integer.valueOf(Math.toIntExact(detail.getNumTotalRows()));
+      Integer detailAccepted = detail.getNumCorrectlyImportedRows() == null
+        ? original.getNumCorrectlyImportedRows() : Integer.valueOf(Math.toIntExact(detail.getNumCorrectlyImportedRows()));
+      if ((detail.getStatus() != IngestionFlowFileStatus.COMPLETED
+        && detail.getStatus() != IngestionFlowFileStatus.WARNING)
+        || detailTotal == null || detailAccepted == null) {
+        return WAITING_PU;
+      }
+      total += detailTotal;
+      accepted += detailAccepted;
+    }
     if (accepted == total) {
       return COMPLETED;
     }

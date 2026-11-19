@@ -13,6 +13,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.TransferFileStatusDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
+import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -90,18 +91,20 @@ public class MigrationStatusMapper {
     List<MigrationFileExecutionDetail> details
   ) {
     FileMetrics metrics = calculateMetrics(fileExecution, details);
+    boolean finalEvidence = hasFinalEvidence(fileExecution, details);
     return new TransferFileStatusDto()
       .fileType(fileExecution.getFileType())
       .status(fileExecution.getStatus())
       .uploadId(fileExecution.getUploadId())
       .uploadStatus(fileExecution.getUploadStatus() == null ? null : fileExecution.getUploadStatus().name())
-      .recordsAccepted(metrics.recordsAccepted())
-      .recordsRejected(metrics.recordsRejected())
+      .recordsAccepted(finalEvidence ? metrics.recordsAccepted() : null)
+      .recordsRejected(finalEvidence ? metrics.recordsRejected() : null)
       .errorCode(fileExecution.getUploadErrorCode())
       .errorMsg(fileExecution.getUploadErrorMsg())
       .uploadedAt(LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(fileExecution.getUploadCompletedAt()))
-      .evidenceCollectedAt(LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(
-        evidenceCollectedAt(fileExecution, details)));
+      .evidenceCollectedAt(finalEvidence
+        ? LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(evidenceCollectedAt(details))
+        : null);
   }
 
   private MigrationFileExecutionStatus exportStatus(MigrationFileExecution file) {
@@ -165,19 +168,22 @@ public class MigrationStatusMapper {
     return new FileMetrics(recordCount, recordsAccepted, recordsRejected);
   }
 
-  private LocalDateTime evidenceCollectedAt(MigrationFileExecution file, List<MigrationFileExecutionDetail> details) {
-    if ((file.getStatus() != MigrationFileExecutionStatus.COMPLETED
-      && file.getStatus() != MigrationFileExecutionStatus.WARNING
-      && file.getStatus() != MigrationFileExecutionStatus.FAILED)
-      || details.isEmpty() || details.stream().anyMatch(detail -> !TERMINAL_DETAIL_STATUSES.contains(detail.getStatus())
-        || detail.getNumTotalRows() == null || detail.getNumCorrectlyImportedRows() == null)) {
-      return null;
-    }
+  private LocalDateTime evidenceCollectedAt(List<MigrationFileExecutionDetail> details) {
     return details.stream()
       .map(MigrationFileExecutionDetail::getUpdateDate)
       .filter(Objects::nonNull)
       .max(Comparator.naturalOrder())
       .orElse(null);
+  }
+
+  private boolean hasFinalEvidence(MigrationFileExecution file, List<MigrationFileExecutionDetail> details) {
+    return (file.getStatus() == MigrationFileExecutionStatus.COMPLETED
+      || file.getStatus() == MigrationFileExecutionStatus.WARNING
+      || file.getStatus() == MigrationFileExecutionStatus.FAILED)
+      && (file.getUploadStatus() == UploadsStatusEnum.COMPLETED || file.getUploadStatus() == UploadsStatusEnum.ERROR)
+      && !details.isEmpty()
+      && details.stream().allMatch(detail -> TERMINAL_DETAIL_STATUSES.contains(detail.getStatus())
+        && detail.getNumTotalRows() != null && detail.getNumCorrectlyImportedRows() != null);
   }
 
   private Long sumIfComplete(

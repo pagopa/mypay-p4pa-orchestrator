@@ -60,21 +60,28 @@ public class MigrationFileExecutionDetailMapper {
     return baseName.substring(0, separator);
   }
 
-  /** Updates PU fields after the evidence validator has checked the complete snapshot. */
+  /** Applies validated PU observations, keeping provisional evidence in WAITING_PU. */
   public void updateMigrationFileExecutionDetail(
     MigrationFileExecutionDetail target,
-    UploadDetails uploadDetail
+    UploadDetails uploadDetail,
+    boolean finalEvidence
   ) {
-    Integer total = uploadDetail.getNumTotalRows() == null ? null : Math.toIntExact(uploadDetail.getNumTotalRows());
-    Integer accepted = uploadDetail.getNumCorrectlyImportedRows() == null
-      ? null : Math.toIntExact(uploadDetail.getNumCorrectlyImportedRows());
-    MigrationFileExecutionDetailStatus status = toLocalStatus(uploadDetail.getStatus());
     target.setUploadDetailId(uploadDetail.getUploadDetailId());
-    target.setStatus(status);
-    target.setErrorDescription(uploadDetail.getErrorDescription());
-    target.setDiscardFileName(uploadDetail.getDiscardFileName());
-    target.setNumTotalRows(total);
-    target.setNumCorrectlyImportedRows(accepted);
+    if (finalEvidence) {
+      target.setStatus(toLocalStatus(uploadDetail.getStatus()));
+    }
+    if (uploadDetail.getErrorDescription() != null) {
+      target.setErrorDescription(uploadDetail.getErrorDescription());
+    }
+    if (uploadDetail.getDiscardFileName() != null) {
+      target.setDiscardFileName(uploadDetail.getDiscardFileName());
+    }
+    if (uploadDetail.getNumTotalRows() != null) {
+      target.setNumTotalRows(Math.toIntExact(uploadDetail.getNumTotalRows()));
+    }
+    if (uploadDetail.getNumCorrectlyImportedRows() != null) {
+      target.setNumCorrectlyImportedRows(Math.toIntExact(uploadDetail.getNumCorrectlyImportedRows()));
+    }
   }
 
   private MigrationFileExecutionDetailStatus toLocalStatus(IngestionFlowFileStatus status) {

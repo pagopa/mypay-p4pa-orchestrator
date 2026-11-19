@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import static it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus.COMPLETED;
 import static it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus.FAILED;
@@ -42,7 +43,7 @@ public class MigrationFileExecutionEvidenceValidator extends BaseMigrationFileEx
 
   public void validateUpload(MigrationFileExecution file, Long uploadId, Uploads upload) {
     checkImmutableField(file, MigrationFileExecution.Fields.uploadId, file.getUploadId(), uploadId);
-    if (upload == null || !Objects.equals(uploadId, upload.getUploadId())) {
+    if (upload == null || upload.getStatus() == null || !Objects.equals(uploadId, upload.getUploadId())) {
       throw invalid("PU returned a missing status or a different upload ID for upload " + uploadId);
     }
     Integer total = upload.getNumTotalFiles();
@@ -55,12 +56,12 @@ public class MigrationFileExecutionEvidenceValidator extends BaseMigrationFileEx
 
   public void validateDetails(Long uploadId, List<UploadDetails> details) {
     Set<Long> identifiers = new HashSet<>();
-    Set<String> fileNames = new HashSet<>();
     for (UploadDetails detail : details) {
       if (detail == null || !Objects.equals(uploadId, detail.getUploadId())
         || detail.getUploadDetailId() == null || detail.getUploadDetailId() <= 0
-        || !identifiers.add(detail.getUploadDetailId())
-        || !fileNames.add(detail.getFileName())) {
+        || !StringUtils.hasText(detail.getFileName()) || detail.getStatus() == null
+        || detail.getFileSize() == null || detail.getFileSize() < 0
+        || !identifiers.add(detail.getUploadDetailId())) {
         throw invalid("PU returned invalid or duplicate details for upload " + uploadId);
       }
     }
@@ -80,7 +81,8 @@ public class MigrationFileExecutionEvidenceValidator extends BaseMigrationFileEx
 
   public void validateTerminalReplay(MigrationFileExecution file, Uploads upload,
                                      MigrationFileExecutionStatus target, boolean completeSnapshot) {
-    if (target != file.getStatus() || upload.getStatus() != file.getUploadStatus() || !completeSnapshot) {
+    if (target != file.getStatus() || upload.getStatus() != file.getUploadStatus()
+      || (!completeSnapshot && target != FAILED)) {
       throw new ConflictException("EVIDENCE_CONFLICT", "Cannot replace terminal evidence for file " + file.getId());
     }
   }
@@ -114,17 +116,19 @@ public class MigrationFileExecutionEvidenceValidator extends BaseMigrationFileEx
       && !Objects.equals(original.getUploadDetailId(), updated.getUploadDetailId())) {
       throw new ConflictException("EVIDENCE_CONFLICT", "PU changed upload detail ID for " + original.getFileName());
     }
-    if (!Objects.equals(original.getFileName(), updated.getFileName())
+    if (!Objects.equals(StringUtils.getFilename(original.getFileName()), updated.getFileName())
       || !Objects.equals(original.getFileSize(), updated.getFileSize())) {
       throw invalid("PU changed immutable metadata for detail " + original.getUploadDetailId());
     }
     Integer total = toRowCount(updated.getNumTotalRows(), "numTotalRows");
     Integer accepted = toRowCount(updated.getNumCorrectlyImportedRows(), "numCorrectlyImportedRows");
-    if (total != null && accepted != null && accepted > total) {
+    Integer mergedTotal = total == null ? original.getNumTotalRows() : total;
+    Integer mergedAccepted = accepted == null ? original.getNumCorrectlyImportedRows() : accepted;
+    if (mergedTotal != null && mergedAccepted != null && mergedAccepted > mergedTotal) {
       throw invalid("numCorrectlyImportedRows exceeds numTotalRows for upload " + updated.getUploadId());
     }
     if ((terminalFile || original.getStatus() != MigrationFileExecutionDetailStatus.WAITING_PU)
-      && (!hasSameDetailStatus(original.getStatus(), updated.getStatus())
+      && (!hasSameDetailStatus(original.getStatus(), updated.getStatus(), file.getStatus() == FAILED)
         || changedValue(original.getNumTotalRows(), total, terminalFile)
         || changedValue(original.getNumCorrectlyImportedRows(), accepted, terminalFile)
         || changedValue(original.getErrorDescription(), updated.getErrorDescription(), terminalFile)
@@ -143,19 +147,26 @@ public class MigrationFileExecutionEvidenceValidator extends BaseMigrationFileEx
     return value.intValue();
   }
 
-  private boolean hasSameDetailStatus(MigrationFileExecutionDetailStatus original, IngestionFlowFileStatus updated) {
+  private boolean hasSameDetailStatus(MigrationFileExecutionDetailStatus original,
+                                      IngestionFlowFileStatus updated, boolean failedFile) {
     return switch (original) {
-      case WAITING_PU -> updated == IngestionFlowFileStatus.UPLOADED
-        || updated == IngestionFlowFileStatus.PROCESSING || updated == IngestionFlowFileStatus.WAITING_FILE;
+      case WAITING_PU -> isWaitingForPu(updated);
       case COMPLETED -> updated == IngestionFlowFileStatus.COMPLETED;
       case PARTIAL -> updated == IngestionFlowFileStatus.WARNING;
-      case FAILED -> updated == IngestionFlowFileStatus.ERROR;
+      // An upload failure also marks unfinished details as FAILED locally.
+      case FAILED -> updated == IngestionFlowFileStatus.ERROR || (failedFile && isWaitingForPu(updated));
       default -> false;
     };
   }
 
+  private boolean isWaitingForPu(IngestionFlowFileStatus status) {
+    return status == IngestionFlowFileStatus.UPLOADED
+      || status == IngestionFlowFileStatus.PROCESSING
+      || status == IngestionFlowFileStatus.WAITING_FILE;
+  }
+
   private boolean changedValue(Object original, Object updated, boolean terminalFile) {
-    return (terminalFile || original != null) && !Objects.equals(original, updated);
+    return updated != null && (terminalFile || original != null) && !Objects.equals(original, updated);
   }
 
   private InvalidValueException invalid(String message) {

@@ -99,17 +99,35 @@ class MigrationFileExecutionEvidenceValidatorTest {
   }
 
   @Test
-  void givenSameFileWithDifferentIdentifiersWhenValidateDetailsThenRejectsDuplicateCorrelation() {
+  void givenSameFileWithDifferentIdentifiersWhenValidateDetailsThenDefersCorrelationToService() {
     UploadDetails first = new UploadDetails().uploadId(42L).uploadDetailId(1L)
-      .fileName("IPA_TEST_2-organizations.csv");
+      .fileName("IPA_TEST_2-organizations.csv").fileSize(500L).status(IngestionFlowFileStatus.PROCESSING);
     UploadDetails second = new UploadDetails().uploadId(42L).uploadDetailId(2L)
-      .fileName(first.getFileName());
+      .fileName(first.getFileName()).fileSize(600L).status(IngestionFlowFileStatus.PROCESSING);
     List<UploadDetails> details = List.of(first, second);
 
-    InvalidValueException failure = assertThrows(InvalidValueException.class,
-      () -> validator.validateDetails(42L, details));
+    assertDoesNotThrow(() -> validator.validateDetails(42L, details));
+  }
 
-    assertEquals("EVIDENCE_INVALID_RESPONSE", failure.getCode());
+  @Test
+  void givenMissingUploadStatusWhenValidateUploadThenRejectsEvidence() {
+    MigrationFileExecution file = file();
+    Uploads upload = new Uploads().uploadId(42L);
+
+    assertThrows(InvalidValueException.class, () -> validator.validateUpload(file, 42L, upload));
+  }
+
+  @ParameterizedTest
+  @MethodSource("missingDetailMetadata")
+  void givenMissingRequiredMetadataWhenValidateDetailsThenRejectsEvidence(UploadDetails detail) {
+    List<UploadDetails> snapshot = List.of(detail);
+
+    assertThrows(InvalidValueException.class, () -> validator.validateDetails(42L, snapshot));
+  }
+
+  static Stream<Arguments> missingDetailMetadata() {
+    return Stream.of(Arguments.of(puDetail().status(null)), Arguments.of(puDetail().fileName(null)),
+      Arguments.of(puDetail().fileSize(null)), Arguments.of(puDetail().fileSize(-1L)));
   }
 
   @ParameterizedTest
@@ -208,6 +226,20 @@ class MigrationFileExecutionEvidenceValidatorTest {
       Arguments.of(MigrationFileExecutionDetailStatus.PARTIAL, IngestionFlowFileStatus.WARNING),
       Arguments.of(MigrationFileExecutionDetailStatus.FAILED, IngestionFlowFileStatus.ERROR)
     );
+  }
+
+  @Test
+  void givenFailedDetailOnWaitingFileWhenValidateDetailUpdateThenRejectsRegression() {
+    MigrationFileExecution file = file();
+    MigrationFileExecutionDetail original = MigrationFileExecutionDetail.builder()
+      .fileName("IPA_TEST_2-organizations.csv").fileSize(500L).uploadDetailId(123L)
+      .status(MigrationFileExecutionDetailStatus.FAILED)
+      .numTotalRows(10).numCorrectlyImportedRows(10).build();
+    UploadDetails updated = puDetail().status(IngestionFlowFileStatus.PROCESSING);
+
+    assertThrows(ConflictException.class, () -> validator.validateDetailUpdate(file, original, updated));
+
+    assertEquals(MigrationFileExecutionDetailStatus.FAILED, original.getStatus());
   }
 
   private static UploadDetails puDetail() {
