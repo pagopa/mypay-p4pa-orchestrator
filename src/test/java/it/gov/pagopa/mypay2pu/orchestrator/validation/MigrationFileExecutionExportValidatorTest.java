@@ -54,8 +54,12 @@ class MigrationFileExecutionExportValidatorTest {
   }
 
   @Test
-  void givenNoArchivesWhenValidateArchiveFilesThenAcceptsEmptyExtraction() {
-    assertDoesNotThrow(() -> validator.validateArchiveFiles(List.of()));
+  void givenNoArchivesWhenValidateArchiveFilesThenRejectsEmptyExtraction() {
+    InvalidValueException exception = assertThrows(
+      InvalidValueException.class, () -> validator.validateArchiveFiles(List.of())
+    );
+
+    assertEquals("EXTRACTOR_INVALID_FILE_DETAILS", exception.getCode());
   }
 
   private static Stream<List<ArchiveFile>> invalidArchiveFiles() {

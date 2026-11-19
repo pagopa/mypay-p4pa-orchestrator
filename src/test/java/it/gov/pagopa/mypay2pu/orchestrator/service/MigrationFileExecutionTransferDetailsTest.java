@@ -71,7 +71,7 @@ class MigrationFileExecutionTransferDetailsTest {
     assertEquals(MigrationFileExecutionDetailStatus.EXPORTED, exportedDetail.getStatus());
     assertEquals(FILE_NAME, exportedDetail.getFileName());
     assertEquals("IPA_TEST_2", exportedDetail.getIpaCode());
-    assertEquals(5L, exportedDetail.getFileSize());
+    assertEquals(0L, exportedDetail.getFileSize());
     assertNull(exportedDetail.getUploadDetailId());
     assertNull(exportedDetail.getNumTotalRows());
 
@@ -133,21 +133,30 @@ class MigrationFileExecutionTransferDetailsTest {
   }
 
   @Test
-  void givenMissingZipEntryWhenMarkExportedThenRollsBackDetailsAndCompletion() throws IOException {
+  void givenUnavailableArchiveWhenMarkExportedThenPersistsDeclaredDetailsWithoutReadingArchive() {
     MigrationFileExecution execution = exportingExecution();
     UUID migrationId = execution.getMigrationId();
-    createArchive(execution, List.of(FILE_NAME));
-    List<ArchiveFile> invalidArchives = List.of(
+    List<ArchiveFile> declaredArchives = List.of(
       new ArchiveFile("organizations.zip", List.of(FILE_NAME, "IPA_TEST_2-missing.csv"))
     );
 
-    assertThrows(InvalidValueException.class, () -> exportService.markExported(
-      migrationId, FILE_TYPE, invalidArchives, COMPLETED_AT
-    ));
+    assertFalse(Files.exists(sharedFolder.resolve(execution.getExtractionId())));
 
-    assertTrue(details(execution).isEmpty());
-    assertEquals(MigrationFileExecutionStatus.EXPORTING,
-      executionRepository.findById(execution.getId()).orElseThrow().getStatus());
+    exportService.markExported(migrationId, FILE_TYPE, declaredArchives, COMPLETED_AT);
+
+    List<MigrationFileExecutionDetail> exportedDetails = details(execution);
+    assertEquals(2, exportedDetails.size());
+    assertEquals(Set.of(FILE_NAME, "IPA_TEST_2-missing.csv"),
+      exportedDetails.stream().map(MigrationFileExecutionDetail::getFileName).collect(Collectors.toSet()));
+    exportedDetails.forEach(detail -> {
+      assertEquals(0L, detail.getFileSize());
+      assertEquals(MigrationFileExecutionDetailStatus.EXPORTED, detail.getStatus());
+    });
+    MigrationFileExecution persisted = executionRepository.findById(execution.getId()).orElseThrow();
+    assertEquals(MigrationFileExecutionStatus.EXPORTED, persisted.getStatus());
+    assertEquals(COMPLETED_AT, persisted.getExtractionCompletedAt());
+    assertEquals("organizations.zip", persisted.getFilePath());
+    assertFalse(Files.exists(sharedFolder.resolve(execution.getExtractionId())));
   }
 
   @Test
@@ -168,7 +177,7 @@ class MigrationFileExecutionTransferDetailsTest {
       exportedDetails.stream().map(MigrationFileExecutionDetail::getIpaCode).collect(Collectors.toSet()));
     assertTrue(exportedDetails.stream().allMatch(detail -> detail.getFileName().startsWith(detail.getIpaCode() + "-")));
     exportedDetails.forEach(detail -> {
-      assertEquals(5L, detail.getFileSize());
+      assertEquals(0L, detail.getFileSize());
       assertEquals(MigrationFileExecutionDetailStatus.EXPORTED, detail.getStatus());
     });
   }
