@@ -3,14 +3,21 @@ package it.gov.pagopa.mypay2pu.orchestrator.service.mapper;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionDetailStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
+import it.gov.pagopa.pu.migration.dto.generated.IngestionFlowFileStatus;
+import it.gov.pagopa.pu.migration.dto.generated.UploadDetails;
+import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import static it.gov.pagopa.mypay2pu.orchestrator.utils.TestUtils.checkNotNullFields;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -113,4 +120,55 @@ class MigrationFileExecutionDetailMapperTest {
   void givenNoExtractedFilesWhenToMigrationFileExecutionDetailsThenReturnsNoDetails() {
     assertEquals(List.of(), mapper.toMigrationFileExecutionDetails(FILE_EXECUTION_ID, Map.of()));
   }
+
+  @ParameterizedTest
+  @MethodSource("puStatuses")
+  void givenPuDetailWhenUpdateMigrationFileExecutionDetailThenEnrichesExportWithoutReplacingMetadata(
+    IngestionFlowFileStatus puStatus, MigrationFileExecutionDetailStatus expected
+  ) {
+    LocalDateTime createdAt = LocalDateTime.of(2026, Month.NOVEMBER, 17, 12, 0);
+    UUID detailId = UUID.randomUUID();
+    MigrationFileExecutionDetail result = mapper.toMigrationFileExecutionDetail(
+      FILE_EXECUTION_ID, "IPA_TEST_2-organizations.csv", 500L
+    );
+    result.setId(detailId);
+    result.setCreationDate(createdAt);
+    result.setUpdateDate(createdAt);
+    result.setUpdateTraceId("trace");
+    result.setStatus(MigrationFileExecutionDetailStatus.WAITING_PU);
+    UploadDetails detail = new UploadDetails().uploadId(42L).uploadDetailId(123L)
+      .fileName(result.getFileName()).fileSize(500L).status(puStatus)
+      .numTotalRows(10L).numCorrectlyImportedRows(8L)
+      .errorDescription("Two rejected rows").discardFileName("rejects.csv");
+
+    mapper.updateMigrationFileExecutionDetail(result, detail);
+
+    checkNotNullFields(result);
+    assertEquals(detailId, result.getId());
+    assertEquals(FILE_EXECUTION_ID, result.getMigrationFileExecutionId());
+    assertEquals("IPA_TEST_2-organizations.csv", result.getFileName());
+    assertEquals("IPA_TEST_2", result.getIpaCode());
+    assertEquals(500L, result.getFileSize());
+    assertEquals(createdAt, result.getCreationDate());
+    assertEquals(createdAt, result.getUpdateDate());
+    assertEquals("trace", result.getUpdateTraceId());
+    assertEquals(123L, result.getUploadDetailId());
+    assertEquals(expected, result.getStatus());
+    assertEquals(10, result.getNumTotalRows());
+    assertEquals(8, result.getNumCorrectlyImportedRows());
+    assertEquals("Two rejected rows", result.getErrorDescription());
+    assertEquals("rejects.csv", result.getDiscardFileName());
+  }
+
+  static Stream<Arguments> puStatuses() {
+    return Stream.of(
+      Arguments.of(IngestionFlowFileStatus.UPLOADED, MigrationFileExecutionDetailStatus.WAITING_PU),
+      Arguments.of(IngestionFlowFileStatus.PROCESSING, MigrationFileExecutionDetailStatus.WAITING_PU),
+      Arguments.of(IngestionFlowFileStatus.WAITING_FILE, MigrationFileExecutionDetailStatus.WAITING_PU),
+      Arguments.of(IngestionFlowFileStatus.COMPLETED, MigrationFileExecutionDetailStatus.COMPLETED),
+      Arguments.of(IngestionFlowFileStatus.WARNING, MigrationFileExecutionDetailStatus.PARTIAL),
+      Arguments.of(IngestionFlowFileStatus.ERROR, MigrationFileExecutionDetailStatus.FAILED)
+    );
+  }
+
 }

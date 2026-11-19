@@ -2,8 +2,10 @@ package it.gov.pagopa.mypay2pu.orchestrator.service;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionDetailStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.EvidenceException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
+import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionDetailRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
 import it.gov.pagopa.pu.migration.dto.generated.IngestionFlowFileStatus;
@@ -19,6 +21,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
@@ -42,6 +46,7 @@ class MigrationEvidencePersistenceTest {
   @Autowired private MigrationFileExecutionDetailRepository detailRepository;
   @Autowired private PlatformTransactionManager transactionManager;
   private UUID fileId;
+  private UUID detailId;
 
   @AfterEach
   void cleanUp() {
@@ -52,7 +57,7 @@ class MigrationEvidencePersistenceTest {
   }
 
   @Test
-  void givenConcurrentIdenticalSnapshotsWhenRecordEvidenceThenCreatesOneDetailAndPreservesTerminalState() throws Exception {
+  void givenConcurrentIdenticalSnapshotsWhenRecordEvidenceThenEnrichesOneDetailAndPreservesTerminalState() throws Exception {
     createFile();
     CountDownLatch start = new CountDownLatch(1);
     try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -66,7 +71,8 @@ class MigrationEvidencePersistenceTest {
     assertEquals(MigrationFileExecutionStatus.COMPLETED, fileRepository.findById(fileId).orElseThrow().getStatus());
     var details = detailRepository.findAllByMigrationFileExecutionId(fileId);
     assertEquals(1, details.size());
-    assertNotNull(details.getFirst().getId());
+    assertEquals(detailId, details.getFirst().getId());
+    assertEquals("IPA_TEST_2", details.getFirst().getIpaCode());
     assertEquals(91L, details.getFirst().getUploadDetailId());
     assertEquals(1, details.getFirst().getNumCorrectlyImportedRows());
   }
@@ -84,7 +90,13 @@ class MigrationEvidencePersistenceTest {
     MigrationFileExecution persisted = fileRepository.findById(fileId).orElseThrow();
     assertEquals(MigrationFileExecutionStatus.WAITING_PU, persisted.getStatus());
     assertEquals(UploadsStatusEnum.UPLOADED, persisted.getUploadStatus());
-    assertTrue(detailRepository.findAllByMigrationFileExecutionId(fileId).isEmpty());
+    var details = detailRepository.findAllByMigrationFileExecutionId(fileId);
+    assertEquals(1, details.size());
+    assertEquals(detailId, details.getFirst().getId());
+    assertEquals("IPA_TEST_2", details.getFirst().getIpaCode());
+    assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, details.getFirst().getStatus());
+    assertNull(details.getFirst().getUploadDetailId());
+    assertNull(details.getFirst().getNumTotalRows());
   }
 
   @Test
@@ -98,11 +110,39 @@ class MigrationEvidencePersistenceTest {
     assertEquals(MigrationFileExecutionStatus.WAITING_PU, result.getStatus());
   }
 
+  @ParameterizedTest
+  @EnumSource(value = UploadsStatusEnum.class, names = {"PROCESSING", "COMPLETED"})
+  void givenIdenticalSnapshotWhenRecordEvidenceThenPreservesDetailAuditTimestamp(UploadsStatusEnum status) {
+    createFile();
+    Uploads upload = new Uploads().uploadId(42L).status(status).numTotalFiles(1);
+    List<UploadDetails> snapshot = List.of(new UploadDetails().uploadId(42L).uploadDetailId(91L)
+      .fileName("IPA_TEST_2-organizations.csv").fileSize(1L)
+      .status(status == UploadsStatusEnum.COMPLETED
+        ? IngestionFlowFileStatus.COMPLETED : IngestionFlowFileStatus.PROCESSING)
+      .numTotalRows(1L).numCorrectlyImportedRows(1L));
+    service.recordEvidence(fileId, 42L, upload, snapshot);
+    MigrationFileExecutionDetail before = detailRepository.findById(detailId).orElseThrow();
+
+    service.recordEvidence(fileId, 42L, upload, snapshot);
+
+    MigrationFileExecutionDetail after = detailRepository.findById(detailId).orElseThrow();
+    assertNotNull(before.getUpdateDate());
+    assertEquals(before.getUpdateDate(), after.getUpdateDate());
+    assertEquals(before.getCreationDate(), after.getCreationDate());
+    assertEquals(detailId, after.getId());
+    assertEquals("IPA_TEST_2", after.getIpaCode());
+    assertEquals(91L, after.getUploadDetailId());
+    assertEquals(before.getStatus(), after.getStatus());
+  }
+
   private void createFile() {
     fileId = fileRepository.saveAndFlush(MigrationFileExecution.builder().migrationId(UUID.randomUUID())
       .fileType(MigrationFileType.ORGANIZATIONS).status(MigrationFileExecutionStatus.WAITING_PU)
       .uploadId(42L).uploadStatus(UploadsStatusEnum.UPLOADED)
       .uploadCompletedAt(LocalDateTime.of(2026, Month.NOVEMBER, 18, 12, 0)).build()).getId();
+    detailId = detailRepository.saveAndFlush(MigrationFileExecutionDetail.builder()
+      .migrationFileExecutionId(fileId).fileName("IPA_TEST_2-organizations.csv").ipaCode("IPA_TEST_2")
+      .fileSize(1L).status(MigrationFileExecutionDetailStatus.WAITING_PU).build()).getId();
   }
 
   private void recordAfter(CountDownLatch start) {
@@ -120,7 +160,7 @@ class MigrationEvidencePersistenceTest {
   private void recordEvidence() {
     service.recordEvidence(fileId, 42L,
       new Uploads().uploadId(42L).status(UploadsStatusEnum.COMPLETED).numTotalFiles(1),
-      List.of(new UploadDetails().uploadId(42L).uploadDetailId(91L).fileName("organizations.csv")
+      List.of(new UploadDetails().uploadId(42L).uploadDetailId(91L).fileName("IPA_TEST_2-organizations.csv")
         .fileSize(1L).status(IngestionFlowFileStatus.COMPLETED).numTotalRows(1L).numCorrectlyImportedRows(1L)));
   }
 }

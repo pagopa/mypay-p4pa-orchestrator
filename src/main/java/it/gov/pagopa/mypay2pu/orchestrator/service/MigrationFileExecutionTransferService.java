@@ -4,12 +4,10 @@ import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionDetailStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionDetailRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
-import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationFileExecutionDetailMapper;
 import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionTransferValidator;
 import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
 import org.springframework.stereotype.Service;
@@ -27,24 +25,17 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
 
   private final MigrationFileExecutionRepository migrationFileExecutionRepository;
   private final MigrationFileExecutionDetailRepository migrationFileExecutionDetailRepository;
-  private final MigrationFileExecutionDetailMapper migrationFileExecutionDetailMapper;
   private final MigrationFileExecutionTransferValidator validator;
 
   public MigrationFileExecutionTransferService(
     MigrationFileExecutionRepository migrationFileExecutionRepository,
     MigrationFileExecutionDetailRepository migrationFileExecutionDetailRepository,
-    MigrationFileExecutionDetailMapper migrationFileExecutionDetailMapper,
     MigrationFileExecutionTransferValidator validator
   ) {
     super(migrationFileExecutionRepository);
     this.migrationFileExecutionRepository = migrationFileExecutionRepository;
     this.migrationFileExecutionDetailRepository = migrationFileExecutionDetailRepository;
-    this.migrationFileExecutionDetailMapper = migrationFileExecutionDetailMapper;
     this.validator = validator;
-  }
-
-  public MigrationFileExecution getRequired(UUID migrationId, MigrationFileType fileType) {
-    return findRequiredMigrationFileExecution(migrationId, fileType);
   }
 
   /**
@@ -56,7 +47,7 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
     MigrationFileType fileType,
     LocalDateTime startedAt
   ) {
-    MigrationFileExecution fileExecution = findRequired(migrationId, fileType);
+    MigrationFileExecution fileExecution = getRequired(migrationId, fileType);
     validator.validateMarkTransferring(fileExecution);
     int claimed = migrationFileExecutionRepository.claimTransfer(
       migrationId,

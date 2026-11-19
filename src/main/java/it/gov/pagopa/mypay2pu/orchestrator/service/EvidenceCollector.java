@@ -55,7 +55,7 @@ public class EvidenceCollector {
 
   public void collect(UUID migrationId, MigrationFileType fileType) {
     MigrationFileExecution file = evidenceService.getRequired(migrationId, fileType);
-    if (MigrationFileExecutionEvidenceService.isTerminal(file.getStatus())) {
+    if (validator.isTerminal(file)) {
       requireSuccessfulOutcome(file);
       return;
     }
@@ -76,7 +76,7 @@ public class EvidenceCollector {
     } catch (ConflictException failure) {
       MigrationFileExecution current = evidenceService.getRequired(migrationId, fileType);
       if (!Objects.equals(file.getUploadId(), current.getUploadId())
-        || !MigrationFileExecutionEvidenceService.isTerminal(current.getStatus())) {
+        || !validator.isTerminal(current)) {
         throw failure;
       }
       requireSuccessfulOutcome(current);
@@ -93,7 +93,7 @@ public class EvidenceCollector {
         ? List.of() : puMigrationService.getMigrationUploadDetails(file.getUploadId());
       checkDeadline(deadline, file);
       MigrationFileExecution updated = evidenceService.recordEvidence(file.getId(), file.getUploadId(), upload, details);
-      if (MigrationFileExecutionEvidenceService.isTerminal(updated.getStatus())) {
+      if (validator.isTerminal(updated)) {
         requireSuccessfulOutcome(updated);
         return;
       }
