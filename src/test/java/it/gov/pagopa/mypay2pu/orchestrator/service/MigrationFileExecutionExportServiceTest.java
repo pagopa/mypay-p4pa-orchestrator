@@ -17,7 +17,6 @@ import java.time.LocalDateTime;
 import java.time.Month;
 import java.util.Optional;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,8 +48,6 @@ class MigrationFileExecutionExportServiceTest {
   @Mock
   private MigrationFileExecutionDetailRepository detailRepositoryMock;
   @Mock
-  private MigrationToolkitSharedFolderService sharedFolderServiceMock;
-  @Mock
   private MigrationFileExecutionDetailMapper detailMapperMock;
 
   private MigrationFileExecutionExportService service;
@@ -59,14 +56,14 @@ class MigrationFileExecutionExportServiceTest {
   void setUp() {
     service = new MigrationFileExecutionExportService(
       migrationFileExecutionRepositoryMock, new MigrationFileExecutionExportValidator(),
-      detailRepositoryMock, detailMapperMock, sharedFolderServiceMock
+      detailRepositoryMock, detailMapperMock
     );
   }
 
   @AfterEach
   void verifyMocks() {
     verifyNoMoreInteractions(
-      migrationFileExecutionRepositoryMock, detailRepositoryMock, sharedFolderServiceMock, detailMapperMock
+      migrationFileExecutionRepositoryMock, detailRepositoryMock, detailMapperMock
     );
   }
 
@@ -151,16 +148,14 @@ class MigrationFileExecutionExportServiceTest {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
       .thenReturn(Optional.of(execution));
     when(migrationFileExecutionRepositoryMock.save(execution)).thenReturn(execution);
-    when(sharedFolderServiceMock.getExportedFileSizes(execution, ARCHIVES))
-      .thenReturn(Map.of("IPA_TEST_2-organizations.csv", 500L));
     List<MigrationFileExecutionDetail> expectedDetails = List.of(MigrationFileExecutionDetail.builder()
       .migrationFileExecutionId(execution.getId())
       .fileName("IPA_TEST_2-organizations.csv")
       .ipaCode("IPA_TEST_2")
-      .fileSize(500L)
+      .fileSize(0L)
       .status(MigrationFileExecutionDetailStatus.EXPORTED)
       .build());
-    when(detailMapperMock.toMigrationFileExecutionDetails(execution.getId(), Map.of("IPA_TEST_2-organizations.csv", 500L)))
+    when(detailMapperMock.toMigrationFileExecutionDetails(execution.getId(), ARCHIVES))
       .thenReturn(expectedDetails);
 
     MigrationFileExecution exporting = service.markExporting(MIGRATION_ID, FILE_TYPE, STARTED_AT);
@@ -184,8 +179,7 @@ class MigrationFileExecutionExportServiceTest {
     assertEquals(COMPLETED_AT, exported.getUploadCompletedAt());
     verify(migrationFileExecutionRepositoryMock, times(3)).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
     verify(migrationFileExecutionRepositoryMock, times(3)).save(execution);
-    verify(sharedFolderServiceMock).getExportedFileSizes(execution, ARCHIVES);
-    verify(detailMapperMock).toMigrationFileExecutionDetails(execution.getId(), Map.of("IPA_TEST_2-organizations.csv", 500L));
+    verify(detailMapperMock).toMigrationFileExecutionDetails(execution.getId(), ARCHIVES);
     verify(detailRepositoryMock).saveAll(expectedDetails);
   }
 
@@ -460,13 +454,42 @@ class MigrationFileExecutionExportServiceTest {
   }
 
   @Test
-  void givenUnreadableArchiveWhenMarkExportedThenDoesNotPersistDetailsOrCompletion() {
+  void givenDeclaredFilesWithoutArchiveAccessWhenMarkExportedThenPersistsDetailsWithZeroSize() {
     MigrationFileExecution execution = newMigrationFileExecution(MigrationFileExecutionStatus.EXPORTING);
     execution.setExtractionId("extractor-123");
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
       .thenReturn(Optional.of(execution));
-    InvalidValueException failure = new InvalidValueException("EXTRACTOR_ARCHIVE_UNREADABLE", "Unreadable archive");
-    when(sharedFolderServiceMock.getExportedFileSizes(execution, ARCHIVES)).thenThrow(failure);
+    when(migrationFileExecutionRepositoryMock.save(execution)).thenReturn(execution);
+    List<MigrationFileExecutionDetail> expectedDetails = List.of(MigrationFileExecutionDetail.builder()
+      .migrationFileExecutionId(execution.getId())
+      .fileName("IPA_TEST_2-organizations.csv")
+      .ipaCode("IPA_TEST_2")
+      .fileSize(0L)
+      .status(MigrationFileExecutionDetailStatus.EXPORTED)
+      .build());
+    MigrationFileExecutionExportService exportService = new MigrationFileExecutionExportService(
+      migrationFileExecutionRepositoryMock, new MigrationFileExecutionExportValidator(),
+      detailRepositoryMock, new MigrationFileExecutionDetailMapper()
+    );
+
+    MigrationFileExecution result = exportService.markExported(MIGRATION_ID, FILE_TYPE, ARCHIVES, COMPLETED_AT);
+
+    assertEquals(MigrationFileExecutionStatus.EXPORTED, result.getStatus());
+    assertEquals("archive/organizations.zip", result.getFilePath());
+    assertEquals(COMPLETED_AT, result.getExtractionCompletedAt());
+    verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
+    verify(detailRepositoryMock).saveAll(expectedDetails);
+    verify(migrationFileExecutionRepositoryMock).save(execution);
+  }
+
+  @Test
+  void givenInvalidFileMetadataWhenMarkExportedThenDoesNotPersistDetailsOrCompletion() {
+    MigrationFileExecution execution = newMigrationFileExecution(MigrationFileExecutionStatus.EXPORTING);
+    execution.setExtractionId("extractor-123");
+    when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
+      .thenReturn(Optional.of(execution));
+    InvalidValueException failure = new InvalidValueException("EXTRACTOR_INVALID_FILE_DETAILS", "Invalid file metadata");
+    when(detailMapperMock.toMigrationFileExecutionDetails(execution.getId(), ARCHIVES)).thenThrow(failure);
 
     InvalidValueException result = assertThrows(
       InvalidValueException.class,
@@ -476,7 +499,7 @@ class MigrationFileExecutionExportServiceTest {
     assertSame(failure, result);
     assertEquals(MigrationFileExecutionStatus.EXPORTING, execution.getStatus());
     verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
-    verify(sharedFolderServiceMock).getExportedFileSizes(execution, ARCHIVES);
+    verify(detailMapperMock).toMigrationFileExecutionDetails(execution.getId(), ARCHIVES);
   }
 
   private MigrationFileExecution newMigrationFileExecution(MigrationFileExecutionStatus status) {

@@ -146,7 +146,8 @@ public class MigrationFileExecutionEvidenceService extends MigrationFileExecutio
   private MigrationFileExecutionDetail findInitialDetail(UploadDetails detail,
                                                          List<MigrationFileExecutionDetail> namedDetails) {
     List<MigrationFileExecutionDetail> matching = namedDetails.stream()
-      .filter(candidate -> Objects.equals(candidate.getFileSize(), detail.getFileSize())).toList();
+      .filter(candidate -> (candidate.getUploadDetailId() == null && Long.valueOf(0L).equals(candidate.getFileSize()))
+        || Objects.equals(candidate.getFileSize(), detail.getFileSize())).toList();
     List<MigrationFileExecutionDetail> unbound = matching.stream()
       .filter(candidate -> candidate.getUploadDetailId() == null).toList();
     if (unbound.size() == 1) {

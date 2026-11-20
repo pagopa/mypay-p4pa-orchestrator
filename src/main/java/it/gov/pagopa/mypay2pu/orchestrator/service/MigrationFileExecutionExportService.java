@@ -24,18 +24,15 @@ public class MigrationFileExecutionExportService extends MigrationFileExecutionS
   private final MigrationFileExecutionExportValidator validator;
   private final MigrationFileExecutionDetailRepository detailRepository;
   private final MigrationFileExecutionDetailMapper detailMapper;
-  private final MigrationToolkitSharedFolderService sharedFolderService;
 
   public MigrationFileExecutionExportService(MigrationFileExecutionRepository migrationFileExecutionRepository,
                                              MigrationFileExecutionExportValidator validator,
                                              MigrationFileExecutionDetailRepository detailRepository,
-                                             MigrationFileExecutionDetailMapper detailMapper,
-                                             MigrationToolkitSharedFolderService sharedFolderService) {
+                                             MigrationFileExecutionDetailMapper detailMapper) {
     super(migrationFileExecutionRepository);
     this.validator = validator;
     this.detailRepository = detailRepository;
     this.detailMapper = detailMapper;
-    this.sharedFolderService = sharedFolderService;
   }
 
   /**
@@ -73,8 +70,7 @@ public class MigrationFileExecutionExportService extends MigrationFileExecutionS
     return update(migrationId, fileType, fileExecution -> {
       validator.validateMarkExported(fileExecution, filePath, completedAt);
       if (fileExecution.getStatus() != MigrationFileExecutionStatus.EXPORTED) {
-        var fileSizes = sharedFolderService.getExportedFileSizes(fileExecution, archives);
-        detailRepository.saveAll(detailMapper.toMigrationFileExecutionDetails(fileExecution.getId(), fileSizes));
+        detailRepository.saveAll(detailMapper.toMigrationFileExecutionDetails(fileExecution.getId(), archives));
       }
       fileExecution.setStatus(MigrationFileExecutionStatus.EXPORTED);
       fileExecution.setFilePath(filePath);

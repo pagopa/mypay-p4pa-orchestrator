@@ -1,5 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service.mapper;
 
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.ArchiveFile;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionDetailStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
@@ -8,8 +9,12 @@ import it.gov.pagopa.pu.migration.dto.generated.UploadDetails;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Component
@@ -17,13 +22,30 @@ public class MigrationFileExecutionDetailMapper {
 
   public List<MigrationFileExecutionDetail> toMigrationFileExecutionDetails(
     UUID migrationFileExecutionId,
-    Map<String, Long> fileSizes
+    List<ArchiveFile> archives
   ) {
-    return fileSizes.entrySet().stream()
-      .map(entry -> toMigrationFileExecutionDetail(
-        migrationFileExecutionId, entry.getKey(), entry.getValue()
-      ))
-      .toList();
+    List<MigrationFileExecutionDetail> details = new ArrayList<>();
+    Set<String> fileNames = new HashSet<>();
+    for (ArchiveFile archive : archives) {
+      if (archive.getName().trim().toLowerCase(Locale.ROOT).endsWith(".errors.zip")) {
+        continue;
+      }
+      List<String> files = Optional.ofNullable(archive.getFiles())
+        .orElseThrow(() -> new InvalidValueException(
+          "EXTRACTOR_INVALID_FILE_DETAILS", "Extractor returned no file list"
+        ));
+      for (String fileName : files) {
+        MigrationFileExecutionDetail detail =
+          toMigrationFileExecutionDetail(migrationFileExecutionId, fileName, 0L);
+        if (!fileNames.add(fileName)) {
+          throw new InvalidValueException(
+            "EXTRACTOR_INVALID_FILE_DETAILS", "Duplicate extracted file %s".formatted(fileName)
+          );
+        }
+        details.add(detail);
+      }
+    }
+    return details;
   }
 
   public MigrationFileExecutionDetail toMigrationFileExecutionDetail(
@@ -66,6 +88,9 @@ public class MigrationFileExecutionDetailMapper {
     UploadDetails uploadDetail,
     boolean finalEvidence
   ) {
+    if (target.getUploadDetailId() == null && Long.valueOf(0L).equals(target.getFileSize())) {
+      target.setFileSize(uploadDetail.getFileSize());
+    }
     target.setUploadDetailId(uploadDetail.getUploadDetailId());
     if (finalEvidence) {
       target.setStatus(toLocalStatus(uploadDetail.getStatus()));

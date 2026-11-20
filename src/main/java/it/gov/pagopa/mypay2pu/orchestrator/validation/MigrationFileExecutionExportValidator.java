@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 /**
@@ -33,7 +34,7 @@ public class MigrationFileExecutionExportValidator extends BaseMigrationFileExec
   }
 
   public void validateArchiveFiles(List<ArchiveFile> archives) {
-    if (archives == null || archives.stream().anyMatch(archive ->
+    if (CollectionUtils.isEmpty(archives) || archives.stream().anyMatch(archive ->
       archive == null || !StringUtils.hasText(archive.getName()))) {
       throw new InvalidValueException("EXTRACTOR_INVALID_FILE_DETAILS", "Extractor returned an invalid archive list");
     }

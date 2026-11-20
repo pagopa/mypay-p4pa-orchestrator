@@ -23,14 +23,15 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -80,7 +81,7 @@ class MigrationFileExecutionTransferDetailsTest {
     assertEquals(MigrationFileExecutionDetailStatus.EXPORTED, exportedDetail.getStatus());
     assertEquals(FILE_NAME, exportedDetail.getFileName());
     assertEquals("IPA_TEST_2", exportedDetail.getIpaCode());
-    assertEquals(5L, exportedDetail.getFileSize());
+    assertEquals(0L, exportedDetail.getFileSize());
     assertNull(exportedDetail.getUploadDetailId());
     assertNull(exportedDetail.getNumTotalRows());
 
@@ -142,21 +143,30 @@ class MigrationFileExecutionTransferDetailsTest {
   }
 
   @Test
-  void givenMissingZipEntryWhenMarkExportedThenRollsBackDetailsAndCompletion() throws IOException {
+  void givenUnavailableArchiveWhenMarkExportedThenPersistsDeclaredDetailsWithoutReadingArchive() {
     MigrationFileExecution execution = exportingExecution();
     UUID migrationId = execution.getMigrationId();
-    createArchive(execution, List.of(FILE_NAME));
-    List<ArchiveFile> invalidArchives = List.of(
+    List<ArchiveFile> declaredArchives = List.of(
       new ArchiveFile("organizations.zip", List.of(FILE_NAME, "IPA_TEST_2-missing.csv"))
     );
 
-    assertThrows(InvalidValueException.class, () -> exportService.markExported(
-      migrationId, FILE_TYPE, invalidArchives, COMPLETED_AT
-    ));
+    assertFalse(Files.exists(sharedFolder.resolve(execution.getExtractionId())));
 
-    assertTrue(details(execution).isEmpty());
-    assertEquals(MigrationFileExecutionStatus.EXPORTING,
-      executionRepository.findById(execution.getId()).orElseThrow().getStatus());
+    exportService.markExported(migrationId, FILE_TYPE, declaredArchives, COMPLETED_AT);
+
+    List<MigrationFileExecutionDetail> exportedDetails = details(execution);
+    assertEquals(2, exportedDetails.size());
+    assertEquals(Set.of(FILE_NAME, "IPA_TEST_2-missing.csv"),
+      exportedDetails.stream().map(MigrationFileExecutionDetail::getFileName).collect(Collectors.toSet()));
+    exportedDetails.forEach(detail -> {
+      assertEquals(0L, detail.getFileSize());
+      assertEquals(MigrationFileExecutionDetailStatus.EXPORTED, detail.getStatus());
+    });
+    MigrationFileExecution persisted = executionRepository.findById(execution.getId()).orElseThrow();
+    assertEquals(MigrationFileExecutionStatus.EXPORTED, persisted.getStatus());
+    assertEquals(COMPLETED_AT, persisted.getExtractionCompletedAt());
+    assertEquals("organizations.zip", persisted.getFilePath());
+    assertFalse(Files.exists(sharedFolder.resolve(execution.getExtractionId())));
   }
 
   @Test
@@ -177,7 +187,7 @@ class MigrationFileExecutionTransferDetailsTest {
       exportedDetails.stream().map(MigrationFileExecutionDetail::getIpaCode).collect(Collectors.toSet()));
     assertTrue(exportedDetails.stream().allMatch(detail -> detail.getFileName().startsWith(detail.getIpaCode() + "-")));
     exportedDetails.forEach(detail -> {
-      assertEquals(5L, detail.getFileSize());
+      assertEquals(0L, detail.getFileSize());
       assertEquals(MigrationFileExecutionDetailStatus.EXPORTED, detail.getStatus());
     });
   }
@@ -252,7 +262,8 @@ class MigrationFileExecutionTransferDetailsTest {
         .filter(detail -> detail.getId().equals(original.getId())).findFirst().orElseThrow();
       assertEquals(original.getFileName(), updated.getFileName());
       assertEquals(original.getIpaCode(), updated.getIpaCode());
-      assertEquals(original.getFileSize(), updated.getFileSize());
+      assertEquals(0L, original.getFileSize());
+      assertEquals(5L, updated.getFileSize());
       assertEquals(original.getCreationDate(), updated.getCreationDate());
       assertEquals(10, updated.getNumTotalRows());
       assertEquals((int) accepted, updated.getNumCorrectlyImportedRows());
@@ -290,6 +301,57 @@ class MigrationFileExecutionTransferDetailsTest {
     assertEquals(MigrationFileExecutionDetailStatus.FAILED, failed.getStatus());
     assertEquals(MigrationFileExecutionStatus.FAILED,
       executionRepository.findById(execution.getId()).orElseThrow().getStatus());
+  }
+
+  @ParameterizedTest
+  @ValueSource(longs = {0L, 5L})
+  void givenProvisionalSizeWhenRecordEvidenceThenBindsPuSizeAndRejectsSubsequentChanges(long puSize) {
+    MigrationFileExecution execution = exportingExecution();
+    UUID migrationId = execution.getMigrationId();
+    exportService.markExported(migrationId, FILE_TYPE, archives(), COMPLETED_AT);
+    transferService.markTransferring(migrationId, FILE_TYPE, COMPLETED_AT);
+    transferService.recordUploadAccepted(migrationId, FILE_TYPE, 42L, UploadsStatusEnum.UPLOADED, COMPLETED_AT);
+    Uploads upload = new Uploads().uploadId(42L).status(UploadsStatusEnum.PROCESSING).numTotalFiles(1);
+    UploadDetails observation = new UploadDetails().uploadId(42L).uploadDetailId(123L)
+      .fileName(FILE_NAME).fileSize(puSize).status(IngestionFlowFileStatus.PROCESSING);
+
+    evidenceService.recordEvidence(execution.getId(), 42L, upload, List.of(observation));
+
+    MigrationFileExecutionDetail bound = details(execution).getFirst();
+    assertEquals(puSize, bound.getFileSize());
+    assertEquals(123L, bound.getUploadDetailId());
+    assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, bound.getStatus());
+    observation.setFileSize(puSize + 1L);
+
+    InvalidValueException failure = assertThrows(InvalidValueException.class,
+      () -> evidenceService.recordEvidence(execution.getId(), 42L, upload, List.of(observation)));
+
+    assertEquals("EVIDENCE_INVALID_RESPONSE", failure.getCode());
+    assertEquals(bound, details(execution).getFirst());
+    assertEquals(MigrationFileExecutionStatus.WAITING_PU,
+      executionRepository.findById(execution.getId()).orElseThrow().getStatus());
+  }
+
+  @Test
+  void givenAmbiguousProvisionalFilesWhenRecordEvidenceThenRejectsWithoutBindingDetails() {
+    MigrationFileExecution execution = exportingExecution();
+    UUID migrationId = execution.getMigrationId();
+    List<String> files = List.of("first/" + FILE_NAME, "second/" + FILE_NAME);
+    exportService.markExported(migrationId, FILE_TYPE,
+      List.of(new ArchiveFile("organizations.zip", files)), COMPLETED_AT);
+    transferService.markTransferring(migrationId, FILE_TYPE, COMPLETED_AT);
+    transferService.recordUploadAccepted(migrationId, FILE_TYPE, 42L, UploadsStatusEnum.UPLOADED, COMPLETED_AT);
+    List<MigrationFileExecutionDetail> original = details(execution);
+    Uploads upload = new Uploads().uploadId(42L).status(UploadsStatusEnum.PROCESSING).numTotalFiles(2);
+    List<UploadDetails> snapshot = List.of(new UploadDetails().uploadId(42L).uploadDetailId(123L)
+      .fileName(FILE_NAME).fileSize(5L).status(IngestionFlowFileStatus.PROCESSING));
+
+    InvalidValueException failure = assertThrows(InvalidValueException.class,
+      () -> evidenceService.recordEvidence(execution.getId(), 42L, upload, snapshot));
+
+    assertEquals("EVIDENCE_INVALID_RESPONSE", failure.getCode());
+    assertEquals(original, details(execution));
+    assertTrue(details(execution).stream().allMatch(detail -> detail.getUploadDetailId() == null));
   }
 
   private MigrationFileExecution completeExtraction() throws IOException {

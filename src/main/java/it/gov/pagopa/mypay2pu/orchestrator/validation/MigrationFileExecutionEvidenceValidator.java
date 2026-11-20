@@ -117,7 +117,8 @@ public class MigrationFileExecutionEvidenceValidator extends BaseMigrationFileEx
       throw new ConflictException("EVIDENCE_CONFLICT", "PU changed upload detail ID for " + original.getFileName());
     }
     if (!Objects.equals(StringUtils.getFilename(original.getFileName()), updated.getFileName())
-      || !Objects.equals(original.getFileSize(), updated.getFileSize())) {
+      || ((terminalFile || original.getUploadDetailId() != null || !Long.valueOf(0L).equals(original.getFileSize()))
+        && !Objects.equals(original.getFileSize(), updated.getFileSize()))) {
       throw invalid("PU changed immutable metadata for detail " + original.getUploadDetailId());
     }
     Integer total = toRowCount(updated.getNumTotalRows(), "numTotalRows");
