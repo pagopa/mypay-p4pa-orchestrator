@@ -10,6 +10,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationContext;
@@ -114,7 +115,7 @@ class MigrationFacadeServiceTest {
     verify(organizationsTransferMock).execute(same(request));
     verify(orgSilServicesExportMock).execute(same(request));
     verify(orgSilServicesTransferMock).execute(same(request));
-    var order = inOrder(evidenceCollectorMock, orgSilServicesTransferMock);
+    InOrder order = inOrder(evidenceCollectorMock, orgSilServicesTransferMock);
     order.verify(evidenceCollectorMock).collect(null, MigrationFileType.ORGANIZATIONS);
     order.verify(orgSilServicesTransferMock).execute(same(request));
     order.verify(evidenceCollectorMock).collect(null, MigrationFileType.ORG_SIL_SERVICES);

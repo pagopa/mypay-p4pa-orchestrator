@@ -64,7 +64,7 @@ class MigrationStatusServiceImplTest {
       migrationExecutionRepositoryMock,
       migrationFileExecutionRepositoryMock,
       migrationFileExecutionDetailRepositoryMock,
-      new MigrationStatusMapper()
+      new MigrationStatusMapper(new MigrationStatusResolver())
     );
   }
 

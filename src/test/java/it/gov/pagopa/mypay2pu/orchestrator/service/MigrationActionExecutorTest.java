@@ -55,7 +55,7 @@ class MigrationActionExecutorTest {
   @BeforeEach
   void setUp() {
     executor = new MigrationActionExecutor(migrationFacadeServiceMock, migrationExecutionRepositoryMock,
-      migrationFileExecutionRepositoryMock);
+      migrationFileExecutionRepositoryMock, new MigrationStatusResolver());
   }
 
   @AfterEach

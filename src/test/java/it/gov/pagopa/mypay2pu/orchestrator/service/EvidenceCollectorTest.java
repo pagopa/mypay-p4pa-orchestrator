@@ -27,6 +27,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
+import org.mockito.InOrder;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.web.client.ResourceAccessException;
@@ -339,7 +340,7 @@ class EvidenceCollectorTest {
 
     collector(Clock.fixed(NOW, ZoneOffset.UTC)).collect(MIGRATION_ID, FILE_TYPE);
 
-    var order = inOrder(evidenceServiceMock, puMigrationServiceMock);
+    InOrder order = inOrder(evidenceServiceMock, puMigrationServiceMock);
     order.verify(evidenceServiceMock).getRequired(MIGRATION_ID, FILE_TYPE);
     order.verify(puMigrationServiceMock).getMigrationUpload(42L);
     order.verify(evidenceServiceMock).recordEvidence(FILE_ID, 42L, uploaded, List.of());
@@ -362,7 +363,7 @@ class EvidenceCollectorTest {
 
     collector(Clock.fixed(NOW, ZoneOffset.UTC)).collect(MIGRATION_ID, FILE_TYPE);
 
-    var order = inOrder(evidenceServiceMock, puMigrationServiceMock);
+    InOrder order = inOrder(evidenceServiceMock, puMigrationServiceMock);
     order.verify(evidenceServiceMock).getRequired(MIGRATION_ID, FILE_TYPE);
     order.verify(puMigrationServiceMock).getMigrationUpload(42L);
     order.verify(puMigrationServiceMock).getMigrationUploadDetails(42L);
@@ -393,7 +394,7 @@ class EvidenceCollectorTest {
       () -> collector.collect(MIGRATION_ID, FILE_TYPE));
 
     assertEquals("EVIDENCE_PU_FAILED", failure.getCode());
-    var order = inOrder(evidenceServiceMock, puMigrationServiceMock);
+    InOrder order = inOrder(evidenceServiceMock, puMigrationServiceMock);
     order.verify(evidenceServiceMock).getRequired(MIGRATION_ID, FILE_TYPE);
     order.verify(puMigrationServiceMock).getMigrationUpload(42L);
     if (status == UploadsStatusEnum.PROCESSING) {
@@ -428,7 +429,7 @@ class EvidenceCollectorTest {
       () -> collector.collect(MIGRATION_ID, FILE_TYPE));
 
     assertEquals("EVIDENCE_TIMEOUT", failure.getCode());
-    var order = inOrder(evidenceServiceMock, puMigrationServiceMock);
+    InOrder order = inOrder(evidenceServiceMock, puMigrationServiceMock);
     order.verify(evidenceServiceMock).getRequired(MIGRATION_ID, FILE_TYPE);
     order.verify(puMigrationServiceMock).getMigrationUpload(42L);
     if (status == UploadsStatusEnum.PROCESSING) {

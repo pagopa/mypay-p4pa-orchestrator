@@ -13,6 +13,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.TransferFileStatusDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
+import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationStatusResolver;
 import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -28,11 +29,17 @@ import org.springframework.stereotype.Component;
 @Component
 public class MigrationStatusMapper {
 
+  private final MigrationStatusResolver migrationStatusResolver;
+
   private static final Set<MigrationFileExecutionDetailStatus> TERMINAL_DETAIL_STATUSES = EnumSet.of(
     MigrationFileExecutionDetailStatus.COMPLETED,
     MigrationFileExecutionDetailStatus.PARTIAL,
     MigrationFileExecutionDetailStatus.FAILED
   );
+
+  public MigrationStatusMapper(MigrationStatusResolver migrationStatusResolver) {
+    this.migrationStatusResolver = migrationStatusResolver;
+  }
 
   public MigrationStatusDto toMigrationStatusDto(
     MigrationExecution execution,
@@ -58,7 +65,7 @@ public class MigrationStatusMapper {
           ))
           .toList()))
       .transferPhase(new MigrationTransferPhaseDto()
-            .status(transferPhaseStatus(execution, fileExecutions))
+            .status(migrationStatusResolver.resolveTransferStatus(execution, fileExecutions))
             .files(execution.getAction() == MigrationAction.EXPORT
               ? List.of()
               : fileExecutions.stream()
@@ -120,34 +127,12 @@ public class MigrationStatusMapper {
     if (files.stream().anyMatch(file -> exportStatus(file) == MigrationFileExecutionStatus.FAILED)) {
       return MigrationExecutionStatus.FAILED;
     }
-    if (hasAllSelectedFiles(execution, files)
+    if (migrationStatusResolver.hasAllSelectedFiles(execution, files)
       && files.stream().allMatch(file -> exportStatus(file) == MigrationFileExecutionStatus.EXPORTED)) {
       return MigrationExecutionStatus.COMPLETED;
     }
     return execution.getStatus() == MigrationExecutionStatus.FAILED
       ? MigrationExecutionStatus.FAILED : MigrationExecutionStatus.RUNNING;
-  }
-
-  private MigrationExecutionStatus transferPhaseStatus(MigrationExecution execution, List<MigrationFileExecution> files) {
-    if (execution.getAction() == MigrationAction.EXPORT) {
-      return MigrationExecutionStatus.RUNNING;
-    }
-    if (files.stream().anyMatch(file -> file.getStatus() == MigrationFileExecutionStatus.FAILED)) {
-      return MigrationExecutionStatus.FAILED;
-    }
-    if (!hasAllSelectedFiles(execution, files) || files.stream().anyMatch(file ->
-      file.getStatus() != MigrationFileExecutionStatus.COMPLETED && file.getStatus() != MigrationFileExecutionStatus.WARNING)) {
-      return execution.getStatus() == MigrationExecutionStatus.FAILED
-        ? MigrationExecutionStatus.FAILED : MigrationExecutionStatus.RUNNING;
-    }
-    return files.stream().anyMatch(file -> file.getStatus() == MigrationFileExecutionStatus.WARNING)
-      ? MigrationExecutionStatus.WARNING : MigrationExecutionStatus.COMPLETED;
-  }
-
-  private boolean hasAllSelectedFiles(MigrationExecution execution, List<MigrationFileExecution> files) {
-    return !files.isEmpty() && execution.getFileTypes().size() == files.size()
-      && files.stream().map(MigrationFileExecution::getFileType).collect(java.util.stream.Collectors.toSet())
-        .containsAll(execution.getFileTypes());
   }
 
   private FileMetrics calculateMetrics(

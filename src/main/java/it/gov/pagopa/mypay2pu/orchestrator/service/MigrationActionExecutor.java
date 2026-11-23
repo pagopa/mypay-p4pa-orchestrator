@@ -26,13 +26,16 @@ public class MigrationActionExecutor {
   private final MigrationFacadeService migrationFacadeService;
   private final MigrationExecutionRepository migrationExecutionRepository;
   private final MigrationFileExecutionRepository migrationFileExecutionRepository;
+  private final MigrationStatusResolver migrationStatusResolver;
 
   public MigrationActionExecutor(MigrationFacadeService migrationFacadeService,
                                  MigrationExecutionRepository migrationExecutionRepository,
-                                 MigrationFileExecutionRepository migrationFileExecutionRepository) {
+                                 MigrationFileExecutionRepository migrationFileExecutionRepository,
+                                 MigrationStatusResolver migrationStatusResolver) {
     this.migrationFacadeService = migrationFacadeService;
     this.migrationExecutionRepository = migrationExecutionRepository;
     this.migrationFileExecutionRepository = migrationFileExecutionRepository;
+    this.migrationStatusResolver = migrationStatusResolver;
   }
 
   @Async("orchestratorTaskExecutor")
@@ -69,7 +72,8 @@ public class MigrationActionExecutor {
       );
       if (execution.getAction() != MigrationAction.EXPORT) {
         try {
-          execution.setFileTypeCountCompleted((int) selectedFiles(execution).stream().filter(this::isSuccessfulFile).count());
+          execution.setFileTypeCountCompleted((int) selectedFiles(execution).stream()
+            .filter(migrationStatusResolver::isSuccessfulFile).count());
         } catch (DataAccessException counterFailure) {
           failure.addSuppressed(counterFailure);
         }
@@ -86,7 +90,7 @@ public class MigrationActionExecutor {
 
   private void applyEvidenceOutcome(MigrationExecution execution) {
     List<MigrationFileExecution> selected = selectedFiles(execution);
-    execution.setFileTypeCountCompleted((int) selected.stream().filter(this::isSuccessfulFile).count());
+    execution.setFileTypeCountCompleted((int) selected.stream().filter(migrationStatusResolver::isSuccessfulFile).count());
     for (MigrationFileExecution file : selected) {
       if (file.getStatus() == MigrationFileExecutionStatus.FAILED) {
         throw new EvidenceException(
@@ -94,23 +98,15 @@ public class MigrationActionExecutor {
           StringUtils.hasText(file.getUploadErrorMsg()) ? file.getUploadErrorMsg() : "PU evidence failed");
       }
     }
-    if (selected.size() != execution.getFileTypes().size()
-      || selected.stream().map(MigrationFileExecution::getFileType).distinct().count() != selected.size()
-      || selected.stream().anyMatch(file -> !isSuccessfulFile(file))) {
+    MigrationExecutionStatus status = migrationStatusResolver.resolveTransferStatus(execution, selected);
+    if (status != MigrationExecutionStatus.COMPLETED && status != MigrationExecutionStatus.WARNING) {
       throw new EvidenceException("EVIDENCE_INCOMPLETE", "Migration has missing or unsuccessful PU evidence");
     }
-    execution.setStatus(selected.stream().anyMatch(file ->
-      file.getStatus() == MigrationFileExecutionStatus.WARNING)
-      ? MigrationExecutionStatus.WARNING : MigrationExecutionStatus.COMPLETED);
+    execution.setStatus(status);
   }
 
   private List<MigrationFileExecution> selectedFiles(MigrationExecution execution) {
     return migrationFileExecutionRepository.findAllByMigrationIdOrderByCreationDateAscIdAsc(execution.getId())
       .stream().filter(file -> execution.getFileTypes().contains(file.getFileType())).toList();
-  }
-
-  private boolean isSuccessfulFile(MigrationFileExecution file) {
-    return file.getStatus() == MigrationFileExecutionStatus.COMPLETED
-      || file.getStatus() == MigrationFileExecutionStatus.WARNING;
   }
 }

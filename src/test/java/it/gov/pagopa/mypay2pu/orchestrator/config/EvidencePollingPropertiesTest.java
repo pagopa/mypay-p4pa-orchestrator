@@ -13,7 +13,7 @@ class EvidencePollingPropertiesTest {
 
   @Test
   void givenValidDurationsWhenConstructThenKeepsConfiguredValues() {
-    var properties = new EvidencePollingProperties(Duration.ofSeconds(30), Duration.ofHours(12));
+    EvidencePollingProperties properties = new EvidencePollingProperties(Duration.ofSeconds(30), Duration.ofHours(12));
 
     assertEquals(Duration.ofSeconds(30), properties.statusPollInterval());
     assertEquals(Duration.ofHours(12), properties.statusTimeout());

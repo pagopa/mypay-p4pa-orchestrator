@@ -17,7 +17,9 @@ import java.time.Month;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -60,16 +62,16 @@ class MigrationEvidencePersistenceTest {
   void givenConcurrentIdenticalSnapshotsWhenRecordEvidenceThenEnrichesOneDetailAndPreservesTerminalState() throws Exception {
     createFile();
     CountDownLatch start = new CountDownLatch(1);
-    try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-      var first = executor.submit(() -> recordAfter(start));
-      var second = executor.submit(() -> recordAfter(start));
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      Future<?> first = executor.submit(() -> recordAfter(start));
+      Future<?> second = executor.submit(() -> recordAfter(start));
       start.countDown();
       first.get(10, TimeUnit.SECONDS);
       second.get(10, TimeUnit.SECONDS);
     }
 
     assertEquals(MigrationFileExecutionStatus.COMPLETED, fileRepository.findById(fileId).orElseThrow().getStatus());
-    var details = detailRepository.findAllByMigrationFileExecutionId(fileId);
+    List<MigrationFileExecutionDetail> details = detailRepository.findAllByMigrationFileExecutionId(fileId);
     assertEquals(1, details.size());
     assertEquals(detailId, details.getFirst().getId());
     assertEquals("IPA_TEST_2", details.getFirst().getIpaCode());
@@ -90,7 +92,7 @@ class MigrationEvidencePersistenceTest {
     MigrationFileExecution persisted = fileRepository.findById(fileId).orElseThrow();
     assertEquals(MigrationFileExecutionStatus.WAITING_PU, persisted.getStatus());
     assertEquals(UploadsStatusEnum.UPLOADED, persisted.getUploadStatus());
-    var details = detailRepository.findAllByMigrationFileExecutionId(fileId);
+    List<MigrationFileExecutionDetail> details = detailRepository.findAllByMigrationFileExecutionId(fileId);
     assertEquals(1, details.size());
     assertEquals(detailId, details.getFirst().getId());
     assertEquals("IPA_TEST_2", details.getFirst().getIpaCode());
