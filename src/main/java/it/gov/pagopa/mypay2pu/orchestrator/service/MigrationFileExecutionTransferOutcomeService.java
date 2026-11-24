@@ -9,7 +9,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionDetailRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.service.mapper.MigrationFileExecutionDetailMapper;
-import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionEvidenceValidator;
+import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionTransferOutcomeValidator;
 import it.gov.pagopa.pu.migration.dto.generated.IngestionFlowFileStatus;
 import it.gov.pagopa.pu.migration.dto.generated.UploadDetails;
 import it.gov.pagopa.pu.migration.dto.generated.Uploads;
@@ -33,18 +33,18 @@ import static it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExe
 
 /** Applies correlated PU snapshots in short transactions, without remote calls. */
 @Service
-public class MigrationFileExecutionEvidenceService extends MigrationFileExecutionService {
+public class MigrationFileExecutionTransferOutcomeService extends MigrationFileExecutionService {
 
   private final MigrationFileExecutionRepository fileRepository;
   private final MigrationFileExecutionDetailRepository detailRepository;
   private final MigrationFileExecutionDetailMapper detailMapper;
-  private final MigrationFileExecutionEvidenceValidator validator;
+  private final MigrationFileExecutionTransferOutcomeValidator validator;
 
-  public MigrationFileExecutionEvidenceService(
+  public MigrationFileExecutionTransferOutcomeService(
     MigrationFileExecutionRepository fileRepository,
     MigrationFileExecutionDetailRepository detailRepository,
     MigrationFileExecutionDetailMapper detailMapper,
-    MigrationFileExecutionEvidenceValidator validator
+    MigrationFileExecutionTransferOutcomeValidator validator
   ) {
     super(fileRepository);
     this.fileRepository = fileRepository;
@@ -54,8 +54,9 @@ public class MigrationFileExecutionEvidenceService extends MigrationFileExecutio
   }
 
   @Transactional
-  public MigrationFileExecution recordEvidence(UUID fileId, Long uploadId, Uploads upload,
-                                                List<UploadDetails> uploadDetails) {
+  public MigrationFileExecution recordTransferOutcome(
+    UUID fileId, Long uploadId, Uploads upload, List<UploadDetails> uploadDetails
+  ) {
     MigrationFileExecution file = findRequiredForUpdate(fileId);
     validator.validateUpload(file, uploadId, upload);
     List<UploadDetails> snapshot = uploadDetails == null ? List.of() : uploadDetails;
@@ -72,7 +73,7 @@ public class MigrationFileExecutionEvidenceService extends MigrationFileExecutio
       return file;
     }
 
-    validator.validateRecordEvidence(file, upload, target);
+    validator.validateRecordTransferOutcome(file, upload, target);
     snapshot.forEach(detail -> {
       MigrationFileExecutionDetail original = correlated.get(detail.getUploadDetailId());
       detailMapper.updateMigrationFileExecutionDetail(original, detail, target != WAITING_PU);
@@ -86,7 +87,7 @@ public class MigrationFileExecutionEvidenceService extends MigrationFileExecutio
     file.setUploadStatus(upload.getStatus());
     file.setStatus(target);
     if (target == FAILED) {
-      file.setUploadErrorCode("EVIDENCE_PU_FAILED");
+      file.setUploadErrorCode("TRANSFER_OUTCOME_PU_FAILED");
       file.setUploadErrorMsg(puError(upload, snapshot));
     }
     return fileRepository.save(file);
@@ -122,7 +123,7 @@ public class MigrationFileExecutionEvidenceService extends MigrationFileExecutio
       if (!fileNames.add(detail.getFileName())
         || (detail.getUploadDetailId() != null
           && byUploadDetailId.put(detail.getUploadDetailId(), detail) != null)) {
-        throw new ConflictException("EVIDENCE_CONFLICT", "Duplicate persisted details for file " + file.getId());
+        throw new ConflictException("TRANSFER_OUTCOME_CONFLICT", "Duplicate persisted details for file " + file.getId());
       }
       byBaseName.computeIfAbsent(StringUtils.getFilename(detail.getFileName()), key -> new ArrayList<>()).add(detail);
     }
@@ -135,7 +136,7 @@ public class MigrationFileExecutionEvidenceService extends MigrationFileExecutio
       }
       validator.validateDetailUpdate(file, original, detail);
       if (!matched.add(original.getId())) {
-        throw new InvalidValueException("EVIDENCE_INVALID_RESPONSE",
+        throw new InvalidValueException("TRANSFER_OUTCOME_INVALID_RESPONSE",
           "PU returned multiple results for exported file " + original.getFileName());
       }
       correlated.put(detail.getUploadDetailId(), original);
@@ -154,9 +155,9 @@ public class MigrationFileExecutionEvidenceService extends MigrationFileExecutio
       return unbound.getFirst();
     }
     if (unbound.isEmpty() && !matching.isEmpty()) {
-      throw new ConflictException("EVIDENCE_CONFLICT", "PU changed upload detail ID for " + detail.getFileName());
+      throw new ConflictException("TRANSFER_OUTCOME_CONFLICT", "PU changed upload detail ID for " + detail.getFileName());
     }
-    throw new InvalidValueException("EVIDENCE_INVALID_RESPONSE",
+    throw new InvalidValueException("TRANSFER_OUTCOME_INVALID_RESPONSE",
       "PU detail has no unique exported file for upload " + detail.getUploadId() + ": " + detail.getFileName());
   }
 

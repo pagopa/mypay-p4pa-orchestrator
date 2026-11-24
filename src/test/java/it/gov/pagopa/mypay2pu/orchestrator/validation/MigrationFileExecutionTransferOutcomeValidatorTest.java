@@ -23,9 +23,9 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class MigrationFileExecutionEvidenceValidatorTest {
+class MigrationFileExecutionTransferOutcomeValidatorTest {
 
-  private final MigrationFileExecutionEvidenceValidator validator = new MigrationFileExecutionEvidenceValidator();
+  private final MigrationFileExecutionTransferOutcomeValidator validator = new MigrationFileExecutionTransferOutcomeValidator();
 
   @ParameterizedTest
   @EnumSource(value = MigrationFileExecutionStatus.class, names = {"WAITING_PU"}, mode = EnumSource.Mode.EXCLUDE)
@@ -40,18 +40,18 @@ class MigrationFileExecutionEvidenceValidatorTest {
 
   @ParameterizedTest
   @EnumSource(value = MigrationFileExecutionStatus.class, names = {"COMPLETED", "WARNING", "FAILED"})
-  void givenWaitingFileWhenValidateRecordEvidenceThenAllowsOnlyConfirmedTerminalTargets(MigrationFileExecutionStatus target) {
+  void givenWaitingFileWhenValidateRecordTransferOutcomeThenAllowsOnlyConfirmedTerminalTargets(MigrationFileExecutionStatus target) {
     MigrationFileExecution file = file();
     Uploads upload = new Uploads().uploadId(42L).status(UploadsStatusEnum.COMPLETED);
 
-    assertDoesNotThrow(() -> validator.validateRecordEvidence(file, upload, target));
+    assertDoesNotThrow(() -> validator.validateRecordTransferOutcome(file, upload, target));
 
     assertEquals(MigrationFileExecutionStatus.WAITING_PU, file.getStatus());
   }
 
   @ParameterizedTest
   @MethodSource("invalidFileCounts")
-  void givenInvalidFileCountsWhenValidateUploadThenRejectsEvidence(Integer total, Integer processed) {
+  void givenInvalidFileCountsWhenValidateUploadThenRejectsTransferOutcome(Integer total, Integer processed) {
     MigrationFileExecution file = file();
     Uploads upload = new Uploads().uploadId(42L).status(UploadsStatusEnum.COMPLETED)
       .numTotalFiles(total).numCorrectlyProcessedFiles(processed);
@@ -64,26 +64,26 @@ class MigrationFileExecutionEvidenceValidatorTest {
   }
 
   @Test
-  void givenDifferentUploadWhenValidateUploadThenRejectsEvidence() {
+  void givenDifferentUploadWhenValidateUploadThenRejectsTransferOutcome() {
     MigrationFileExecution file = file();
     Uploads upload = new Uploads().uploadId(43L).status(UploadsStatusEnum.COMPLETED);
 
     InvalidValueException failure = assertThrows(InvalidValueException.class,
       () -> validator.validateUpload(file, 42L, upload));
 
-    assertEquals("EVIDENCE_INVALID_RESPONSE", failure.getCode());
+    assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
     assertEquals("PU returned a missing status or a different upload ID for upload 42", failure.getMessage());
   }
 
   @ParameterizedTest
   @MethodSource("invalidDetailIdentifiers")
-  void givenInvalidDetailIdentifierWhenValidateDetailsThenRejectsEvidence(UploadDetails detail) {
+  void givenInvalidDetailIdentifierWhenValidateDetailsThenRejectsTransferOutcome(UploadDetails detail) {
     List<UploadDetails> details = Collections.singletonList(detail);
 
     InvalidValueException failure = assertThrows(InvalidValueException.class,
       () -> validator.validateDetails(42L, details));
 
-    assertEquals("EVIDENCE_INVALID_RESPONSE", failure.getCode());
+    assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
     assertEquals("PU returned invalid or duplicate details for upload 42", failure.getMessage());
   }
 
@@ -110,7 +110,7 @@ class MigrationFileExecutionEvidenceValidatorTest {
   }
 
   @Test
-  void givenMissingUploadStatusWhenValidateUploadThenRejectsEvidence() {
+  void givenMissingUploadStatusWhenValidateUploadThenRejectsTransferOutcome() {
     MigrationFileExecution file = file();
     Uploads upload = new Uploads().uploadId(42L);
 
@@ -119,7 +119,7 @@ class MigrationFileExecutionEvidenceValidatorTest {
 
   @ParameterizedTest
   @MethodSource("missingDetailMetadata")
-  void givenMissingRequiredMetadataWhenValidateDetailsThenRejectsEvidence(UploadDetails detail) {
+  void givenMissingRequiredMetadataWhenValidateDetailsThenRejectsTransferOutcome(UploadDetails detail) {
     List<UploadDetails> snapshot = List.of(detail);
 
     assertThrows(InvalidValueException.class, () -> validator.validateDetails(42L, snapshot));
@@ -142,7 +142,7 @@ class MigrationFileExecutionEvidenceValidatorTest {
       file, original, detail
     ));
 
-    assertEquals("EVIDENCE_INVALID_RESPONSE", failure.getCode());
+    assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
     assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, original.getStatus());
     assertEquals("IPA_TEST_2", original.getIpaCode());
     assertNull(original.getUploadDetailId());
@@ -163,7 +163,7 @@ class MigrationFileExecutionEvidenceValidatorTest {
 
   @ParameterizedTest
   @MethodSource("regressingUploadStatuses")
-  void givenRegressingUploadWhenValidateRecordEvidenceThenRejectsWithoutMutation(
+  void givenRegressingUploadWhenValidateRecordTransferOutcomeThenRejectsWithoutMutation(
     UploadsStatusEnum current, UploadsStatusEnum incoming
   ) {
     MigrationFileExecution file = file();
@@ -171,9 +171,9 @@ class MigrationFileExecutionEvidenceValidatorTest {
     Uploads upload = new Uploads().uploadId(42L).status(incoming);
 
     ConflictException failure = assertThrows(ConflictException.class,
-      () -> validator.validateRecordEvidence(file, upload, MigrationFileExecutionStatus.WAITING_PU));
+      () -> validator.validateRecordTransferOutcome(file, upload, MigrationFileExecutionStatus.WAITING_PU));
 
-    assertEquals("EVIDENCE_CONFLICT", failure.getCode());
+    assertEquals("TRANSFER_OUTCOME_CONFLICT", failure.getCode());
     assertEquals(current, file.getUploadStatus());
     assertEquals(MigrationFileExecutionStatus.WAITING_PU, file.getStatus());
   }
@@ -194,7 +194,7 @@ class MigrationFileExecutionEvidenceValidatorTest {
 
     ConflictException failure = assertThrows(ConflictException.class, () -> validator.validateMarkFailed(file, 43L));
 
-    assertEquals("EVIDENCE_CONFLICT", failure.getCode());
+    assertEquals("TRANSFER_OUTCOME_CONFLICT", failure.getCode());
     assertEquals(42L, file.getUploadId());
     assertEquals(status, file.getStatus());
   }

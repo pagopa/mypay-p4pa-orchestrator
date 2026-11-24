@@ -9,11 +9,11 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class EvidencePollingPropertiesTest {
+class TransferOutcomePollingPropertiesTest {
 
   @Test
   void givenValidDurationsWhenConstructThenKeepsConfiguredValues() {
-    EvidencePollingProperties properties = new EvidencePollingProperties(Duration.ofSeconds(30), Duration.ofHours(12));
+    TransferOutcomePollingProperties properties = new TransferOutcomePollingProperties(Duration.ofSeconds(30), Duration.ofHours(12));
 
     assertEquals(Duration.ofSeconds(30), properties.statusPollInterval());
     assertEquals(Duration.ofHours(12), properties.statusTimeout());
@@ -22,7 +22,7 @@ class EvidencePollingPropertiesTest {
   @ParameterizedTest
   @MethodSource("invalidDurations")
   void givenInvalidDurationsWhenConstructThenRejectsConfiguration(Duration interval, Duration timeout) {
-    assertThrows(IllegalArgumentException.class, () -> new EvidencePollingProperties(interval, timeout));
+    assertThrows(IllegalArgumentException.class, () -> new TransferOutcomePollingProperties(interval, timeout));
   }
 
   static Stream<Arguments> invalidDurations() {

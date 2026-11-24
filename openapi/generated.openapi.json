@@ -18,7 +18,7 @@
       "post" : {
         "tags" : [ "OrchestrateMigration" ],
         "summary" : "Start a migration orchestration",
-        "description" : "Start an EXPORT, TRANSFER or COMPLETE migration action. EXPORT and COMPLETE actions require non-empty ipaCodes and fileTypesToInclude; all actions require orchestrationMode. fileTypesToInclude must not contain both PAYMENTS_REPORTING_MYPAY and PAYMENTS_REPORTING_MYPIVOT. TRANSFER actions require migrationId for an existing completed EXPORT migration and do not support REJECTS_ONLY mode. TRANSFER and COMPLETE collect PU evidence asynchronously; upload acceptance alone does not complete the migration. Selected DAG children wait for parent COMPLETED or WARNING evidence; a FAILED parent blocks only its descendants. For REJECTS_ONLY EXPORT and COMPLETE actions, migrationId identifies the previous migration; rejected records are assembled by the orchestrator. FULL mode requires period for EXPORT and COMPLETE actions.",
+        "description" : "Start an EXPORT, TRANSFER or COMPLETE migration action. EXPORT and COMPLETE actions require non-empty ipaCodes and fileTypesToInclude; all actions require orchestrationMode. fileTypesToInclude must not contain both PAYMENTS_REPORTING_MYPAY and PAYMENTS_REPORTING_MYPIVOT. TRANSFER actions require migrationId for an existing completed EXPORT migration and do not support REJECTS_ONLY mode. TRANSFER and COMPLETE collect PU transfer outcomes asynchronously; upload acceptance alone does not complete the migration. Selected DAG children wait for parent transfer outcomes in COMPLETED or WARNING status; a FAILED parent blocks only its descendants. For REJECTS_ONLY EXPORT and COMPLETE actions, migrationId identifies the previous migration; rejected records are assembled by the orchestrator. FULL mode requires period for EXPORT and COMPLETE actions.",
         "operationId" : "orchestrateMigration",
         "requestBody" : {
           "content" : {
@@ -342,7 +342,7 @@
           },
           "status" : {
             "$ref" : "#/components/schemas/MigrationFileExecutionStatus",
-            "description" : "Extraction phase status; remains EXPORTED after successful extraction while Transfer and Evidence progress"
+            "description" : "Extraction phase status; remains EXPORTED after successful extraction while upload and transfer outcome collection progress"
           },
           "extractionId" : {
             "type" : [ "string", "null" ]
@@ -439,7 +439,7 @@
       },
       "MigrationTransferPhaseDto" : {
         "type" : "object",
-        "description" : "Transfer file details and independently aggregated PU evidence status. Upload acceptance is not completion. EXPORT actions return no transfer files.",
+        "description" : "Transfer file details and independently aggregated PU transfer outcome status. Upload acceptance is not completion. EXPORT actions return no transfer files.",
         "properties" : {
           "status" : {
             "$ref" : "#/components/schemas/MigrationExecutionStatus"
@@ -491,7 +491,7 @@
             "type" : [ "string", "null" ],
             "format" : "date-time"
           },
-          "evidenceCollectedAt" : {
+          "transferOutcomeCollectedAt" : {
             "type" : [ "string", "null" ],
             "format" : "date-time",
             "description" : "Latest detail updateDate, available only when the file is terminal and all details are terminal (COMPLETED, PARTIAL, FAILED) with complete row counts"

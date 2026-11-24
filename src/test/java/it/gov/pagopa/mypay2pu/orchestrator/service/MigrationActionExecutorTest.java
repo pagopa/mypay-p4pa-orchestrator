@@ -6,7 +6,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationExecutionStatu
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.EvidenceException;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.TransferOutcomeException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
@@ -50,7 +50,7 @@ class MigrationActionExecutorTest {
   private MigrationFileExecutionRepository migrationFileExecutionRepositoryMock;
 
   private MigrationActionExecutor executor;
-  private UUID evidenceMigrationId;
+  private UUID transferOutcomeMigrationId;
 
   @BeforeEach
   void setUp() {
@@ -60,8 +60,8 @@ class MigrationActionExecutorTest {
 
   @AfterEach
   void verifyMocks() {
-    if (evidenceMigrationId != null) {
-      verify(migrationFileExecutionRepositoryMock).findAllByMigrationIdOrderByCreationDateAscIdAsc(evidenceMigrationId);
+    if (transferOutcomeMigrationId != null) {
+      verify(migrationFileExecutionRepositoryMock).findAllByMigrationIdOrderByCreationDateAscIdAsc(transferOutcomeMigrationId);
     }
     verifyNoMoreInteractions(migrationFacadeServiceMock, migrationExecutionRepositoryMock, migrationFileExecutionRepositoryMock);
   }
@@ -219,11 +219,11 @@ class MigrationActionExecutorTest {
 
   @ParameterizedTest
   @EnumSource(value = MigrationFileExecutionStatus.class, names = {"COMPLETED", "WARNING"})
-  void givenSuccessfulEvidenceWhenExecuteThenAggregatesRealOutcomeAndTransferSelection(MigrationFileExecutionStatus status) {
-    MigrationExecution execution = evidenceExecution();
+  void givenSuccessfulTransferOutcomeWhenExecuteThenAggregatesRealOutcomeAndTransferSelection(MigrationFileExecutionStatus status) {
+    MigrationExecution execution = transferOutcomeExecution();
     MigrationRequestDto request = new MigrationRequestDto().action(MigrationAction.TRANSFER);
     when(migrationFileExecutionRepositoryMock.findAllByMigrationIdOrderByCreationDateAscIdAsc(execution.getId()))
-      .thenReturn(List.of(evidenceFile(status)));
+      .thenReturn(List.of(transferOutcomeFile(status)));
 
     executor.execute(request, execution);
 
@@ -237,15 +237,15 @@ class MigrationActionExecutorTest {
   }
 
   @Test
-  void givenIncompleteEvidenceWhenExecuteThenNeverMarksMigrationCompleted() {
-    MigrationExecution execution = evidenceExecution();
+  void givenIncompleteTransferOutcomeWhenExecuteThenNeverMarksMigrationCompleted() {
+    MigrationExecution execution = transferOutcomeExecution();
     MigrationRequestDto request = new MigrationRequestDto().action(MigrationAction.TRANSFER);
     when(migrationFileExecutionRepositoryMock.findAllByMigrationIdOrderByCreationDateAscIdAsc(execution.getId()))
-      .thenReturn(List.of(evidenceFile(MigrationFileExecutionStatus.WAITING_PU)));
+      .thenReturn(List.of(transferOutcomeFile(MigrationFileExecutionStatus.WAITING_PU)));
 
-    EvidenceException failure = assertThrows(EvidenceException.class, () -> executor.execute(request, execution));
+    TransferOutcomeException failure = assertThrows(TransferOutcomeException.class, () -> executor.execute(request, execution));
 
-    assertEquals("EVIDENCE_INCOMPLETE", failure.getCode());
+    assertEquals("TRANSFER_OUTCOME_INCOMPLETE", failure.getCode());
     assertEquals(MigrationExecutionStatus.FAILED, execution.getStatus());
     assertEquals(0, execution.getFileTypeCountCompleted());
     verify(migrationFacadeServiceMock).execute(request);
@@ -254,31 +254,31 @@ class MigrationActionExecutorTest {
   }
 
   @Test
-  void givenFailedEvidenceWhenExecuteThenKeepsSpecificErrorAndCompletedSiblingCount() {
-    MigrationExecution execution = evidenceExecution();
+  void givenFailedTransferOutcomeWhenExecuteThenKeepsSpecificErrorAndCompletedSiblingCount() {
+    MigrationExecution execution = transferOutcomeExecution();
     MigrationRequestDto request = new MigrationRequestDto().action(MigrationAction.TRANSFER);
-    EvidenceException cause = new EvidenceException("EVIDENCE_PU_FAILED", "PU failed");
+    TransferOutcomeException cause = new TransferOutcomeException("TRANSFER_OUTCOME_PU_FAILED", "PU failed");
     doThrow(cause).when(migrationFacadeServiceMock).execute(request);
     when(migrationFileExecutionRepositoryMock.findAllByMigrationIdOrderByCreationDateAscIdAsc(execution.getId()))
-      .thenReturn(List.of(evidenceFile(MigrationFileExecutionStatus.WARNING)));
+      .thenReturn(List.of(transferOutcomeFile(MigrationFileExecutionStatus.WARNING)));
 
-    assertSame(cause, assertThrows(EvidenceException.class, () -> executor.execute(request, execution)));
+    assertSame(cause, assertThrows(TransferOutcomeException.class, () -> executor.execute(request, execution)));
 
     assertEquals(MigrationExecutionStatus.FAILED, execution.getStatus());
-    assertEquals("EVIDENCE_PU_FAILED", execution.getErrorCode());
+    assertEquals("TRANSFER_OUTCOME_PU_FAILED", execution.getErrorCode());
     assertEquals(1, execution.getFileTypeCountCompleted());
     verify(migrationFacadeServiceMock).execute(request);
     verify(migrationFileExecutionRepositoryMock).findAllByMigrationIdOrderByCreationDateAscIdAsc(execution.getId());
     verify(migrationExecutionRepositoryMock).save(execution);
   }
 
-  private MigrationExecution evidenceExecution() {
+  private MigrationExecution transferOutcomeExecution() {
     return MigrationExecution.builder().id(UUID.randomUUID()).action(MigrationAction.TRANSFER)
       .orchestrationMode(OrchestrationMode.FULL).status(MigrationExecutionStatus.RUNNING)
       .fileTypes(List.of(MigrationFileType.ORGANIZATIONS)).fileTypeCountCompleted(0).build();
   }
 
-  private MigrationFileExecution evidenceFile(MigrationFileExecutionStatus status) {
+  private MigrationFileExecution transferOutcomeFile(MigrationFileExecutionStatus status) {
     return MigrationFileExecution.builder().fileType(MigrationFileType.ORGANIZATIONS).status(status).build();
   }
 
@@ -295,8 +295,8 @@ class MigrationActionExecutorTest {
       .errorMsg("previous message")
       .build();
     if (action != MigrationAction.EXPORT) {
-      evidenceMigrationId = execution.getId();
-      when(migrationFileExecutionRepositoryMock.findAllByMigrationIdOrderByCreationDateAscIdAsc(evidenceMigrationId))
+      transferOutcomeMigrationId = execution.getId();
+      when(migrationFileExecutionRepositoryMock.findAllByMigrationIdOrderByCreationDateAscIdAsc(transferOutcomeMigrationId))
         .thenReturn(List.of(MigrationFileExecution.builder().fileType(MigrationFileType.ORGANIZATIONS)
           .status(MigrationFileExecutionStatus.COMPLETED).build()));
     }

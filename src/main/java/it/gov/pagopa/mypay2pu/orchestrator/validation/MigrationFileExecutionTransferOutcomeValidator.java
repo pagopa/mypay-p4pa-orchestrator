@@ -24,23 +24,25 @@ import static it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExe
 import static it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus.WARNING;
 
 @Component
-public class MigrationFileExecutionEvidenceValidator extends BaseMigrationFileExecutionValidator {
+public class MigrationFileExecutionTransferOutcomeValidator extends BaseMigrationFileExecutionValidator {
 
-  private static final String INVALID_RESPONSE = "EVIDENCE_INVALID_RESPONSE";
+  private static final String INVALID_RESPONSE = "TRANSFER_OUTCOME_INVALID_RESPONSE";
   private static final Map<MigrationFileExecutionStatus, Set<MigrationFileExecutionStatus>> TRANSITIONS =
     Map.of(WAITING_PU, Set.of(COMPLETED, WARNING, FAILED));
 
-  public MigrationFileExecutionEvidenceValidator() {
+  public MigrationFileExecutionTransferOutcomeValidator() {
     super(TRANSITIONS);
   }
 
   public void validatePolling(MigrationFileExecution file) {
     requireStatus(file, WAITING_PU);
     if (file.getUploadId() == null || file.getUploadId() <= 0 || file.getUploadCompletedAt() == null) {
-      throw invalid("Evidence requires a positive uploadId and uploadCompletedAt");
+      throw invalid("Transfer outcome requires a positive uploadId and uploadCompletedAt");
     }
   }
 
+  // Generated @Nonnull getters can return null for incomplete PU responses.
+  @SuppressWarnings("java:S2589")
   public void validateUpload(MigrationFileExecution file, Long uploadId, Uploads upload) {
     checkImmutableField(file, MigrationFileExecution.Fields.uploadId, file.getUploadId(), uploadId);
     if (upload == null || upload.getStatus() == null || !Objects.equals(uploadId, upload.getUploadId())) {
@@ -54,6 +56,8 @@ public class MigrationFileExecutionEvidenceValidator extends BaseMigrationFileEx
     }
   }
 
+  // Keep null checks for malformed payloads despite the generated @Nonnull contracts.
+  @SuppressWarnings("java:S2589")
   public void validateDetails(Long uploadId, List<UploadDetails> details) {
     Set<Long> identifiers = new HashSet<>();
     for (UploadDetails detail : details) {
@@ -67,12 +71,12 @@ public class MigrationFileExecutionEvidenceValidator extends BaseMigrationFileEx
     }
   }
 
-  public void validateRecordEvidence(MigrationFileExecution file, Uploads upload, MigrationFileExecutionStatus target) {
+  public void validateRecordTransferOutcome(MigrationFileExecution file, Uploads upload, MigrationFileExecutionStatus target) {
     validatePolling(file);
     if ((file.getUploadStatus() == UploadsStatusEnum.PROCESSING && upload.getStatus() == UploadsStatusEnum.UPLOADED)
       || (file.getUploadStatus() == UploadsStatusEnum.COMPLETED
         && (upload.getStatus() == UploadsStatusEnum.UPLOADED || upload.getStatus() == UploadsStatusEnum.PROCESSING))) {
-      throw new ConflictException("EVIDENCE_CONFLICT", "PU upload status regressed for file " + file.getId());
+      throw new ConflictException("TRANSFER_OUTCOME_CONFLICT", "PU upload status regressed for file " + file.getId());
     }
     if (target != WAITING_PU) {
       requireTransition(file, target);
@@ -83,13 +87,13 @@ public class MigrationFileExecutionEvidenceValidator extends BaseMigrationFileEx
                                      MigrationFileExecutionStatus target, boolean completeSnapshot) {
     if (target != file.getStatus() || upload.getStatus() != file.getUploadStatus()
       || (!completeSnapshot && target != FAILED)) {
-      throw new ConflictException("EVIDENCE_CONFLICT", "Cannot replace terminal evidence for file " + file.getId());
+      throw new ConflictException("TRANSFER_OUTCOME_CONFLICT", "Cannot replace terminal transfer outcome for file " + file.getId());
     }
   }
 
   public void validateMarkFailed(MigrationFileExecution file, Long uploadId) {
     if (!Objects.equals(uploadId, file.getUploadId())) {
-      throw new ConflictException("EVIDENCE_CONFLICT", "Upload changed for file " + file.getId());
+      throw new ConflictException("TRANSFER_OUTCOME_CONFLICT", "Upload changed for file " + file.getId());
     }
     if (!isTerminal(file)) {
       requireTransition(file, FAILED);
@@ -114,7 +118,7 @@ public class MigrationFileExecutionEvidenceValidator extends BaseMigrationFileEx
     boolean terminalFile = isTerminal(file);
     if ((terminalFile || original.getUploadDetailId() != null)
       && !Objects.equals(original.getUploadDetailId(), updated.getUploadDetailId())) {
-      throw new ConflictException("EVIDENCE_CONFLICT", "PU changed upload detail ID for " + original.getFileName());
+      throw new ConflictException("TRANSFER_OUTCOME_CONFLICT", "PU changed upload detail ID for " + original.getFileName());
     }
     if (!Objects.equals(StringUtils.getFilename(original.getFileName()), updated.getFileName())
       || ((terminalFile || original.getUploadDetailId() != null || !Long.valueOf(0L).equals(original.getFileSize()))
@@ -134,7 +138,7 @@ public class MigrationFileExecutionEvidenceValidator extends BaseMigrationFileEx
         || changedValue(original.getNumCorrectlyImportedRows(), accepted, terminalFile)
         || changedValue(original.getErrorDescription(), updated.getErrorDescription(), terminalFile)
         || changedValue(original.getDiscardFileName(), updated.getDiscardFileName(), terminalFile))) {
-      throw new ConflictException("EVIDENCE_CONFLICT", "PU changed terminal detail " + original.getUploadDetailId());
+      throw new ConflictException("TRANSFER_OUTCOME_CONFLICT", "PU changed terminal detail " + original.getUploadDetailId());
     }
   }
 

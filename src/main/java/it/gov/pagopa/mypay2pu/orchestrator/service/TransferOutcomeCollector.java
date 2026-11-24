@@ -1,14 +1,14 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
-import it.gov.pagopa.mypay2pu.orchestrator.config.EvidencePollingProperties;
+import it.gov.pagopa.mypay2pu.orchestrator.config.TransferOutcomePollingProperties;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.migration.PuMigrationService;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.EvidenceException;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.TransferOutcomeException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.BaseBusinessException;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
-import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionEvidenceValidator;
+import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationFileExecutionTransferOutcomeValidator;
 import it.gov.pagopa.pu.migration.dto.generated.UploadDetails;
 import it.gov.pagopa.pu.migration.dto.generated.Uploads;
 import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
@@ -33,20 +33,22 @@ import static it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExe
 /** Waits for one PU upload on the existing asynchronous DAG worker. */
 @Service
 @Slf4j
-public class EvidenceCollector {
+public class TransferOutcomeCollector {
 
-  private final MigrationFileExecutionEvidenceService evidenceService;
+  private final MigrationFileExecutionTransferOutcomeService transferOutcomeService;
   private final PuMigrationService puMigrationService;
-  private final MigrationFileExecutionEvidenceValidator validator;
-  private final EvidencePollingProperties properties;
+  private final MigrationFileExecutionTransferOutcomeValidator validator;
+  private final TransferOutcomePollingProperties properties;
   private final Clock clock;
 
-  public EvidenceCollector(MigrationFileExecutionEvidenceService evidenceService,
-                           PuMigrationService puMigrationService,
-                           MigrationFileExecutionEvidenceValidator validator,
-                           EvidencePollingProperties properties,
-                           @Qualifier("evidenceClock") Clock clock) {
-    this.evidenceService = evidenceService;
+  public TransferOutcomeCollector(
+    MigrationFileExecutionTransferOutcomeService transferOutcomeService,
+    PuMigrationService puMigrationService,
+    MigrationFileExecutionTransferOutcomeValidator validator,
+    TransferOutcomePollingProperties properties,
+    @Qualifier("transferOutcomeClock") Clock clock
+  ) {
+    this.transferOutcomeService = transferOutcomeService;
     this.puMigrationService = puMigrationService;
     this.validator = validator;
     this.properties = properties;
@@ -54,7 +56,7 @@ public class EvidenceCollector {
   }
 
   public void collect(UUID migrationId, MigrationFileType fileType) {
-    MigrationFileExecution file = evidenceService.getRequired(migrationId, fileType);
+    MigrationFileExecution file = transferOutcomeService.getRequired(migrationId, fileType);
     if (validator.isTerminal(file)) {
       requireSuccessfulOutcome(file);
       return;
@@ -64,17 +66,17 @@ public class EvidenceCollector {
       Instant deadline = file.getUploadCompletedAt().toInstant(ZoneOffset.UTC).plus(properties.statusTimeout());
       poll(file, deadline);
     } catch (RestClientException failure) {
-      recordFailure(file, new EvidenceException("EVIDENCE_POLLING_FAILED",
-        "PU evidence request failed for upload " + file.getUploadId(), failure));
+      recordFailure(file, new TransferOutcomeException("TRANSFER_OUTCOME_POLLING_FAILED",
+        "PU transfer outcome request failed for upload " + file.getUploadId(), failure));
     } catch (InvalidValueException failure) {
-      recordFailure(file, new EvidenceException("EVIDENCE_INVALID_RESPONSE", failure.getMessage(), failure));
-    } catch (EvidenceException failure) {
+      recordFailure(file, new TransferOutcomeException("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getMessage(), failure));
+    } catch (TransferOutcomeException failure) {
       recordFailure(file, failure);
     } catch (DataAccessException | TransactionException failure) {
-      recordFailure(file, new EvidenceException("EVIDENCE_PERSISTENCE_FAILED",
-        "Cannot persist PU evidence for upload " + file.getUploadId(), failure));
+      recordFailure(file, new TransferOutcomeException("TRANSFER_OUTCOME_PERSISTENCE_FAILED",
+        "Cannot persist PU transfer outcome for upload " + file.getUploadId(), failure));
     } catch (ConflictException failure) {
-      MigrationFileExecution current = evidenceService.getRequired(migrationId, fileType);
+      MigrationFileExecution current = transferOutcomeService.getRequired(migrationId, fileType);
       if (!Objects.equals(file.getUploadId(), current.getUploadId())
         || !validator.isTerminal(current)) {
         throw failure;
@@ -93,7 +95,7 @@ public class EvidenceCollector {
         || upload.getStatus() == UploadsStatusEnum.COMPLETED
         ? puMigrationService.getMigrationUploadDetails(file.getUploadId()) : List.of();
       checkDeadline(deadline, file);
-      MigrationFileExecution updated = evidenceService.recordEvidence(file.getId(), file.getUploadId(), upload, details);
+      MigrationFileExecution updated = transferOutcomeService.recordTransferOutcome(file.getId(), file.getUploadId(), upload, details);
       if (validator.isTerminal(updated)) {
         requireSuccessfulOutcome(updated);
         return;
@@ -105,8 +107,8 @@ public class EvidenceCollector {
         Thread.sleep(delay);
       } catch (InterruptedException failure) {
         Thread.currentThread().interrupt();
-        throw new EvidenceException("EVIDENCE_INTERRUPTED",
-          "Interrupted while collecting evidence for upload " + file.getUploadId(), failure);
+        throw new TransferOutcomeException("TRANSFER_OUTCOME_INTERRUPTED",
+          "Interrupted while collecting transfer outcome for upload " + file.getUploadId(), failure);
       }
     }
   }
@@ -114,38 +116,38 @@ public class EvidenceCollector {
   private Duration checkDeadline(Instant deadline, MigrationFileExecution file) {
     Duration remaining = Duration.between(clock.instant(), deadline);
     if (remaining.isNegative() || remaining.isZero()) {
-      throw new EvidenceException("EVIDENCE_TIMEOUT",
-        "Timed out waiting for PU evidence for upload " + file.getUploadId());
+      throw new TransferOutcomeException("TRANSFER_OUTCOME_TIMEOUT",
+        "Timed out waiting for PU transfer outcome for upload " + file.getUploadId());
     }
     return remaining;
   }
 
   private void requireSuccessfulOutcome(MigrationFileExecution file) {
     if (file.getStatus() == FAILED) {
-      throw new EvidenceException(
-        file.getUploadErrorCode() == null ? "EVIDENCE_PU_FAILED" : file.getUploadErrorCode(),
-        file.getUploadErrorMsg() == null ? "PU evidence failed for file " + file.getId() : file.getUploadErrorMsg()
+      throw new TransferOutcomeException(
+        file.getUploadErrorCode() == null ? "TRANSFER_OUTCOME_PU_FAILED" : file.getUploadErrorCode(),
+        file.getUploadErrorMsg() == null ? "PU transfer outcome failed for file " + file.getId() : file.getUploadErrorMsg()
       );
     }
   }
 
-  private void recordFailure(MigrationFileExecution file, EvidenceException failure) {
+  private void recordFailure(MigrationFileExecution file, TransferOutcomeException failure) {
     try {
-      MigrationFileExecution current = evidenceService.markFailed(
+      MigrationFileExecution current = transferOutcomeService.markFailed(
         file.getId(), file.getUploadId(), failure.getCode(), failure.getMessage());
       if (current.getStatus() == COMPLETED || current.getStatus() == WARNING) {
-        log.info("File {} already has successful terminal evidence; ignoring obsolete polling failure {}", file.getId(), failure.getCode());
+        log.info("File {} already has successful terminal transfer outcome; ignoring obsolete polling failure {}", file.getId(), failure.getCode());
         return;
       }
       if (current.getUploadErrorCode() != null
         && (!Objects.equals(current.getUploadErrorCode(), failure.getCode())
           || !Objects.equals(current.getUploadErrorMsg(), failure.getMessage()))) {
-        failure = new EvidenceException(current.getUploadErrorCode(), current.getUploadErrorMsg(), failure);
+        failure = new TransferOutcomeException(current.getUploadErrorCode(), current.getUploadErrorMsg(), failure);
       }
     } catch (DataAccessException | TransactionException | BaseBusinessException persistenceFailure) {
       failure.addSuppressed(persistenceFailure);
     }
-    log.error("Evidence collection failed for file {} and upload {}", file.getId(), file.getUploadId(), failure);
+    log.error("Transfer outcome collection failed for file {} and upload {}", file.getId(), file.getUploadId(), failure);
     throw failure;
   }
 }

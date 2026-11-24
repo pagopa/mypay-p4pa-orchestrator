@@ -22,7 +22,7 @@ class MigrationStatusResolverTest {
 
   @ParameterizedTest
   @MethodSource("fileOutcomes")
-  void givenFileStatusWhenResolveTransferStatusThenUsesEvidenceOutcome(
+  void givenFileStatusWhenResolveTransferStatusThenUsesTransferOutcome(
     MigrationFileExecutionStatus fileStatus, MigrationExecutionStatus expected
   ) {
     MigrationExecution execution = execution(MigrationFileType.ORGANIZATIONS);

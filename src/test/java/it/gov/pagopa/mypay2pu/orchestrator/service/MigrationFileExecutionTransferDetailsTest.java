@@ -72,7 +72,7 @@ class MigrationFileExecutionTransferDetailsTest {
   @Autowired
   private MigrationFileExecutionTransferService transferService;
   @Autowired
-  private MigrationFileExecutionEvidenceService evidenceService;
+  private MigrationFileExecutionTransferOutcomeService transferOutcomeService;
 
   @Test
   void givenExtractedFileWhenRecordUploadAcceptedThenUpdatesOnlyExistingDetailStatus() throws IOException {
@@ -233,7 +233,7 @@ class MigrationFileExecutionTransferDetailsTest {
 
   @ParameterizedTest
   @MethodSource("puOutcomes")
-  void givenExportedFilesWhenRecordEvidenceThenEnrichesOriginalDetailsAndReplaysWithoutDuplicates(
+  void givenExportedFilesWhenRecordTransferOutcomeThenEnrichesOriginalDetailsAndReplaysWithoutDuplicates(
     IngestionFlowFileStatus puStatus, long accepted, MigrationFileExecutionStatus expected
   ) throws IOException {
     MigrationFileExecution execution = exportingExecution();
@@ -252,7 +252,7 @@ class MigrationFileExecutionTransferDetailsTest {
         .status(puStatus).numTotalRows(10L).numCorrectlyImportedRows(accepted)
     );
 
-    evidenceService.recordEvidence(execution.getId(), 42L, upload, snapshot);
+    transferOutcomeService.recordTransferOutcome(execution.getId(), 42L, upload, snapshot);
 
     List<MigrationFileExecutionDetail> collected = details(execution);
     assertEquals(expected, executionRepository.findById(execution.getId()).orElseThrow().getStatus());
@@ -270,7 +270,7 @@ class MigrationFileExecutionTransferDetailsTest {
       assertEquals(original.getFileName().equals(FILE_NAME) ? 123L : 124L, updated.getUploadDetailId());
     }
 
-    evidenceService.recordEvidence(execution.getId(), 42L, upload, snapshot);
+    transferOutcomeService.recordTransferOutcome(execution.getId(), 42L, upload, snapshot);
 
     assertEquals(collected, details(execution));
   }
@@ -284,7 +284,7 @@ class MigrationFileExecutionTransferDetailsTest {
   }
 
   @Test
-  void givenExportedFileWhenEvidenceTimesOutThenPersistsFailedDetailWithoutLosingIpa() throws IOException {
+  void givenExportedFileWhenTransferOutcomeTimesOutThenPersistsFailedDetailWithoutLosingIpa() throws IOException {
     MigrationFileExecution execution = completeExtraction();
     MigrationFileExecutionDetail original = details(execution).getFirst();
     transferService.markTransferring(execution.getMigrationId(), FILE_TYPE, COMPLETED_AT);
@@ -292,7 +292,7 @@ class MigrationFileExecutionTransferDetailsTest {
       execution.getMigrationId(), FILE_TYPE, 42L, UploadsStatusEnum.UPLOADED, COMPLETED_AT
     );
 
-    evidenceService.markFailed(execution.getId(), 42L, "EVIDENCE_TIMEOUT", "timed out");
+    transferOutcomeService.markFailed(execution.getId(), 42L, "TRANSFER_OUTCOME_TIMEOUT", "timed out");
 
     MigrationFileExecutionDetail failed = details(execution).getFirst();
     assertEquals(original.getId(), failed.getId());
@@ -305,7 +305,7 @@ class MigrationFileExecutionTransferDetailsTest {
 
   @ParameterizedTest
   @ValueSource(longs = {0L, 5L})
-  void givenProvisionalSizeWhenRecordEvidenceThenBindsPuSizeAndRejectsSubsequentChanges(long puSize) {
+  void givenProvisionalSizeWhenRecordTransferOutcomeThenBindsPuSizeAndRejectsSubsequentChanges(long puSize) {
     MigrationFileExecution execution = exportingExecution();
     UUID migrationId = execution.getMigrationId();
     exportService.markExported(migrationId, FILE_TYPE, archives(), COMPLETED_AT);
@@ -315,7 +315,7 @@ class MigrationFileExecutionTransferDetailsTest {
     UploadDetails observation = new UploadDetails().uploadId(42L).uploadDetailId(123L)
       .fileName(FILE_NAME).fileSize(puSize).status(IngestionFlowFileStatus.PROCESSING);
 
-    evidenceService.recordEvidence(execution.getId(), 42L, upload, List.of(observation));
+    transferOutcomeService.recordTransferOutcome(execution.getId(), 42L, upload, List.of(observation));
 
     MigrationFileExecutionDetail bound = details(execution).getFirst();
     assertEquals(puSize, bound.getFileSize());
@@ -323,17 +323,19 @@ class MigrationFileExecutionTransferDetailsTest {
     assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, bound.getStatus());
     observation.setFileSize(puSize + 1L);
 
+    UUID executionId = execution.getId();
+    List<UploadDetails> snapshot = List.of(observation);
     InvalidValueException failure = assertThrows(InvalidValueException.class,
-      () -> evidenceService.recordEvidence(execution.getId(), 42L, upload, List.of(observation)));
+      () -> transferOutcomeService.recordTransferOutcome(executionId, 42L, upload, snapshot));
 
-    assertEquals("EVIDENCE_INVALID_RESPONSE", failure.getCode());
+    assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
     assertEquals(bound, details(execution).getFirst());
     assertEquals(MigrationFileExecutionStatus.WAITING_PU,
       executionRepository.findById(execution.getId()).orElseThrow().getStatus());
   }
 
   @Test
-  void givenAmbiguousProvisionalFilesWhenRecordEvidenceThenRejectsWithoutBindingDetails() {
+  void givenAmbiguousProvisionalFilesWhenRecordTransferOutcomeThenRejectsWithoutBindingDetails() {
     MigrationFileExecution execution = exportingExecution();
     UUID migrationId = execution.getMigrationId();
     List<String> files = List.of("first/" + FILE_NAME, "second/" + FILE_NAME);
@@ -346,10 +348,11 @@ class MigrationFileExecutionTransferDetailsTest {
     List<UploadDetails> snapshot = List.of(new UploadDetails().uploadId(42L).uploadDetailId(123L)
       .fileName(FILE_NAME).fileSize(5L).status(IngestionFlowFileStatus.PROCESSING));
 
+    UUID executionId = execution.getId();
     InvalidValueException failure = assertThrows(InvalidValueException.class,
-      () -> evidenceService.recordEvidence(execution.getId(), 42L, upload, snapshot));
+      () -> transferOutcomeService.recordTransferOutcome(executionId, 42L, upload, snapshot));
 
-    assertEquals("EVIDENCE_INVALID_RESPONSE", failure.getCode());
+    assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
     assertEquals(original, details(execution));
     assertTrue(details(execution).stream().allMatch(detail -> detail.getUploadDetailId() == null));
   }

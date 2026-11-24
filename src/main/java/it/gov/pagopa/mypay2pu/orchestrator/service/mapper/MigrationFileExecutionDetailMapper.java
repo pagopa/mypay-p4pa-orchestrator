@@ -82,17 +82,17 @@ public class MigrationFileExecutionDetailMapper {
     return baseName.substring(0, separator);
   }
 
-  /** Applies validated PU observations, keeping provisional evidence in WAITING_PU. */
+  /** Applies validated PU observations, keeping provisional transfer outcome in WAITING_PU. */
   public void updateMigrationFileExecutionDetail(
     MigrationFileExecutionDetail target,
     UploadDetails uploadDetail,
-    boolean finalEvidence
+    boolean finalTransferOutcome
   ) {
     if (target.getUploadDetailId() == null && Long.valueOf(0L).equals(target.getFileSize())) {
       target.setFileSize(uploadDetail.getFileSize());
     }
     target.setUploadDetailId(uploadDetail.getUploadDetailId());
-    if (finalEvidence) {
+    if (finalTransferOutcome) {
       target.setStatus(toLocalStatus(uploadDetail.getStatus()));
     }
     if (uploadDetail.getErrorDescription() != null) {

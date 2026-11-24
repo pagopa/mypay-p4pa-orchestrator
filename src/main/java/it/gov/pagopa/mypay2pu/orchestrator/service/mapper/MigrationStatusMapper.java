@@ -98,19 +98,19 @@ public class MigrationStatusMapper {
     List<MigrationFileExecutionDetail> details
   ) {
     FileMetrics metrics = calculateMetrics(fileExecution, details);
-    boolean finalEvidence = hasFinalEvidence(fileExecution, details);
+    boolean finalTransferOutcome = hasFinalTransferOutcome(fileExecution, details);
     return new TransferFileStatusDto()
       .fileType(fileExecution.getFileType())
       .status(fileExecution.getStatus())
       .uploadId(fileExecution.getUploadId())
       .uploadStatus(fileExecution.getUploadStatus() == null ? null : fileExecution.getUploadStatus().name())
-      .recordsAccepted(finalEvidence ? metrics.recordsAccepted() : null)
-      .recordsRejected(finalEvidence ? metrics.recordsRejected() : null)
+      .recordsAccepted(finalTransferOutcome ? metrics.recordsAccepted() : null)
+      .recordsRejected(finalTransferOutcome ? metrics.recordsRejected() : null)
       .errorCode(fileExecution.getUploadErrorCode())
       .errorMsg(fileExecution.getUploadErrorMsg())
       .uploadedAt(LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(fileExecution.getUploadCompletedAt()))
-      .evidenceCollectedAt(finalEvidence
-        ? LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(evidenceCollectedAt(details))
+      .transferOutcomeCollectedAt(finalTransferOutcome
+        ? LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(transferOutcomeCollectedAt(details))
         : null);
   }
 
@@ -153,7 +153,7 @@ public class MigrationStatusMapper {
     return new FileMetrics(recordCount, recordsAccepted, recordsRejected);
   }
 
-  private LocalDateTime evidenceCollectedAt(List<MigrationFileExecutionDetail> details) {
+  private LocalDateTime transferOutcomeCollectedAt(List<MigrationFileExecutionDetail> details) {
     return details.stream()
       .map(MigrationFileExecutionDetail::getUpdateDate)
       .filter(Objects::nonNull)
@@ -161,7 +161,7 @@ public class MigrationStatusMapper {
       .orElse(null);
   }
 
-  private boolean hasFinalEvidence(MigrationFileExecution file, List<MigrationFileExecutionDetail> details) {
+  private boolean hasFinalTransferOutcome(MigrationFileExecution file, List<MigrationFileExecutionDetail> details) {
     return (file.getStatus() == MigrationFileExecutionStatus.COMPLETED
       || file.getStatus() == MigrationFileExecutionStatus.WARNING
       || file.getStatus() == MigrationFileExecutionStatus.FAILED)

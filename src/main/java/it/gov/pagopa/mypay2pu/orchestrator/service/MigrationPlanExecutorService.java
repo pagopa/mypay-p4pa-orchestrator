@@ -22,11 +22,11 @@ public class MigrationPlanExecutorService {
   private static final MigrationFileType PLAN_ROOT = MigrationFileType.DEBT_POSITIONS_TYPE;
 
   private final CurrentTraceContext currentTraceContext;
-  private final EvidenceCollector evidenceCollector;
+  private final TransferOutcomeCollector transferOutcomeCollector;
 
-  public MigrationPlanExecutorService(Tracer tracer, EvidenceCollector evidenceCollector) {
+  public MigrationPlanExecutorService(Tracer tracer, TransferOutcomeCollector transferOutcomeCollector) {
     this.currentTraceContext = tracer.currentTraceContext();
-    this.evidenceCollector = evidenceCollector;
+    this.transferOutcomeCollector = transferOutcomeCollector;
   }
 
   static final Map<MigrationFileType, Set<MigrationFileType>> MIGRATION_PLAN = Map.ofEntries(
@@ -82,7 +82,7 @@ public class MigrationPlanExecutorService {
     if (selectedFileTypes.contains(migrationFileType)) {
       operationMap.get(migrationFileType).execute(request);
       if (request.getAction() == MigrationAction.TRANSFER || request.getAction() == MigrationAction.COMPLETE) {
-        evidenceCollector.collect(request.getMigrationId(), migrationFileType);
+        transferOutcomeCollector.collect(request.getMigrationId(), migrationFileType);
       }
     }
 

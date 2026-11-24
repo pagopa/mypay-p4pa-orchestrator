@@ -3,10 +3,10 @@ package it.gov.pagopa.mypay2pu.orchestrator.config;
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "orchestrator.evidence", ignoreUnknownFields = false)
-public record EvidencePollingProperties(Duration statusPollInterval, Duration statusTimeout) {
+@ConfigurationProperties(prefix = "orchestrator.transfer-outcome", ignoreUnknownFields = false)
+public record TransferOutcomePollingProperties(Duration statusPollInterval, Duration statusTimeout) {
 
-  public EvidencePollingProperties {
+  public TransferOutcomePollingProperties {
     validate("status-poll-interval", statusPollInterval);
     validate("status-timeout", statusTimeout);
     if (statusTimeout.compareTo(statusPollInterval) < 0) {

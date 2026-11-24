@@ -130,9 +130,9 @@ orchestrator:
       defaults:
         short-running: "\${EXTRACTION_TIMEOUT_SHORT_RUNNING:30m}"
         long-running: "\${EXTRACTION_TIMEOUT_LONG_RUNNING:1h}"
-  evidence:
-    status-poll-interval: "\${EVIDENCE_STATUS_POLL_INTERVAL:30s}"
-    status-timeout: "\${EVIDENCE_STATUS_TIMEOUT:PT12H}"
+  transfer-outcome:
+    status-poll-interval: "\${TRANSFER_OUTCOME_STATUS_POLL_INTERVAL:30s}"
+    status-timeout: "\${TRANSFER_OUTCOME_STATUS_TIMEOUT:PT12H}"
 
 cipher:
   file-encrypt-enabled: "\${FILE_ENCRYPT_ENABLED:false}"

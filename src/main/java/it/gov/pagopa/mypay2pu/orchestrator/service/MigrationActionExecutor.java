@@ -6,7 +6,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionS
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.BaseBusinessException;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.EvidenceException;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.TransferOutcomeException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionRepository;
@@ -51,7 +51,7 @@ public class MigrationActionExecutor {
         execution.setStatus(MigrationExecutionStatus.COMPLETED);
         execution.setFileTypeCountCompleted(execution.getFileTypes().size());
       } else {
-        applyEvidenceOutcome(execution);
+        applyTransferOutcome(execution);
       }
       if ((execution.getAction() == MigrationAction.EXPORT || execution.getAction() == MigrationAction.COMPLETE)
         && (execution.getOrchestrationMode() == OrchestrationMode.FULL || execution.getOrchestrationMode() == OrchestrationMode.DELTA)
@@ -88,19 +88,19 @@ public class MigrationActionExecutor {
     return CompletableFuture.completedFuture(null);
   }
 
-  private void applyEvidenceOutcome(MigrationExecution execution) {
+  private void applyTransferOutcome(MigrationExecution execution) {
     List<MigrationFileExecution> selected = selectedFiles(execution);
     execution.setFileTypeCountCompleted((int) selected.stream().filter(migrationStatusResolver::isSuccessfulFile).count());
     for (MigrationFileExecution file : selected) {
       if (file.getStatus() == MigrationFileExecutionStatus.FAILED) {
-        throw new EvidenceException(
-          StringUtils.hasText(file.getUploadErrorCode()) ? file.getUploadErrorCode() : "EVIDENCE_PU_FAILED",
-          StringUtils.hasText(file.getUploadErrorMsg()) ? file.getUploadErrorMsg() : "PU evidence failed");
+        throw new TransferOutcomeException(
+          StringUtils.hasText(file.getUploadErrorCode()) ? file.getUploadErrorCode() : "TRANSFER_OUTCOME_PU_FAILED",
+          StringUtils.hasText(file.getUploadErrorMsg()) ? file.getUploadErrorMsg() : "PU transfer outcome failed");
       }
     }
     MigrationExecutionStatus status = migrationStatusResolver.resolveTransferStatus(execution, selected);
     if (status != MigrationExecutionStatus.COMPLETED && status != MigrationExecutionStatus.WARNING) {
-      throw new EvidenceException("EVIDENCE_INCOMPLETE", "Migration has missing or unsuccessful PU evidence");
+      throw new TransferOutcomeException("TRANSFER_OUTCOME_INCOMPLETE", "Migration has missing or unsuccessful PU transfer outcome");
     }
     execution.setStatus(status);
   }

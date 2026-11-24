@@ -116,7 +116,7 @@ class MigrationStatusServiceImplTest {
     assertEquals(42L, transferFile.getUploadId());
     assertEquals(12L, transferFile.getRecordsAccepted());
     assertEquals(3L, transferFile.getRecordsRejected());
-    assertEquals(UPLOADED_AT.atZone(Constants.ZONEID).toOffsetDateTime(), transferFile.getEvidenceCollectedAt());
+    assertEquals(UPLOADED_AT.atZone(Constants.ZONEID).toOffsetDateTime(), transferFile.getTransferOutcomeCollectedAt());
   }
 
   @Test
@@ -181,11 +181,11 @@ class MigrationStatusServiceImplTest {
     assertEquals("UPLOAD_ERROR", response.getErrorCode());
     assertEquals("upload error", response.getErrorMsg());
     assertEquals(UPLOADED_AT.atZone(Constants.ZONEID).toOffsetDateTime(), response.getUploadedAt());
-    assertNull(response.getEvidenceCollectedAt());
+    assertNull(response.getTransferOutcomeCollectedAt());
   }
 
   @Test
-  void givenPendingDetailWhenGetTransferFileStatusThenDoesNotExposeCompleteEvidenceTimestamp() {
+  void givenPendingDetailWhenGetTransferFileStatusThenDoesNotExposeCompleteTransferOutcomeTimestamp() {
     UUID migrationId = UUID.randomUUID();
     MigrationFileExecution fileExecution = fileExecution(migrationId, MigrationFileExecutionStatus.WAITING_PU);
     MigrationFileExecutionDetail completedDetail = fileExecutionDetail(fileExecution.getId(), 10, 8, 700L);
@@ -203,7 +203,7 @@ class MigrationStatusServiceImplTest {
 
     TransferFileStatusDto response = service.getTransferFileStatus(migrationId, MigrationFileType.ORGANIZATIONS);
 
-    assertNull(response.getEvidenceCollectedAt());
+    assertNull(response.getTransferOutcomeCollectedAt());
   }
 
   @Test
@@ -230,7 +230,7 @@ class MigrationStatusServiceImplTest {
     assertNull(response.getErrorCode());
     assertNull(response.getErrorMsg());
     assertNull(response.getUploadedAt());
-    assertNull(response.getEvidenceCollectedAt());
+    assertNull(response.getTransferOutcomeCollectedAt());
   }
 
   @Test
@@ -265,7 +265,7 @@ class MigrationStatusServiceImplTest {
     UUID migrationId = UUID.randomUUID();
     MigrationExecution execution = migrationExecution(migrationId);
     execution.setStatus(MigrationExecutionStatus.FAILED);
-    execution.setErrorCode("EVIDENCE_PU_FAILED");
+    execution.setErrorCode("TRANSFER_OUTCOME_PU_FAILED");
     execution.setErrorMsg("PU error");
     MigrationFileExecution file = fileExecution(migrationId, MigrationFileExecutionStatus.FAILED);
     MigrationFileExecutionDetail detail = fileExecutionDetail(file.getId(), 10, 8, 500L);
@@ -292,7 +292,7 @@ class MigrationStatusServiceImplTest {
   }
 
   @Test
-  void givenWaitingFileWithTerminalDetailWhenGetTransferFileStatusThenDoesNotExposeCompleteEvidenceTimestamp() {
+  void givenWaitingFileWithTerminalDetailWhenGetTransferFileStatusThenDoesNotExposeCompleteTransferOutcomeTimestamp() {
     UUID migrationId = UUID.randomUUID();
     MigrationFileExecution file = fileExecution(migrationId, MigrationFileExecutionStatus.WAITING_PU);
     MigrationFileExecutionDetail detail = fileExecutionDetail(file.getId(), 10, 8, 500L);
@@ -305,14 +305,14 @@ class MigrationStatusServiceImplTest {
 
     TransferFileStatusDto result = service.getTransferFileStatus(migrationId, MigrationFileType.ORGANIZATIONS);
 
-    checkNotNullFields(result, "evidenceCollectedAt", "recordsAccepted", "recordsRejected");
-    assertNull(result.getEvidenceCollectedAt());
+    checkNotNullFields(result, "transferOutcomeCollectedAt", "recordsAccepted", "recordsRejected");
+    assertNull(result.getTransferOutcomeCollectedAt());
     verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(migrationId, MigrationFileType.ORGANIZATIONS);
     verify(migrationFileExecutionDetailRepositoryMock).findAllByMigrationFileExecutionId(file.getId());
   }
 
   @Test
-  void givenPartialEvidenceWhenGetTransferFileStatusThenMapsCountsAndCompleteTimestamp() {
+  void givenPartialTransferOutcomeWhenGetTransferFileStatusThenMapsCountsAndCompleteTimestamp() {
     UUID migrationId = UUID.randomUUID();
     MigrationFileExecution file = fileExecution(migrationId, MigrationFileExecutionStatus.WARNING);
     file.setUploadStatus(UploadsStatusEnum.COMPLETED);
@@ -329,7 +329,7 @@ class MigrationStatusServiceImplTest {
     checkNotNullFields(result);
     assertEquals(8L, result.getRecordsAccepted());
     assertEquals(2L, result.getRecordsRejected());
-    assertNotNull(result.getEvidenceCollectedAt());
+    assertNotNull(result.getTransferOutcomeCollectedAt());
     verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(migrationId, MigrationFileType.ORGANIZATIONS);
     verify(migrationFileExecutionDetailRepositoryMock).findAllByMigrationFileExecutionId(file.getId());
   }
@@ -339,7 +339,7 @@ class MigrationStatusServiceImplTest {
     UUID migrationId = UUID.randomUUID();
     MigrationExecution execution = migrationExecution(migrationId);
     execution.setStatus(MigrationExecutionStatus.FAILED);
-    execution.setErrorCode("EVIDENCE_PU_FAILED");
+    execution.setErrorCode("TRANSFER_OUTCOME_PU_FAILED");
     execution.setErrorMsg("PU error");
     execution.setFileTypes(List.of(MigrationFileType.ORGANIZATIONS, MigrationFileType.ORG_SIL_SERVICES));
     MigrationFileExecution file = fileExecution(migrationId, MigrationFileExecutionStatus.FAILED);
@@ -360,11 +360,11 @@ class MigrationStatusServiceImplTest {
   }
 
   @Test
-  void givenTimeoutWithProgressiveCountsWhenGetTransferFileStatusThenDoesNotExposeFinalEvidence() {
+  void givenTimeoutWithProgressiveCountsWhenGetTransferFileStatusThenDoesNotExposeFinalTransferOutcome() {
     UUID migrationId = UUID.randomUUID();
     MigrationFileExecution file = fileExecution(migrationId, MigrationFileExecutionStatus.FAILED);
     file.setUploadStatus(UploadsStatusEnum.PROCESSING);
-    file.setUploadErrorCode("EVIDENCE_TIMEOUT");
+    file.setUploadErrorCode("TRANSFER_OUTCOME_TIMEOUT");
     MigrationFileExecutionDetail detail = fileExecutionDetail(file.getId(), 10, 3, 500L);
     detail.setStatus(MigrationFileExecutionDetailStatus.FAILED);
     detail.setUpdateDate(UPLOADED_AT);
@@ -375,12 +375,12 @@ class MigrationStatusServiceImplTest {
 
     TransferFileStatusDto result = service.getTransferFileStatus(migrationId, MigrationFileType.ORGANIZATIONS);
 
-    checkNotNullFields(result, "recordsAccepted", "recordsRejected", "evidenceCollectedAt");
+    checkNotNullFields(result, "recordsAccepted", "recordsRejected", "transferOutcomeCollectedAt");
     assertEquals(MigrationFileExecutionStatus.FAILED, result.getStatus());
-    assertEquals("EVIDENCE_TIMEOUT", result.getErrorCode());
+    assertEquals("TRANSFER_OUTCOME_TIMEOUT", result.getErrorCode());
     assertNull(result.getRecordsAccepted());
     assertNull(result.getRecordsRejected());
-    assertNull(result.getEvidenceCollectedAt());
+    assertNull(result.getTransferOutcomeCollectedAt());
     verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(migrationId, MigrationFileType.ORGANIZATIONS);
     verify(migrationFileExecutionDetailRepositoryMock).findAllByMigrationFileExecutionId(file.getId());
   }

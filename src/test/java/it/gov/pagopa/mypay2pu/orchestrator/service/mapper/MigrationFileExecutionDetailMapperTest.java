@@ -223,7 +223,7 @@ class MigrationFileExecutionDetailMapperTest {
   }
 
   @Test
-  void givenOmittedPuFieldsWhenUpdateMigrationFileExecutionDetailThenPreservesProgressiveEvidence() {
+  void givenOmittedPuFieldsWhenUpdateMigrationFileExecutionDetailThenPreservesProgressiveTransferOutcome() {
     MigrationFileExecutionDetail result = mapper.toMigrationFileExecutionDetail(
       FILE_EXECUTION_ID, "IPA_TEST_2-organizations.csv", 500L);
     result.setStatus(MigrationFileExecutionDetailStatus.WAITING_PU);

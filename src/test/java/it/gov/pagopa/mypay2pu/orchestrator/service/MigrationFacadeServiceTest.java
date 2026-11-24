@@ -30,7 +30,7 @@ class MigrationFacadeServiceTest {
   @Mock
   private ApplicationContext applicationContextMock;
   @Mock
-  private EvidenceCollector evidenceCollectorMock;
+  private TransferOutcomeCollector transferOutcomeCollectorMock;
   @Mock
   private MigrationExportOperation organizationsExportMock;
   @Mock
@@ -65,14 +65,14 @@ class MigrationFacadeServiceTest {
       "debtPositionsTransfer", debtPositionsTransferMock
     ));
 
-    facade = new MigrationFacadeService(new MigrationPlanExecutorService(Tracer.NOOP, evidenceCollectorMock), applicationContextMock);
+    facade = new MigrationFacadeService(new MigrationPlanExecutorService(Tracer.NOOP, transferOutcomeCollectorMock), applicationContextMock);
   }
 
   @AfterEach
   void verifyMocks() {
     verifyNoMoreInteractions(
       applicationContextMock,
-      evidenceCollectorMock,
+      transferOutcomeCollectorMock,
       organizationsExportMock,
       orgSilServicesExportMock,
       debtPositionsExportMock,
@@ -90,7 +90,7 @@ class MigrationFacadeServiceTest {
     facade.execute(request);
 
     verify(debtPositionsTransferMock).execute(same(request));
-    verify(evidenceCollectorMock).collect(null, MigrationFileType.DEBT_POSITIONS);
+    verify(transferOutcomeCollectorMock).collect(null, MigrationFileType.DEBT_POSITIONS);
   }
 
   @Test
@@ -115,10 +115,10 @@ class MigrationFacadeServiceTest {
     verify(organizationsTransferMock).execute(same(request));
     verify(orgSilServicesExportMock).execute(same(request));
     verify(orgSilServicesTransferMock).execute(same(request));
-    InOrder order = inOrder(evidenceCollectorMock, orgSilServicesTransferMock);
-    order.verify(evidenceCollectorMock).collect(null, MigrationFileType.ORGANIZATIONS);
+    InOrder order = inOrder(transferOutcomeCollectorMock, orgSilServicesTransferMock);
+    order.verify(transferOutcomeCollectorMock).collect(null, MigrationFileType.ORGANIZATIONS);
     order.verify(orgSilServicesTransferMock).execute(same(request));
-    order.verify(evidenceCollectorMock).collect(null, MigrationFileType.ORG_SIL_SERVICES);
+    order.verify(transferOutcomeCollectorMock).collect(null, MigrationFileType.ORG_SIL_SERVICES);
   }
 
   private MigrationRequestDto request(MigrationAction action, MigrationFileType... fileTypes) {

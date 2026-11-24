@@ -24,7 +24,7 @@ import java.util.UUID;
  * Executes the shared upload lifecycle for a single migration file type.
  *
  * <p>Subclasses configure their file type and inherit archive validation, PU submission, and
- * persistence behavior. PU processing results remain owned by the separate Evidence phase.
+ * persistence behavior. PU processing results remain owned by the separate transfer outcome phase.
  */
 public abstract class AbstractMigrationTransferOperation implements MigrationTransferOperation {
 
