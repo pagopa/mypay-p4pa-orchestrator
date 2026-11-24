@@ -4,6 +4,8 @@ import it.gov.pagopa.mypay2pu.extractor.dto.generated.ArchiveFile;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionDetailStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
+import it.gov.pagopa.pu.migration.dto.generated.IngestionFlowFileStatus;
+import it.gov.pagopa.pu.migration.dto.generated.UploadDetails;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
@@ -78,5 +80,41 @@ public class MigrationFileExecutionDetailMapper {
       );
     }
     return baseName.substring(0, separator);
+  }
+
+  /** Applies validated PU observations, keeping provisional transfer outcome in WAITING_PU. */
+  public void updateMigrationFileExecutionDetail(
+    MigrationFileExecutionDetail target,
+    UploadDetails uploadDetail,
+    boolean finalTransferOutcome
+  ) {
+    if (target.getUploadDetailId() == null && Long.valueOf(0L).equals(target.getFileSize())) {
+      target.setFileSize(uploadDetail.getFileSize());
+    }
+    target.setUploadDetailId(uploadDetail.getUploadDetailId());
+    if (finalTransferOutcome) {
+      target.setStatus(toLocalStatus(uploadDetail.getStatus()));
+    }
+    if (uploadDetail.getErrorDescription() != null) {
+      target.setErrorDescription(uploadDetail.getErrorDescription());
+    }
+    if (uploadDetail.getDiscardFileName() != null) {
+      target.setDiscardFileName(uploadDetail.getDiscardFileName());
+    }
+    if (uploadDetail.getNumTotalRows() != null) {
+      target.setNumTotalRows(Math.toIntExact(uploadDetail.getNumTotalRows()));
+    }
+    if (uploadDetail.getNumCorrectlyImportedRows() != null) {
+      target.setNumCorrectlyImportedRows(Math.toIntExact(uploadDetail.getNumCorrectlyImportedRows()));
+    }
+  }
+
+  private MigrationFileExecutionDetailStatus toLocalStatus(IngestionFlowFileStatus status) {
+    return switch (status) {
+      case UPLOADED, PROCESSING, WAITING_FILE -> MigrationFileExecutionDetailStatus.WAITING_PU;
+      case COMPLETED -> MigrationFileExecutionDetailStatus.COMPLETED;
+      case WARNING -> MigrationFileExecutionDetailStatus.PARTIAL;
+      case ERROR -> MigrationFileExecutionDetailStatus.FAILED;
+    };
   }
 }

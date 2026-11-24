@@ -48,9 +48,12 @@ and a non-empty suffix. Invalid names fail export with
 Transfer only updates the existing details to `TRANSFERING`, `WAITING_PU` or
 `FAILED` alongside the file execution transition. It does not retrieve or create
 PU upload details. Upload-detail identifiers, import counts, errors and discard
-files remain unset until the separate Evidence phase enriches the existing rows.
+files remain unset until the separate transfer outcome phase enriches the existing rows.
 That phase will also replace the provisional file sizes with values from PU
-`UploadDetails`.
+`UploadDetails` at the first correlated observation. Correlation requires a unique
+exported base file name; once bound to an upload detail, its size is immutable.
+Non-zero sizes recorded by earlier Extract versions remain immutable and can
+still disambiguate files with the same base name.
 Previously exported executions without details require backfilling before using
 this lifecycle; Transfer does not recreate missing extraction details.
 
