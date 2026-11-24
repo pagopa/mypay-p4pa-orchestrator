@@ -43,7 +43,7 @@ class MigrationExecutionMapperTest {
     MigrationExecution result = mapper.toMigrationExecution(request);
 
     checkNotNullFields(result);
-    assertEquals(List.of("80000000000"), result.getIpacodes());
+    assertEquals(List.of("80000000000"), result.getIpaCodes());
     assertEquals(OrchestrationMode.FULL, result.getOrchestrationMode());
     assertEquals(MigrationAction.COMPLETE, result.getAction());
     assertEquals(LocalDateTime.of(2026, Month.JANUARY, 1, 12, 30, 45, 123456000), result.getDateFrom());
@@ -68,7 +68,7 @@ class MigrationExecutionMapperTest {
   }
 
   private void checkNotNullFields(MigrationExecution execution) {
-    assertNotNull(execution.getIpacodes());
+    assertNotNull(execution.getIpaCodes());
     assertNotNull(execution.getOrchestrationMode());
     assertNotNull(execution.getAction());
     assertNotNull(execution.getDateFrom());

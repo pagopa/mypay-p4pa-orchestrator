@@ -16,7 +16,7 @@ public class MigrationExecutionMapper {
     PeriodDto period = request.getPeriod();
 
     return MigrationExecution.builder()
-      .ipacodes(request.getIpaCodes())
+      .ipaCodes(request.getIpaCodes())
       .orchestrationMode(request.getOrchestrationMode())
       .action(request.getAction())
       .dateFrom(period == null ? null : toLocalDateTime(period.getFromDate()))

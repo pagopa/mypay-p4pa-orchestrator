@@ -37,7 +37,7 @@ public class MigrationExecution extends BaseEntity {
   private Integer fileTypeCountCompleted;
   @NotEmpty
   @JdbcTypeCode(SqlTypes.JSON)
-  private List<String> ipacodes;
+  private List<String> ipaCodes;
   @Enumerated(EnumType.STRING)
   @NotNull
   private OrchestrationMode orchestrationMode;
