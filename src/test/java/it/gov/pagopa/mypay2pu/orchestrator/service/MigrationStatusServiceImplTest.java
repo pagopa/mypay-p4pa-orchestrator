@@ -262,7 +262,7 @@ class MigrationStatusServiceImplTest {
       .action(MigrationAction.COMPLETE)
       .status(MigrationExecutionStatus.RUNNING)
       .orchestrationMode(OrchestrationMode.FULL)
-      .ipacodes(List.of("80000000000"))
+      .ipaCodes(List.of("80000000000"))
       .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))
       .creationDate(CREATED_AT)
       .updateDate(UPDATED_AT)

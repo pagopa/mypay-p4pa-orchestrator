@@ -234,7 +234,7 @@ class MigrationRequestValidatorTest {
     MigrationExecution previous = MigrationExecution.builder()
       .id(parentId).action(MigrationAction.EXPORT).status(status)
       .orchestrationMode(OrchestrationMode.FULL)
-      .ipacodes(request.getIpaCodes()).fileTypes(request.getFileTypesToInclude())
+      .ipaCodes(request.getIpaCodes()).fileTypes(request.getFileTypesToInclude())
       .lastSuccessfulExtractionAt(LocalDate.of(2026, Month.JANUARY, 2).atStartOfDay())
       .build();
     when(migrationExecutionRepositoryMock.findById(parentId)).thenReturn(Optional.of(previous));
@@ -253,7 +253,7 @@ class MigrationRequestValidatorTest {
     MigrationExecution previous = MigrationExecution.builder()
       .id(parentId).action(MigrationAction.EXPORT).status(MigrationExecutionStatus.COMPLETED)
       .orchestrationMode(OrchestrationMode.FULL)
-      .ipacodes(request.getIpaCodes()).fileTypes(request.getFileTypesToInclude())
+      .ipaCodes(request.getIpaCodes()).fileTypes(request.getFileTypesToInclude())
       .lastSuccessfulExtractionAt(LocalDate.of(2026, Month.JANUARY, 2).atStartOfDay()).build();
     MigrationFileExecution failed = MigrationFileExecution.builder()
       .fileType(MigrationFileType.DEBT_POSITIONS).status(MigrationFileExecutionStatus.FAILED).build();
@@ -277,7 +277,7 @@ class MigrationRequestValidatorTest {
       .ipaCodes(List.of("IPA1", "IPA2"))
       .fileTypesToInclude(List.of(MigrationFileType.DEBT_POSITIONS, MigrationFileType.ASSESSMENTS));
     MigrationExecution previous = deltaPrevious(request);
-    previous.setIpacodes(List.of("IPA2", "IPA1", "IPA1"));
+    previous.setIpaCodes(List.of("IPA2", "IPA1", "IPA1"));
     var fileExecutions = List.of(
       MigrationFileExecution.builder().fileType(MigrationFileType.DEBT_POSITIONS).status(status).build(),
       MigrationFileExecution.builder().fileType(MigrationFileType.ASSESSMENTS).status(status).build(),
@@ -325,7 +325,7 @@ class MigrationRequestValidatorTest {
       .migrationId(UUID.randomUUID()).ipaCodes(List.of("IPA1", "IPA2"))
       .fileTypesToInclude(List.of(MigrationFileType.DEBT_POSITIONS));
     MigrationExecution previous = deltaPrevious(request);
-    previous.setIpacodes(List.of("IPA1"));
+    previous.setIpaCodes(List.of("IPA1"));
     when(migrationExecutionRepositoryMock.findById(previous.getId())).thenReturn(Optional.of(previous));
 
     InvalidValueException failure = assertThrows(
@@ -416,7 +416,7 @@ class MigrationRequestValidatorTest {
       .action(MigrationAction.EXPORT)
       .status(MigrationExecutionStatus.COMPLETED)
       .orchestrationMode(OrchestrationMode.FULL)
-      .ipacodes(request.getIpaCodes())
+      .ipaCodes(request.getIpaCodes())
       .fileTypes(request.getFileTypesToInclude())
       .lastSuccessfulExtractionAt(LocalDate.of(2026, Month.JANUARY, 2).atStartOfDay())
       .build();

@@ -14,6 +14,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationExecutionReposito
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.ObjectUtils;
 
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -90,15 +91,14 @@ public class MigrationRequestValidator {
 
   private boolean isSuccessfulExtraction(MigrationExecution execution) {
     return execution.getStatus() == MigrationExecutionStatus.COMPLETED
-      && (execution.getAction() == MigrationAction.EXPORT || execution.getAction() == MigrationAction.COMPLETE)
-      && (execution.getOrchestrationMode() == OrchestrationMode.FULL || execution.getOrchestrationMode() == OrchestrationMode.DELTA)
+      && execution.getOrchestrationMode() != OrchestrationMode.REJECTS_ONLY
       && execution.getLastSuccessfulExtractionAt() != null;
   }
 
   private boolean hasMatchingDeltaScope(MigrationExecution previous, MigrationRequestDto request) {
-    return previous.getIpacodes() != null
-      && previous.getIpacodes().stream().noneMatch(ipa -> ipa == null || ipa.isBlank())
-      && new HashSet<>(previous.getIpacodes()).equals(new HashSet<>(request.getIpaCodes()))
+    return previous.getIpaCodes() != null
+      && previous.getIpaCodes().stream().noneMatch(ObjectUtils::isEmpty)
+      && new HashSet<>(previous.getIpaCodes()).equals(new HashSet<>(request.getIpaCodes()))
       && previous.getFileTypes() != null
       && previous.getFileTypes().containsAll(request.getFileTypesToInclude());
   }

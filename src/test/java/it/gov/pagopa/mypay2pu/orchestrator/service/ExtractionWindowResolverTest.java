@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -130,29 +131,18 @@ class ExtractionWindowResolverTest {
     verify(migrationRequestValidatorMock).requireDeltaPreviousMigration(request);
   }
 
-  @Test
-  void givenDeltaWithoutPeriodWhenResolveThenUsesStartOfYesterdayInApplicationZone() {
-    MigrationExecution previous = previous(CHECKPOINT);
-    MigrationRequestDto request = request(OrchestrationMode.DELTA);
+  @ParameterizedTest
+  @EnumSource(value = OrchestrationMode.class, mode = EnumSource.Mode.EXCLUDE, names = {"REJECTS_ONLY"})
+  void givenMissingPeriodEndWhenResolveThenUsesExpectedStartOfDayInApplicationZone(OrchestrationMode mode) {
+    MigrationExecution previous = mode == OrchestrationMode.DELTA ? previous(CHECKPOINT) : null;
+    MigrationRequestDto request = request(mode);
+    if (mode == OrchestrationMode.FULL) {
+      request.period(new PeriodDto());
+    }
     MigrationExecution execution = new MigrationExecution();
-    when(migrationRequestValidatorMock.requireDeltaPreviousMigration(request)).thenReturn(previous);
-    OffsetDateTime before = LocalDate.now(Constants.ZONEID).minusDays(1)
-      .atStartOfDay(Constants.ZONEID).toOffsetDateTime();
-
-    resolver.resolve(request, execution);
-
-    OffsetDateTime after = LocalDate.now(Constants.ZONEID).minusDays(1)
-      .atStartOfDay(Constants.ZONEID).toOffsetDateTime();
-    assertTrue(List.of(before, after).contains(request.getPeriod().getToDate()));
-    assertEquals(request.getPeriod().getToDate().toLocalDateTime(), execution.getDateTo());
-    assertEquals(CHECKPOINT, execution.getDateFrom());
-    verify(migrationRequestValidatorMock).requireDeltaPreviousMigration(request);
-  }
-
-  @Test
-  void givenFullWithoutEndWhenResolveThenUsesStartOfTodayInApplicationZone() {
-    MigrationRequestDto request = request(OrchestrationMode.FULL).period(new PeriodDto());
-    MigrationExecution execution = new MigrationExecution();
+    if (previous != null) {
+      when(migrationRequestValidatorMock.requireDeltaPreviousMigration(request)).thenReturn(previous);
+    }
     OffsetDateTime before = LocalDate.now(Constants.ZONEID).atStartOfDay(Constants.ZONEID).toOffsetDateTime();
 
     resolver.resolve(request, execution);
@@ -160,8 +150,13 @@ class ExtractionWindowResolverTest {
     OffsetDateTime after = LocalDate.now(Constants.ZONEID).atStartOfDay(Constants.ZONEID).toOffsetDateTime();
     assertTrue(List.of(before, after).contains(request.getPeriod().getToDate()));
     assertEquals(request.getPeriod().getToDate().toLocalDateTime(), execution.getDateTo());
-    assertNull(request.getPeriod().getFromDate());
-    assertNull(execution.getDateFrom());
+    if (mode == OrchestrationMode.DELTA) {
+      assertEquals(CHECKPOINT, execution.getDateFrom());
+      verify(migrationRequestValidatorMock).requireDeltaPreviousMigration(request);
+    } else {
+      assertNull(request.getPeriod().getFromDate());
+      assertNull(execution.getDateFrom());
+    }
   }
 
   @Test

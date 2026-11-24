@@ -296,7 +296,7 @@ class OrchestrateMigrationServiceImplTest {
       .action(MigrationAction.EXPORT)
       .orchestrationMode(OrchestrationMode.FULL)
       .status(MigrationExecutionStatus.COMPLETED)
-      .ipacodes(List.of("IPA1"))
+      .ipaCodes(List.of("IPA1"))
       .fileTypes(List.of(MigrationFileType.ORGANIZATIONS))
       .creationDate(LocalDateTime.of(2026, Month.JANUARY, 1, 12, 0))
       .build();
