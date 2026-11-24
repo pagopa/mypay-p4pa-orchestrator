@@ -1,6 +1,11 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service.operations;
 
-import it.gov.pagopa.mypay2pu.extractor.dto.generated.*;
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionAcceptedResponse;
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionRequest;
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionFilters;
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionStatus;
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.ExtractionStatusResponse;
+import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.config.ExtractionPollingProperties;
 import it.gov.pagopa.mypay2pu.orchestrator.connector.extractor.ExtractorService;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationRequestDto;
@@ -8,7 +13,6 @@ import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.OrchestrationMode;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.PeriodDto;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.service.MigrationFileExecutionExportService;
-
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Objects;

@@ -48,9 +48,12 @@ and a non-empty suffix. Invalid names fail export with
 Transfer only updates the existing details to `TRANSFERING`, `WAITING_PU` or
 `FAILED` alongside the file execution transition. It does not retrieve or create
 PU upload details. Upload-detail identifiers, import counts, errors and discard
-files remain unset until the separate Evidence phase enriches the existing rows.
+files remain unset until the separate transfer outcome phase enriches the existing rows.
 That phase will also replace the provisional file sizes with values from PU
-`UploadDetails`.
+`UploadDetails` at the first correlated observation. Correlation requires a unique
+exported base file name; once bound to an upload detail, its size is immutable.
+Non-zero sizes recorded by earlier Extract versions remain immutable and can
+still disambiguate files with the same base name.
 Previously exported executions without details require backfilling before using
 this lifecycle; Transfer does not recreate missing extraction details.
 
@@ -186,6 +189,19 @@ Types without an assignment use `EXTRACTION_STATUS_TIMEOUT`. Assigned durations 
 two configured defaults; use property references to keep them in sync. Timeouts are checked between
 requests and do not interrupt an HTTP request already in progress. The timeout uses the system clock,
 so adjustments to the clock can shorten or extend the effective wait.
+
+#### Async PU transfer outcome
+
+The `transferOutcome` phase uses the `orchestrator.transfer-outcome` configuration
+prefix. Its API timestamp is `transferOutcomeCollectedAt`, and its error codes use
+the `TRANSFER_OUTCOME_*` prefix. Clients and deployment settings must use these
+names; no legacy aliases are provided.
+
+| ENV | DESCRIPTION | DEFAULT |
+|---|---|---|
+| `TRANSFER_OUTCOME_STATUS_POLL_INTERVAL` | Delay between PU upload/detail checks; positive whole seconds | `30s` |
+| `TRANSFER_OUTCOME_STATUS_TIMEOUT` | Maximum wait from persisted upload acceptance; positive whole seconds, at least the polling interval | `PT12H` |
+
 
 #### 🔑 keys
 | ENV                   | DESCRIPTION                                                                         | DEFAULT |

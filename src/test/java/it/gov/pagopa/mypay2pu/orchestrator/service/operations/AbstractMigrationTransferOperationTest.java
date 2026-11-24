@@ -213,7 +213,7 @@ class AbstractMigrationTransferOperationTest {
   }
 
   @Test
-  void givenWaitingPuExecutionWithoutDetailsWhenExecuteThenLeavesEvidenceToCollector() {
+  void givenWaitingPuExecutionWithoutDetailsWhenExecuteThenLeavesTransferOutcomeToCollector() {
     MigrationFileExecution fileExecution = exportedExecution(
       MigrationFileType.ORGANIZATIONS,
       "organizations.zip"

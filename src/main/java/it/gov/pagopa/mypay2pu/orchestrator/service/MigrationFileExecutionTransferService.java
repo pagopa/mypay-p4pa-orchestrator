@@ -38,10 +38,6 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
     this.validator = validator;
   }
 
-  public MigrationFileExecution getRequired(UUID migrationId, MigrationFileType fileType) {
-    return findRequired(migrationId, fileType);
-  }
-
   /**
    * Atomically claims an exported file so concurrent requests cannot upload it twice.
    */
@@ -51,7 +47,7 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
     MigrationFileType fileType,
     LocalDateTime startedAt
   ) {
-    MigrationFileExecution fileExecution = findRequired(migrationId, fileType);
+    MigrationFileExecution fileExecution = getRequired(migrationId, fileType);
     validator.validateMarkTransferring(fileExecution);
     int claimed = migrationFileExecutionRepository.claimTransfer(
       migrationId,

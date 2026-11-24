@@ -18,6 +18,8 @@ paths:
         EXPORT and COMPLETE actions require non-empty ipaCodes and fileTypesToInclude; all actions require orchestrationMode.
         fileTypesToInclude must not contain both PAYMENTS_REPORTING_MYPAY and PAYMENTS_REPORTING_MYPIVOT.
         TRANSFER actions require migrationId for an existing completed EXPORT migration and do not support REJECTS_ONLY mode.
+        TRANSFER and COMPLETE collect PU transfer outcomes asynchronously; upload acceptance alone does not complete the migration.
+        Selected DAG children wait for parent transfer outcomes in COMPLETED or WARNING status; a FAILED parent blocks only its descendants.
         For REJECTS_ONLY EXPORT and COMPLETE actions, migrationId identifies the previous migration; rejected records are assembled by the orchestrator.
         FULL mode requires period for EXPORT and COMPLETE actions.
       requestBody:
@@ -253,7 +255,7 @@ components:
           $ref: '#/components/schemas/MigrationTransferPhaseDto'
     MigrationExportPhaseDto:
       type: object
-      description: Export file details; the phase status mirrors the single migration status.
+      description: Export file details and independently aggregated extraction status; a subsequent PU failure does not invalidate a successful export.
       required:
         - status
         - files
@@ -266,7 +268,7 @@ components:
             $ref: '#/components/schemas/ExportFileStatusDto'
     MigrationTransferPhaseDto:
       type: object
-      description: Transfer file details; the phase status mirrors the single migration status.
+      description: Transfer file details and independently aggregated PU transfer outcome status. Upload acceptance is not completion. EXPORT actions return no transfer files.
       required:
         - status
         - files
@@ -287,7 +289,7 @@ components:
         fileType:
           type: MigrationFileType
         status:
-          description: Current shared file execution status
+          description: Extraction phase status; remains EXPORTED after successful extraction while upload and transfer outcome collection progress
           $ref: '#/components/schemas/MigrationFileExecutionStatus'
         extractionId:
           type: string
@@ -339,8 +341,8 @@ components:
         uploadedAt:
           type: string
           format: date-time
-        evidenceCollectedAt:
-          description: Latest updateDate among terminal migration file execution details (COMPLETED, PARTIAL, FAILED)
+        transferOutcomeCollectedAt:
+          description: Latest detail updateDate, available only when the file is terminal and all details are terminal (COMPLETED, PARTIAL, FAILED) with complete row counts
           type: string
           format: date-time
     MigrationAction:
