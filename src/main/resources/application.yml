@@ -1,6 +1,11 @@
 server:
   http: "\${SERVER_PORT:8080}"
 
+zip-file:
+  max-entries: "\${ZIP_MAX_ENTRIES:1000}"
+  max-uncompressed-size: "\${ZIP_MAX_UNCOMPRESSED_SIZE:52428800}"
+  max-compression-ratio: "\${ZIP_MAX_COMPRESSION_RATIO:100}"
+
 spring:
   application:
     name: ${artifactId}
