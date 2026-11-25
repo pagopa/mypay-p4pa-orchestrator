@@ -134,3 +134,8 @@ orchestrator:
 cipher:
   file-encrypt-enabled: "\${FILE_ENCRYPT_ENABLED:false}"
   file-encrypt-psw: "\${FILE_ENCRYPT_PSW:default_password}"
+
+zip-file:
+  max-entries: "\${ZIP_MAX_ENTRIES:1000}"
+  max-uncompressed-size: "\${ZIP_MAX_UNCOMPRESSED_SIZE:52428800}" # 50MB
+  max-compression-ratio: "\${ZIP_MAX_COMPRESSION_RATIO:100}" # Allowing file having at most a compression ratio 100:1

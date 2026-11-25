@@ -116,6 +116,14 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 
 #### 🔁 Integrations
 
+#### ZIP extraction limits
+
+| ENV | DESCRIPTION | DEFAULT |
+|---|---|---|
+| ZIP_MAX_ENTRIES | Maximum entries per archive | `1000` |
+| ZIP_MAX_UNCOMPRESSED_SIZE | Maximum total extracted bytes per archive | `52428800` |
+| ZIP_MAX_COMPRESSION_RATIO | Maximum uncompressed-to-compressed ratio per entry | `100` |
+
 #### 🗄️ Orchestrator database
 | ENV                      | DESCRIPTION                            | DEFAULT |
 |--------------------------|----------------------------------------|---------|
