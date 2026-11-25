@@ -82,19 +82,14 @@ public class MigrationFileExecutionDetailMapper {
     return baseName.substring(0, separator);
   }
 
-  /** Applies validated PU observations, keeping provisional transfer outcome in WAITING_PU. */
   public void updateMigrationFileExecutionDetail(
     MigrationFileExecutionDetail target,
-    UploadDetails uploadDetail,
-    boolean finalTransferOutcome
+    UploadDetails uploadDetail
   ) {
     if (target.getUploadDetailId() == null && Long.valueOf(0L).equals(target.getFileSize())) {
       target.setFileSize(uploadDetail.getFileSize());
     }
     target.setUploadDetailId(uploadDetail.getUploadDetailId());
-    if (finalTransferOutcome) {
-      target.setStatus(toLocalStatus(uploadDetail.getStatus()));
-    }
     if (uploadDetail.getErrorDescription() != null) {
       target.setErrorDescription(uploadDetail.getErrorDescription());
     }
@@ -102,14 +97,14 @@ public class MigrationFileExecutionDetailMapper {
       target.setDiscardFileName(uploadDetail.getDiscardFileName());
     }
     if (uploadDetail.getNumTotalRows() != null) {
-      target.setNumTotalRows(Math.toIntExact(uploadDetail.getNumTotalRows()));
+      target.setNumTotalRows(uploadDetail.getNumTotalRows());
     }
     if (uploadDetail.getNumCorrectlyImportedRows() != null) {
-      target.setNumCorrectlyImportedRows(Math.toIntExact(uploadDetail.getNumCorrectlyImportedRows()));
+      target.setNumCorrectlyImportedRows(uploadDetail.getNumCorrectlyImportedRows());
     }
   }
 
-  private MigrationFileExecutionDetailStatus toLocalStatus(IngestionFlowFileStatus status) {
+  public MigrationFileExecutionDetailStatus toLocalStatus(IngestionFlowFileStatus status) {
     return switch (status) {
       case UPLOADED, PROCESSING, WAITING_FILE -> MigrationFileExecutionDetailStatus.WAITING_PU;
       case COMPLETED -> MigrationFileExecutionDetailStatus.COMPLETED;

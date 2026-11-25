@@ -3,7 +3,6 @@ package it.gov.pagopa.mypay2pu.orchestrator.service;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionDetailStatus;
-import it.gov.pagopa.mypay2pu.orchestrator.exception.TransferOutcomeException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionDetailRepository;
@@ -16,11 +15,6 @@ import java.time.LocalDateTime;
 import java.time.Month;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -59,16 +53,12 @@ class MigrationTransferOutcomePersistenceTest {
   }
 
   @Test
-  void givenConcurrentIdenticalSnapshotsWhenRecordTransferOutcomeThenEnrichesOneDetailAndPreservesTerminalState() throws Exception {
+  void givenIdenticalSnapshotsWhenRecordTransferOutcomeThenEnrichesOneDetailAndPreservesTerminalState() {
     createFile();
-    CountDownLatch start = new CountDownLatch(1);
-    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-      Future<?> first = executor.submit(() -> recordAfter(start));
-      Future<?> second = executor.submit(() -> recordAfter(start));
-      start.countDown();
-      first.get(10, TimeUnit.SECONDS);
-      second.get(10, TimeUnit.SECONDS);
-    }
+    recordTransferOutcome();
+    MigrationFileExecutionDetail firstOutcome = detailRepository.findById(detailId).orElseThrow();
+
+    recordTransferOutcome();
 
     assertEquals(MigrationFileExecutionStatus.COMPLETED, fileRepository.findById(fileId).orElseThrow().getStatus());
     List<MigrationFileExecutionDetail> details = detailRepository.findAllByMigrationFileExecutionId(fileId);
@@ -76,7 +66,25 @@ class MigrationTransferOutcomePersistenceTest {
     assertEquals(detailId, details.getFirst().getId());
     assertEquals("IPA_TEST_2", details.getFirst().getIpaCode());
     assertEquals(91L, details.getFirst().getUploadDetailId());
-    assertEquals(1, details.getFirst().getNumCorrectlyImportedRows());
+    assertEquals(1L, details.getFirst().getNumCorrectlyImportedRows());
+    assertEquals(firstOutcome, details.getFirst());
+    assertEquals(firstOutcome.getUpdateDate(), details.getFirst().getUpdateDate());
+  }
+
+  @Test
+  void givenLongCountsWhenRecordTransferOutcomeThenPersistsWithoutNarrowing() {
+    createFile();
+    Uploads upload = new Uploads().uploadId(42L).status(UploadsStatusEnum.COMPLETED).numTotalFiles(1);
+    UploadDetails detail = new UploadDetails().uploadId(42L).uploadDetailId(91L)
+      .fileName("IPA_TEST_2-organizations.csv").fileSize(1L).status(IngestionFlowFileStatus.WARNING)
+      .numTotalRows(Long.MAX_VALUE).numCorrectlyImportedRows(Long.MAX_VALUE - 1);
+
+    service.recordTransferOutcome(fileId, upload, List.of(detail));
+
+    MigrationFileExecutionDetail persisted = detailRepository.findById(detailId).orElseThrow();
+    assertEquals(Long.MAX_VALUE, persisted.getNumTotalRows());
+    assertEquals(Long.MAX_VALUE - 1, persisted.getNumCorrectlyImportedRows());
+    assertEquals(MigrationFileExecutionStatus.WARNING, fileRepository.findById(fileId).orElseThrow().getStatus());
   }
 
   @Test
@@ -84,9 +92,9 @@ class MigrationTransferOutcomePersistenceTest {
     createFile();
     TransactionTemplate transaction = new TransactionTemplate(transactionManager);
 
-    assertThrows(TransferOutcomeException.class, () -> transaction.executeWithoutResult(status -> {
+    assertThrows(IllegalStateException.class, () -> transaction.executeWithoutResult(status -> {
       recordTransferOutcome();
-      throw new TransferOutcomeException("TRANSFER_OUTCOME_TEST_FAILURE", "Force rollback after both writes");
+      throw new IllegalStateException("Force rollback after both writes");
     }));
 
     MigrationFileExecution persisted = fileRepository.findById(fileId).orElseThrow();
@@ -122,10 +130,10 @@ class MigrationTransferOutcomePersistenceTest {
       .status(status == UploadsStatusEnum.COMPLETED
         ? IngestionFlowFileStatus.COMPLETED : IngestionFlowFileStatus.PROCESSING)
       .numTotalRows(1L).numCorrectlyImportedRows(1L));
-    service.recordTransferOutcome(fileId, 42L, upload, snapshot);
+    service.recordTransferOutcome(fileId, upload, snapshot);
     MigrationFileExecutionDetail before = detailRepository.findById(detailId).orElseThrow();
 
-    service.recordTransferOutcome(fileId, 42L, upload, snapshot);
+    service.recordTransferOutcome(fileId, upload, snapshot);
 
     MigrationFileExecutionDetail after = detailRepository.findById(detailId).orElseThrow();
     assertNotNull(before.getUpdateDate());
@@ -154,7 +162,7 @@ class MigrationTransferOutcomePersistenceTest {
       default -> throw new AssertionError("Unexpected test status: " + status);
     };
 
-    service.recordTransferOutcome(fileId, 42L,
+    service.recordTransferOutcome(fileId,
       new Uploads().uploadId(42L).status(UploadsStatusEnum.PROCESSING).numTotalFiles(1), snapshot);
 
     MigrationFileExecution pending = fileRepository.findById(fileId).orElseThrow();
@@ -164,10 +172,10 @@ class MigrationTransferOutcomePersistenceTest {
     assertNull(pending.getUploadErrorCode());
     assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, persisted.getStatus());
     assertEquals(91L, persisted.getUploadDetailId());
-    assertEquals(2, persisted.getNumTotalRows());
-    assertEquals((int) accepted, persisted.getNumCorrectlyImportedRows());
+    assertEquals(2L, persisted.getNumTotalRows());
+    assertEquals(accepted, persisted.getNumCorrectlyImportedRows());
 
-    service.recordTransferOutcome(fileId, 42L,
+    service.recordTransferOutcome(fileId,
       new Uploads().uploadId(42L).status(UploadsStatusEnum.COMPLETED).numTotalFiles(1), snapshot);
 
     MigrationFileExecutionStatus expectedFileStatus = switch (status) {
@@ -198,11 +206,11 @@ class MigrationTransferOutcomePersistenceTest {
       .fileName("IPA_TEST_3-organizations.csv").fileSize(2L).status(IngestionFlowFileStatus.PROCESSING)
       .numTotalRows(5L).numCorrectlyImportedRows(3L);
 
-    service.recordTransferOutcome(fileId, 42L, processing, List.of(first));
+    service.recordTransferOutcome(fileId, processing, List.of(first));
     MigrationFileExecutionDetail firstObservation = detailRepository.findById(detailId).orElseThrow();
-    service.recordTransferOutcome(fileId, 42L, processing, List.of(second));
-    service.recordTransferOutcome(fileId, 42L, processing, null);
-    service.recordTransferOutcome(fileId, 42L, processing, List.of());
+    service.recordTransferOutcome(fileId, processing, List.of(second));
+    service.recordTransferOutcome(fileId, processing, null);
+    service.recordTransferOutcome(fileId, processing, List.of());
 
     assertEquals(MigrationFileExecutionStatus.WAITING_PU, fileRepository.findById(fileId).orElseThrow().getStatus());
     MigrationFileExecutionDetail preserved = detailRepository.findById(detailId).orElseThrow();
@@ -210,8 +218,8 @@ class MigrationTransferOutcomePersistenceTest {
     assertEquals(firstObservation.getUpdateDate(), preserved.getUpdateDate());
     assertEquals(2, detailRepository.findAllByMigrationFileExecutionId(fileId).size());
     assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, preserved.getStatus());
-    assertEquals(4, preserved.getNumCorrectlyImportedRows());
-    assertEquals(3, detailRepository.findById(secondId).orElseThrow().getNumCorrectlyImportedRows());
+    assertEquals(4L, preserved.getNumCorrectlyImportedRows());
+    assertEquals(3L, detailRepository.findById(secondId).orElseThrow().getNumCorrectlyImportedRows());
 
     UploadDetails firstTerminal = new UploadDetails().uploadId(42L).uploadDetailId(91L)
       .fileName(first.getFileName()).fileSize(1L).status(IngestionFlowFileStatus.WARNING)
@@ -222,25 +230,25 @@ class MigrationTransferOutcomePersistenceTest {
     Uploads completed = new Uploads().uploadId(42L).status(UploadsStatusEnum.COMPLETED)
       .numTotalFiles(2).numCorrectlyProcessedFiles(2);
 
-    service.recordTransferOutcome(fileId, 42L, completed, List.of(firstTerminal));
+    service.recordTransferOutcome(fileId, completed, List.of(firstTerminal));
     assertEquals(MigrationFileExecutionStatus.WAITING_PU, fileRepository.findById(fileId).orElseThrow().getStatus());
     assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU,
       detailRepository.findById(detailId).orElseThrow().getStatus());
-    service.recordTransferOutcome(fileId, 42L, completed, List.of(secondTerminal, firstTerminal));
+    service.recordTransferOutcome(fileId, completed, List.of(secondTerminal, firstTerminal));
 
     MigrationFileExecutionDetail finalized = detailRepository.findById(detailId).orElseThrow();
     MigrationFileExecutionDetail secondFinalized = detailRepository.findById(secondId).orElseThrow();
     assertEquals(MigrationFileExecutionStatus.WARNING, fileRepository.findById(fileId).orElseThrow().getStatus());
     assertEquals(MigrationFileExecutionDetailStatus.PARTIAL, finalized.getStatus());
     assertEquals(MigrationFileExecutionDetailStatus.COMPLETED, secondFinalized.getStatus());
-    assertEquals(10, finalized.getNumTotalRows());
-    assertEquals(8, finalized.getNumCorrectlyImportedRows());
-    assertEquals(5, secondFinalized.getNumTotalRows());
-    assertEquals(5, secondFinalized.getNumCorrectlyImportedRows());
+    assertEquals(10L, finalized.getNumTotalRows());
+    assertEquals(8L, finalized.getNumCorrectlyImportedRows());
+    assertEquals(5L, secondFinalized.getNumTotalRows());
+    assertEquals(5L, secondFinalized.getNumCorrectlyImportedRows());
     assertEquals("Two rejected rows", finalized.getErrorDescription());
     assertEquals("rejects.csv", finalized.getDiscardFileName());
 
-    service.recordTransferOutcome(fileId, 42L, completed, List.of(firstTerminal, secondTerminal));
+    service.recordTransferOutcome(fileId, completed, List.of(firstTerminal, secondTerminal));
 
     assertEquals(finalized, detailRepository.findById(detailId).orElseThrow());
     assertEquals(secondFinalized, detailRepository.findById(secondId).orElseThrow());
@@ -252,12 +260,12 @@ class MigrationTransferOutcomePersistenceTest {
   @Test
   void givenProgressiveTransferOutcomeWhenMarkFailedThenPreservesCollectedValuesAndPuStatus() {
     createFile();
-    service.recordTransferOutcome(fileId, 42L, new Uploads().uploadId(42L).status(UploadsStatusEnum.PROCESSING),
+    service.recordTransferOutcome(fileId, new Uploads().uploadId(42L).status(UploadsStatusEnum.PROCESSING),
       List.of(new UploadDetails().uploadId(42L).uploadDetailId(91L)
         .fileName("IPA_TEST_2-organizations.csv").fileSize(1L).status(IngestionFlowFileStatus.PROCESSING)
         .numTotalRows(10L).numCorrectlyImportedRows(3L).discardFileName("rejects.csv")));
 
-    service.markFailed(fileId, 42L, "TRANSFER_OUTCOME_TIMEOUT", "Timed out");
+    service.markFailed(fileId, "TRANSFER_OUTCOME_TIMEOUT", "Timed out");
 
     MigrationFileExecution file = fileRepository.findById(fileId).orElseThrow();
     MigrationFileExecutionDetail detail = detailRepository.findById(detailId).orElseThrow();
@@ -266,8 +274,8 @@ class MigrationTransferOutcomePersistenceTest {
     assertEquals("TRANSFER_OUTCOME_TIMEOUT", file.getUploadErrorCode());
     assertEquals(MigrationFileExecutionDetailStatus.FAILED, detail.getStatus());
     assertEquals(91L, detail.getUploadDetailId());
-    assertEquals(10, detail.getNumTotalRows());
-    assertEquals(3, detail.getNumCorrectlyImportedRows());
+    assertEquals(10L, detail.getNumTotalRows());
+    assertEquals(3L, detail.getNumCorrectlyImportedRows());
     assertEquals("rejects.csv", detail.getDiscardFileName());
     assertEquals(1, detailRepository.findAllByMigrationFileExecutionId(fileId).size());
   }
@@ -282,20 +290,8 @@ class MigrationTransferOutcomePersistenceTest {
       .fileSize(1L).status(MigrationFileExecutionDetailStatus.WAITING_PU).build()).getId();
   }
 
-  private void recordAfter(CountDownLatch start) {
-    try {
-      if (!start.await(10, TimeUnit.SECONDS)) {
-        throw new AssertionError("Concurrent writer did not start");
-      }
-      recordTransferOutcome();
-    } catch (InterruptedException exception) {
-      Thread.currentThread().interrupt();
-      throw new AssertionError(exception);
-    }
-  }
-
   private void recordTransferOutcome() {
-    service.recordTransferOutcome(fileId, 42L,
+    service.recordTransferOutcome(fileId,
       new Uploads().uploadId(42L).status(UploadsStatusEnum.COMPLETED).numTotalFiles(1),
       List.of(new UploadDetails().uploadId(42L).uploadDetailId(91L).fileName("IPA_TEST_2-organizations.csv")
         .fileSize(1L).status(IngestionFlowFileStatus.COMPLETED).numTotalRows(1L).numCorrectlyImportedRows(1L)));

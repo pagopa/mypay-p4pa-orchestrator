@@ -77,14 +77,12 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     when(fileRepositoryMock.save(file)).thenReturn(file);
     UploadDetails detail = detail(detailStatus, total, accepted);
 
-    assertSame(file, service.recordTransferOutcome(FILE_ID, 42L, upload(uploadStatus), List.of(detail)));
+    assertSame(file, service.recordTransferOutcome(FILE_ID, upload(uploadStatus), List.of(detail)));
 
     assertEquals(expected, file.getStatus());
     assertEquals(uploadStatus, file.getUploadStatus());
-    assertEquals(total,
-      original.getNumTotalRows() == null ? null : original.getNumTotalRows().longValue());
-    assertEquals(accepted, original.getNumCorrectlyImportedRows() == null
-      ? null : original.getNumCorrectlyImportedRows().longValue());
+    assertEquals(total, original.getNumTotalRows());
+    assertEquals(accepted, original.getNumCorrectlyImportedRows());
     assertEquals("extraction", file.getExtractionId());
     assertEquals("organizations.zip", file.getFilePath());
     assertEquals(ACCEPTED_AT, file.getUploadCompletedAt());
@@ -113,7 +111,13 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
       Arguments.of(UploadsStatusEnum.COMPLETED, IngestionFlowFileStatus.COMPLETED, 0L, 0L, COMPLETED),
       Arguments.of(UploadsStatusEnum.COMPLETED, IngestionFlowFileStatus.COMPLETED,
         (long) Integer.MAX_VALUE, (long) Integer.MAX_VALUE, COMPLETED),
-      Arguments.of(UploadsStatusEnum.COMPLETED, IngestionFlowFileStatus.COMPLETED, null, null, WAITING_PU),
+      Arguments.of(UploadsStatusEnum.COMPLETED, IngestionFlowFileStatus.COMPLETED,
+        (long) Integer.MAX_VALUE + 1, (long) Integer.MAX_VALUE + 1, COMPLETED),
+      Arguments.of(UploadsStatusEnum.COMPLETED, IngestionFlowFileStatus.COMPLETED,
+        Long.MAX_VALUE, Long.MAX_VALUE, COMPLETED),
+      Arguments.of(UploadsStatusEnum.COMPLETED, IngestionFlowFileStatus.COMPLETED, null, null, COMPLETED),
+      Arguments.of(UploadsStatusEnum.COMPLETED, IngestionFlowFileStatus.WARNING, 10L, null, FAILED),
+      Arguments.of(UploadsStatusEnum.COMPLETED, IngestionFlowFileStatus.COMPLETED, null, 0L, COMPLETED),
       Arguments.of(UploadsStatusEnum.ERROR, IngestionFlowFileStatus.ERROR, null, null, FAILED),
       Arguments.of(UploadsStatusEnum.PROCESSING, IngestionFlowFileStatus.ERROR, 10L, 2L, WAITING_PU)
     );
@@ -128,7 +132,7 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     prepare(List.of(original));
     when(fileRepositoryMock.save(file)).thenReturn(file);
 
-    service.recordTransferOutcome(FILE_ID, 42L, upload(UploadsStatusEnum.COMPLETED),
+    service.recordTransferOutcome(FILE_ID, upload(UploadsStatusEnum.COMPLETED),
       List.of(detail(IngestionFlowFileStatus.WARNING, 10L, 8L)));
 
     verifyReads();
@@ -136,8 +140,34 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     assertEquals(detailId, original.getId());
     assertEquals(ACCEPTED_AT, original.getCreationDate());
     assertEquals(MigrationFileExecutionDetailStatus.PARTIAL, original.getStatus());
-    assertEquals(8, original.getNumCorrectlyImportedRows());
+    assertEquals(8L, original.getNumCorrectlyImportedRows());
     verify(fileRepositoryMock).save(file);
+  }
+
+  @ParameterizedTest
+  @MethodSource("missingCounts")
+  void givenPreviousCountsWhenRecordTransferOutcomeThenUsesOnlyCurrentCounts(
+    Long total, Long accepted, MigrationFileExecutionStatus expected
+  ) {
+    MigrationFileExecutionDetail original = localDetail(IngestionFlowFileStatus.PROCESSING, 10L, 3L);
+    prepare(List.of(original));
+    when(fileRepositoryMock.save(file)).thenReturn(file);
+
+    service.recordTransferOutcome(FILE_ID, upload(UploadsStatusEnum.COMPLETED),
+      List.of(detail(IngestionFlowFileStatus.COMPLETED, total, accepted)));
+
+    assertEquals(expected, file.getStatus());
+    verifyReads();
+    verify(detailRepositoryMock).saveAll(List.of(original));
+    verify(fileRepositoryMock).save(file);
+  }
+
+  static Stream<Arguments> missingCounts() {
+    return Stream.of(
+      Arguments.of(null, null, COMPLETED),
+      Arguments.of(10L, null, FAILED),
+      Arguments.of(null, 0L, COMPLETED)
+    );
   }
 
   @ParameterizedTest
@@ -149,7 +179,7 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     prepare(List.of(original));
     when(fileRepositoryMock.save(file)).thenReturn(file);
 
-    service.recordTransferOutcome(FILE_ID, 42L, upload(UploadsStatusEnum.COMPLETED).numTotalFiles(expectedCount), details);
+    service.recordTransferOutcome(FILE_ID, upload(UploadsStatusEnum.COMPLETED).numTotalFiles(expectedCount), details);
 
     assertEquals(WAITING_PU, file.getStatus());
     verifyReads();
@@ -170,7 +200,7 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     file.setUploadStatus(UploadsStatusEnum.COMPLETED);
     prepare(List.of(localDetail(IngestionFlowFileStatus.COMPLETED, 10L, 10L)));
 
-    assertSame(file, service.recordTransferOutcome(FILE_ID, 42L, upload(UploadsStatusEnum.COMPLETED),
+    assertSame(file, service.recordTransferOutcome(FILE_ID, upload(UploadsStatusEnum.COMPLETED),
       List.of(detail(IngestionFlowFileStatus.COMPLETED, 10L, 10L))));
 
     verifyReads();
@@ -184,7 +214,7 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     Uploads upload = upload(UploadsStatusEnum.PROCESSING);
     List<UploadDetails> details = List.of(detail(IngestionFlowFileStatus.PROCESSING, 10L, 3L));
 
-    assertThrows(ConflictException.class, () -> service.recordTransferOutcome(FILE_ID, 42L,
+    assertThrows(ConflictException.class, () -> service.recordTransferOutcome(FILE_ID,
       upload, details));
 
     assertEquals(COMPLETED, file.getStatus());
@@ -198,117 +228,100 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     Uploads upload = upload(UploadsStatusEnum.COMPLETED);
     List<UploadDetails> details = List.of(different);
 
-    assertThrows(ConflictException.class, () -> service.recordTransferOutcome(FILE_ID, 42L, upload, details));
+    assertThrows(ConflictException.class, () -> service.recordTransferOutcome(FILE_ID, upload, details));
 
     assertEquals(WAITING_PU, file.getStatus());
     verifyReads();
   }
 
   @Test
-  void givenDuplicateDetailWhenRecordTransferOutcomeThenRejectsBeforeReadingDetails() {
-    when(fileRepositoryMock.findByIdForUpdate(FILE_ID)).thenReturn(Optional.of(file));
+  void givenDuplicateDetailWhenRecordTransferOutcomeThenRejectsDuringCorrelation() {
+    MigrationFileExecutionDetail original = exportedDetail();
+    prepare(List.of(original));
     UploadDetails detail = detail(IngestionFlowFileStatus.COMPLETED, 10L, 10L);
     Uploads upload = upload(UploadsStatusEnum.COMPLETED);
     List<UploadDetails> details = List.of(detail, detail);
 
-    InvalidValueException failure = assertThrows(InvalidValueException.class, () -> service.recordTransferOutcome(FILE_ID, 42L,
+    assertThrows(IllegalStateException.class, () -> service.recordTransferOutcome(FILE_ID,
       upload, details));
 
-    assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
     assertEquals(WAITING_PU, file.getStatus());
-    verify(fileRepositoryMock).findByIdForUpdate(FILE_ID);
+    assertNull(original.getUploadDetailId());
+    verifyReads();
+  }
+
+  @Test
+  void givenDuplicateIdentifierForDifferentFilesWhenRecordTransferOutcomeThenRejectsWithoutBindingEitherRow() {
+    MigrationFileExecutionDetail first = exportedDetail();
+    MigrationFileExecutionDetail second = exportedDetail("IPA_TEST_2-other.csv");
+    prepare(List.of(first, second));
+    Uploads upload = upload(UploadsStatusEnum.COMPLETED).numTotalFiles(2);
+    UploadDetails firstResult = detail(IngestionFlowFileStatus.COMPLETED, 10L, 10L);
+    UploadDetails secondResult = detail(IngestionFlowFileStatus.COMPLETED, 10L, 10L)
+      .fileName(second.getFileName());
+    List<UploadDetails> snapshot = List.of(firstResult, secondResult);
+
+    assertThrows(IllegalStateException.class,
+      () -> service.recordTransferOutcome(FILE_ID, upload, snapshot));
+
+    assertNull(first.getUploadDetailId());
+    assertNull(second.getUploadDetailId());
+    assertEquals(WAITING_PU, file.getStatus());
+    verifyReads();
   }
 
   @Test
   void givenDifferentUploadWhenRecordTransferOutcomeThenRejectsBeforeReadingDetails() {
-    when(fileRepositoryMock.findByIdForUpdate(FILE_ID)).thenReturn(Optional.of(file));
+    when(fileRepositoryMock.findById(FILE_ID)).thenReturn(Optional.of(file));
     Uploads upload = upload(UploadsStatusEnum.COMPLETED).uploadId(43L);
     List<UploadDetails> details = List.of();
 
-    assertThrows(InvalidValueException.class, () -> service.recordTransferOutcome(FILE_ID, 42L,
+    assertThrows(InvalidValueException.class, () -> service.recordTransferOutcome(FILE_ID,
       upload, details));
 
-    verify(fileRepositoryMock).findByIdForUpdate(FILE_ID);
-  }
-
-  @ParameterizedTest
-  @MethodSource("invalidCounts")
-  void givenInvalidCountsWhenRecordTransferOutcomeThenRejectsWithoutSaving(Long total, Long accepted) {
-    prepare(List.of(exportedDetail()));
-    Uploads upload = upload(UploadsStatusEnum.COMPLETED);
-    List<UploadDetails> details = List.of(detail(IngestionFlowFileStatus.COMPLETED, total, accepted));
-
-    InvalidValueException failure = assertThrows(InvalidValueException.class, () -> service.recordTransferOutcome(FILE_ID, 42L,
-      upload, details));
-
-    assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
-    assertEquals(WAITING_PU, file.getStatus());
-    verifyReads();
-  }
-
-  static Stream<Arguments> invalidCounts() {
-    return Stream.of(Arguments.of(-1L, 0L), Arguments.of(1L, -1L),
-      Arguments.of(1L, 2L), Arguments.of(Long.MAX_VALUE, 0L), Arguments.of(1L, Long.MAX_VALUE));
-  }
-
-  @Test
-  void givenMoreDetailsThanExpectedWhenRecordTransferOutcomeThenRejectsWithoutSaving() {
-    MigrationFileExecutionDetail secondExported = exportedDetail("IPA_TEST_3-organizations.csv");
-    prepare(List.of(exportedDetail(), secondExported));
-    UploadDetails first = detail(IngestionFlowFileStatus.COMPLETED, 10L, 10L);
-    UploadDetails second = detail(IngestionFlowFileStatus.COMPLETED, 10L, 10L)
-      .uploadDetailId(124L).fileName(secondExported.getFileName());
-    Uploads upload = upload(UploadsStatusEnum.COMPLETED);
-    List<UploadDetails> details = List.of(first, second);
-
-    InvalidValueException failure = assertThrows(InvalidValueException.class,
-      () -> service.recordTransferOutcome(FILE_ID, 42L, upload, details));
-
-    assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
-    assertEquals(WAITING_PU, file.getStatus());
-    verifyReads();
+    verify(fileRepositoryMock).findById(FILE_ID);
   }
 
   @Test
   void givenMissingFileWhenRecordTransferOutcomeThenRejectsBeforeReadingDetails() {
-    when(fileRepositoryMock.findByIdForUpdate(FILE_ID)).thenReturn(Optional.empty());
+    when(fileRepositoryMock.findById(FILE_ID)).thenReturn(Optional.empty());
     Uploads upload = upload(UploadsStatusEnum.COMPLETED);
     List<UploadDetails> details = List.of();
 
     NotFoundException failure = assertThrows(NotFoundException.class,
-      () -> service.recordTransferOutcome(FILE_ID, 42L, upload, details));
+      () -> service.recordTransferOutcome(FILE_ID, upload, details));
 
     assertEquals("MIGRATION_FILE_EXECUTION_NOT_FOUND", failure.getCode());
-    verify(fileRepositoryMock).findByIdForUpdate(FILE_ID);
+    verify(fileRepositoryMock).findById(FILE_ID);
   }
 
   @Test
   void givenTimeoutWhenMarkFailedThenPreservesPuStatusAndExtractionFields() {
-    when(fileRepositoryMock.findByIdForUpdate(FILE_ID)).thenReturn(Optional.of(file));
+    when(fileRepositoryMock.findById(FILE_ID)).thenReturn(Optional.of(file));
     when(detailRepositoryMock.findAllByMigrationFileExecutionId(FILE_ID)).thenReturn(List.of());
     when(fileRepositoryMock.save(file)).thenReturn(file);
 
-    service.markFailed(FILE_ID, 42L, "TRANSFER_OUTCOME_TIMEOUT", "timed out");
+    service.markFailed(FILE_ID, "TRANSFER_OUTCOME_TIMEOUT", "timed out");
 
     assertEquals(FAILED, file.getStatus());
     assertEquals("TRANSFER_OUTCOME_TIMEOUT", file.getUploadErrorCode());
     assertEquals(UploadsStatusEnum.UPLOADED, file.getUploadStatus());
     assertNull(file.getExtractionErrorCode());
     assertEquals("extraction", file.getExtractionId());
-    verify(fileRepositoryMock).findByIdForUpdate(FILE_ID);
+    verify(fileRepositoryMock).findById(FILE_ID);
     verify(detailRepositoryMock).findAllByMigrationFileExecutionId(FILE_ID);
     verify(fileRepositoryMock).save(file);
   }
 
   @Test
-  void givenConcurrentCompletionWhenMarkFailedThenDoesNotOverwriteTerminalFile() {
+  void givenCompletedFileWhenMarkFailedThenDoesNotOverwriteTerminalFile() {
     file.setStatus(COMPLETED);
-    when(fileRepositoryMock.findByIdForUpdate(FILE_ID)).thenReturn(Optional.of(file));
+    when(fileRepositoryMock.findById(FILE_ID)).thenReturn(Optional.of(file));
 
-    assertSame(file, service.markFailed(FILE_ID, 42L, "TRANSFER_OUTCOME_TIMEOUT", "timed out"));
+    assertSame(file, service.markFailed(FILE_ID, "TRANSFER_OUTCOME_TIMEOUT", "timed out"));
 
     assertEquals(COMPLETED, file.getStatus());
-    verify(fileRepositoryMock).findByIdForUpdate(FILE_ID);
+    verify(fileRepositoryMock).findById(FILE_ID);
   }
 
   @Test
@@ -321,7 +334,7 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     UploadDetails secondSnapshot = detail(IngestionFlowFileStatus.WARNING, 10L, 8L)
       .fileName(second.getFileName()).uploadDetailId(124L);
 
-    service.recordTransferOutcome(FILE_ID, 42L, upload(UploadsStatusEnum.COMPLETED).numTotalFiles(2),
+    service.recordTransferOutcome(FILE_ID, upload(UploadsStatusEnum.COMPLETED).numTotalFiles(2),
       List.of(secondSnapshot, firstSnapshot));
 
     assertEquals(WARNING, file.getStatus());
@@ -344,7 +357,7 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     prepare(List.of(first, second));
     when(fileRepositoryMock.save(file)).thenReturn(file);
 
-    service.recordTransferOutcome(FILE_ID, 42L, upload(UploadsStatusEnum.COMPLETED).numTotalFiles(2),
+    service.recordTransferOutcome(FILE_ID, upload(UploadsStatusEnum.COMPLETED).numTotalFiles(2),
       List.of(detail(IngestionFlowFileStatus.COMPLETED, 10L, 10L)));
 
     assertEquals(WAITING_PU, file.getStatus());
@@ -365,26 +378,11 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
       .fileName("IPA_TEST_3-unknown.csv"));
 
     InvalidValueException failure = assertThrows(InvalidValueException.class,
-      () -> service.recordTransferOutcome(FILE_ID, 42L, upload, details));
+      () -> service.recordTransferOutcome(FILE_ID, upload, details));
 
     assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
     assertEquals(WAITING_PU, file.getStatus());
     verifyReads();
-  }
-
-  @Test
-  void givenReusedUploadDetailIdWhenRecordTransferOutcomeThenRejectsAnotherExportedFile() {
-    MigrationFileExecutionDetail first = localDetail(IngestionFlowFileStatus.PROCESSING, null, null);
-    MigrationFileExecutionDetail second = exportedDetail("IPA_TEST_3-organizations.csv");
-    prepare(List.of(first, second));
-    Uploads upload = upload(UploadsStatusEnum.COMPLETED).numTotalFiles(2);
-    List<UploadDetails> details = List.of(detail(IngestionFlowFileStatus.COMPLETED, 10L, 10L)
-      .fileName(second.getFileName()));
-
-    assertThrows(InvalidValueException.class, () -> service.recordTransferOutcome(FILE_ID, 42L, upload, details));
-
-    verifyReads();
-    assertNull(second.getUploadDetailId());
   }
 
   @Test
@@ -399,7 +397,7 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
         .uploadDetailId(124L).fileName(second.getFileName()).fileSize(501L)
     );
 
-    assertThrows(InvalidValueException.class, () -> service.recordTransferOutcome(FILE_ID, 42L, upload, details));
+    assertThrows(InvalidValueException.class, () -> service.recordTransferOutcome(FILE_ID, upload, details));
 
     assertEquals(WAITING_PU, file.getStatus());
     assertEquals(UploadsStatusEnum.UPLOADED, file.getUploadStatus());
@@ -422,7 +420,7 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
       detail(IngestionFlowFileStatus.COMPLETED, 10L, 10L).errorDescription("Late metadata")
     );
 
-    assertThrows(ConflictException.class, () -> service.recordTransferOutcome(FILE_ID, 42L, upload, details));
+    assertThrows(ConflictException.class, () -> service.recordTransferOutcome(FILE_ID, upload, details));
 
     assertEquals(COMPLETED, file.getStatus());
     assertNull(original.getErrorDescription());
@@ -434,12 +432,12 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     MigrationFileExecutionDetail waiting = exportedDetail();
     MigrationFileExecutionDetail completed = exportedDetail("IPA_TEST_3-organizations.csv");
     completed.setStatus(MigrationFileExecutionDetailStatus.COMPLETED);
-    completed.setNumTotalRows(10);
-    completed.setNumCorrectlyImportedRows(10);
+    completed.setNumTotalRows(10L);
+    completed.setNumCorrectlyImportedRows(10L);
     prepare(List.of(waiting, completed));
     when(fileRepositoryMock.save(file)).thenReturn(file);
 
-    service.recordTransferOutcome(FILE_ID, 42L, upload(UploadsStatusEnum.ERROR), List.of());
+    service.recordTransferOutcome(FILE_ID, upload(UploadsStatusEnum.ERROR), List.of());
 
     assertEquals(FAILED, file.getStatus());
     verifyReads();
@@ -456,12 +454,12 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     MigrationFileExecutionDetail waiting = exportedDetail();
     MigrationFileExecutionDetail partial = exportedDetail("IPA_TEST_3-organizations.csv");
     partial.setStatus(MigrationFileExecutionDetailStatus.PARTIAL);
-    partial.setNumTotalRows(10);
-    partial.setNumCorrectlyImportedRows(8);
+    partial.setNumTotalRows(10L);
+    partial.setNumCorrectlyImportedRows(8L);
     prepare(List.of(waiting, partial));
     when(fileRepositoryMock.save(file)).thenReturn(file);
 
-    service.markFailed(FILE_ID, 42L, "TRANSFER_OUTCOME_TIMEOUT", "timed out");
+    service.markFailed(FILE_ID, "TRANSFER_OUTCOME_TIMEOUT", "timed out");
 
     assertEquals(FAILED, file.getStatus());
     verifyReads();
@@ -486,7 +484,7 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     UploadDetails processing = detail(IngestionFlowFileStatus.PROCESSING, 10L, 3L)
       .fileName(second.getFileName()).uploadDetailId(124L);
 
-    service.recordTransferOutcome(FILE_ID, 42L, upload(UploadsStatusEnum.PROCESSING).numTotalFiles(2),
+    service.recordTransferOutcome(FILE_ID, upload(UploadsStatusEnum.PROCESSING).numTotalFiles(2),
       List.of(finalDetail, processing));
 
     assertEquals(WAITING_PU, file.getStatus());
@@ -494,25 +492,25 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     assertNull(file.getUploadErrorCode());
     assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, first.getStatus());
     assertEquals(123L, first.getUploadDetailId());
-    assertEquals(accepted.intValue(), first.getNumCorrectlyImportedRows());
+    assertEquals(accepted, first.getNumCorrectlyImportedRows());
     assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, second.getStatus());
     assertEquals(124L, second.getUploadDetailId());
-    assertEquals(10, second.getNumTotalRows());
-    assertEquals(3, second.getNumCorrectlyImportedRows());
+    assertEquals(10L, second.getNumTotalRows());
+    assertEquals(3L, second.getNumCorrectlyImportedRows());
     assertEquals("organizations.errors.csv", second.getDiscardFileName());
     assertNull(second.getErrorDescription());
 
     UploadDetails completed = detail(IngestionFlowFileStatus.COMPLETED, 10L, 10L)
       .fileName(second.getFileName()).uploadDetailId(124L);
-    service.recordTransferOutcome(FILE_ID, 42L, upload(UploadsStatusEnum.COMPLETED).numTotalFiles(2),
+    service.recordTransferOutcome(FILE_ID, upload(UploadsStatusEnum.COMPLETED).numTotalFiles(2),
       List.of(finalDetail, completed));
 
     assertEquals(expectedFileStatus, file.getStatus());
     assertEquals(expectedDetailStatus, first.getStatus());
     assertEquals(MigrationFileExecutionDetailStatus.COMPLETED, second.getStatus());
     assertEquals(124L, second.getUploadDetailId());
-    assertEquals(10, second.getNumCorrectlyImportedRows());
-    verify(fileRepositoryMock, times(2)).findByIdForUpdate(FILE_ID);
+    assertEquals(10L, second.getNumCorrectlyImportedRows());
+    verify(fileRepositoryMock, times(2)).findById(FILE_ID);
     verify(detailRepositoryMock, times(2)).findAllByMigrationFileExecutionId(FILE_ID);
     verify(detailRepositoryMock, times(2)).saveAll(List.of(first, second));
     verify(fileRepositoryMock, times(2)).save(file);
@@ -538,7 +536,7 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     Uploads upload = upload(UploadsStatusEnum.PROCESSING);
     List<UploadDetails> details = List.of(pending);
 
-    assertThrows(InvalidValueException.class, () -> service.recordTransferOutcome(FILE_ID, 42L, upload, details));
+    assertThrows(InvalidValueException.class, () -> service.recordTransferOutcome(FILE_ID, upload, details));
 
     assertEquals(WAITING_PU, file.getStatus());
     assertEquals(UploadsStatusEnum.UPLOADED, file.getUploadStatus());
@@ -563,7 +561,7 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     Uploads upload = upload(UploadsStatusEnum.COMPLETED).numTotalFiles(2);
     List<UploadDetails> details = List.of(completed, pending);
 
-    assertThrows(InvalidValueException.class, () -> service.recordTransferOutcome(FILE_ID, 42L, upload, details));
+    assertThrows(InvalidValueException.class, () -> service.recordTransferOutcome(FILE_ID, upload, details));
 
     assertEquals(WAITING_PU, file.getStatus());
     assertEquals(UploadsStatusEnum.UPLOADED, file.getUploadStatus());
@@ -587,7 +585,7 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     List<UploadDetails> details = List.of(detail(status, 10L, 3L).fileName("IPA_TEST_3-unknown.csv"));
 
     InvalidValueException failure = assertThrows(InvalidValueException.class,
-      () -> service.recordTransferOutcome(FILE_ID, 42L, upload, details));
+      () -> service.recordTransferOutcome(FILE_ID, upload, details));
 
     assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
     assertEquals(WAITING_PU, file.getStatus());
@@ -605,13 +603,13 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     prepare(List.of(original));
     when(fileRepositoryMock.save(file)).thenReturn(file);
 
-    service.recordTransferOutcome(FILE_ID, 42L, upload(UploadsStatusEnum.PROCESSING), snapshot);
+    service.recordTransferOutcome(FILE_ID, upload(UploadsStatusEnum.PROCESSING), snapshot);
 
     assertEquals(WAITING_PU, file.getStatus());
     assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, original.getStatus());
     assertEquals(123L, original.getUploadDetailId());
-    assertEquals(10, original.getNumTotalRows());
-    assertEquals(3, original.getNumCorrectlyImportedRows());
+    assertEquals(10L, original.getNumTotalRows());
+    assertEquals(3L, original.getNumCorrectlyImportedRows());
     assertEquals("Already reported", original.getErrorDescription());
     assertEquals("organizations.errors.csv", original.getDiscardFileName());
     verifyReads();
@@ -625,13 +623,13 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     prepare(List.of(original));
     when(fileRepositoryMock.save(file)).thenReturn(file);
 
-    service.recordTransferOutcome(FILE_ID, 42L, upload(UploadsStatusEnum.COMPLETED),
+    service.recordTransferOutcome(FILE_ID, upload(UploadsStatusEnum.COMPLETED),
       List.of(detail(IngestionFlowFileStatus.WARNING, null, 8L).discardFileName(null)));
 
     assertEquals(WARNING, file.getStatus());
     assertEquals(MigrationFileExecutionDetailStatus.PARTIAL, original.getStatus());
-    assertEquals(10, original.getNumTotalRows());
-    assertEquals(8, original.getNumCorrectlyImportedRows());
+    assertEquals(10L, original.getNumTotalRows());
+    assertEquals(8L, original.getNumCorrectlyImportedRows());
     assertEquals("Previously reported", original.getErrorDescription());
     assertEquals("organizations.errors.csv", original.getDiscardFileName());
     verifyReads();
@@ -639,35 +637,15 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     verify(fileRepositoryMock).save(file);
   }
 
-  @ParameterizedTest
-  @MethodSource("inconsistentMergedCounts")
-  void givenInconsistentMergedCountsWhenRecordTransferOutcomeThenRejectsBeforeMutation(Long total, Long accepted) {
-    MigrationFileExecutionDetail original = localDetail(IngestionFlowFileStatus.PROCESSING, 10L, 8L);
-    prepare(List.of(original));
-    Uploads upload = upload(UploadsStatusEnum.PROCESSING);
-    List<UploadDetails> snapshot = List.of(detail(IngestionFlowFileStatus.PROCESSING, total, accepted));
-
-    assertThrows(InvalidValueException.class, () -> service.recordTransferOutcome(FILE_ID, 42L, upload, snapshot));
-
-    assertEquals(10, original.getNumTotalRows());
-    assertEquals(8, original.getNumCorrectlyImportedRows());
-    assertEquals(UploadsStatusEnum.UPLOADED, file.getUploadStatus());
-    verifyReads();
-  }
-
-  static Stream<Arguments> inconsistentMergedCounts() {
-    return Stream.of(Arguments.of(7L, null), Arguments.of(null, 11L));
-  }
-
   @Test
-  void givenAmbiguousBaseNameAndSizeWhenRecordTransferOutcomeThenRejectsWithoutBindingEitherRow() {
+  void givenOnlyBaseNameWhenRecordTransferOutcomeThenRejectsWithoutBindingEitherRow() {
     MigrationFileExecutionDetail first = exportedDetail("first/" + FILE_NAME);
     MigrationFileExecutionDetail second = exportedDetail("second/" + FILE_NAME);
     prepare(List.of(first, second));
     Uploads upload = upload(UploadsStatusEnum.PROCESSING).numTotalFiles(2);
     List<UploadDetails> snapshot = List.of(detail(IngestionFlowFileStatus.PROCESSING, 10L, 3L));
 
-    assertThrows(InvalidValueException.class, () -> service.recordTransferOutcome(FILE_ID, 42L, upload, snapshot));
+    assertThrows(InvalidValueException.class, () -> service.recordTransferOutcome(FILE_ID, upload, snapshot));
 
     assertNull(first.getUploadDetailId());
     assertNull(second.getUploadDetailId());
@@ -675,17 +653,17 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
   }
 
   @Test
-  void givenSameBaseNameWithDifferentSizesWhenRecordTransferOutcomeThenBindsTheUniqueTargets() {
+  void givenIdenticalBaseNamesAndSizesWhenRecordTransferOutcomeThenMatchesFullFileNames() {
     MigrationFileExecutionDetail first = exportedDetail("first/" + FILE_NAME);
     MigrationFileExecutionDetail second = exportedDetail("second/" + FILE_NAME);
-    second.setFileSize(600L);
     prepare(List.of(first, second));
     when(fileRepositoryMock.save(file)).thenReturn(file);
-    UploadDetails firstResult = detail(IngestionFlowFileStatus.COMPLETED, 10L, 10L);
+    UploadDetails firstResult = detail(IngestionFlowFileStatus.COMPLETED, 10L, 10L)
+      .fileName(first.getFileName());
     UploadDetails secondResult = detail(IngestionFlowFileStatus.WARNING, 5L, 3L)
-      .uploadDetailId(124L).fileSize(600L);
+      .uploadDetailId(124L).fileName(second.getFileName());
 
-    service.recordTransferOutcome(FILE_ID, 42L, upload(UploadsStatusEnum.COMPLETED).numTotalFiles(2),
+    service.recordTransferOutcome(FILE_ID, upload(UploadsStatusEnum.COMPLETED).numTotalFiles(2),
       List.of(secondResult, firstResult));
 
     assertEquals(WARNING, file.getStatus());
@@ -693,67 +671,51 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     assertEquals(124L, second.getUploadDetailId());
     assertEquals("first/" + FILE_NAME, first.getFileName());
     assertEquals("second/" + FILE_NAME, second.getFileName());
-    assertEquals(10, first.getNumCorrectlyImportedRows());
-    assertEquals(3, second.getNumCorrectlyImportedRows());
+    assertEquals(10L, first.getNumCorrectlyImportedRows());
+    assertEquals(3L, second.getNumCorrectlyImportedRows());
     verifyReads();
     verify(detailRepositoryMock).saveAll(List.of(first, second));
     verify(fileRepositoryMock).save(file);
   }
 
   @Test
-  void givenKnownIdsWithIdenticalBaseNamesAndSizesWhenRecordTransferOutcomeThenUsesStableIds() {
+  void givenKnownUploadIdWithDifferentFileNameWhenRecordTransferOutcomeThenRejectsInsteadOfMatchingById() {
     MigrationFileExecutionDetail first = exportedDetail("first/" + FILE_NAME);
     first.setUploadDetailId(123L);
     MigrationFileExecutionDetail second = exportedDetail("second/" + FILE_NAME);
     second.setUploadDetailId(124L);
     prepare(List.of(first, second));
-    when(fileRepositoryMock.save(file)).thenReturn(file);
+    Uploads upload = upload(UploadsStatusEnum.PROCESSING).numTotalFiles(2);
+    List<UploadDetails> snapshot = List.of(detail(IngestionFlowFileStatus.PROCESSING, 5L, 3L)
+      .uploadDetailId(124L));
 
-    service.recordTransferOutcome(FILE_ID, 42L, upload(UploadsStatusEnum.COMPLETED).numTotalFiles(2),
-      List.of(detail(IngestionFlowFileStatus.WARNING, 5L, 3L).uploadDetailId(124L),
-        detail(IngestionFlowFileStatus.COMPLETED, 10L, 10L)));
+    assertThrows(InvalidValueException.class, () -> service.recordTransferOutcome(FILE_ID, upload, snapshot));
 
-    assertEquals(WARNING, file.getStatus());
-    assertEquals(10, first.getNumCorrectlyImportedRows());
-    assertEquals(3, second.getNumCorrectlyImportedRows());
+    assertEquals(WAITING_PU, file.getStatus());
+    assertNull(first.getNumCorrectlyImportedRows());
+    assertNull(second.getNumCorrectlyImportedRows());
     verifyReads();
-    verify(detailRepositoryMock).saveAll(List.of(first, second));
-    verify(fileRepositoryMock).save(file);
   }
 
   @Test
-  void givenOneUnboundDetailWithSameBaseNameAndSizeWhenRecordTransferOutcomeThenPreservesExistingBinding() {
+  void givenOneUnboundDetailWhenRecordTransferOutcomeThenMatchesFullFileNameAndPreservesExistingBinding() {
     MigrationFileExecutionDetail first = exportedDetail("first/" + FILE_NAME);
     first.setUploadDetailId(123L);
     MigrationFileExecutionDetail second = exportedDetail("second/" + FILE_NAME);
     prepare(List.of(first, second));
     when(fileRepositoryMock.save(file)).thenReturn(file);
 
-    service.recordTransferOutcome(FILE_ID, 42L, upload(UploadsStatusEnum.PROCESSING).numTotalFiles(2),
-      List.of(detail(IngestionFlowFileStatus.PROCESSING, 5L, 3L).uploadDetailId(124L)));
+    service.recordTransferOutcome(FILE_ID, upload(UploadsStatusEnum.PROCESSING).numTotalFiles(2),
+      List.of(detail(IngestionFlowFileStatus.PROCESSING, 5L, 3L).uploadDetailId(124L)
+        .fileName(second.getFileName())));
 
     assertEquals(123L, first.getUploadDetailId());
     assertNull(first.getNumTotalRows());
     assertEquals(124L, second.getUploadDetailId());
-    assertEquals(3, second.getNumCorrectlyImportedRows());
+    assertEquals(3L, second.getNumCorrectlyImportedRows());
     verifyReads();
     verify(detailRepositoryMock).saveAll(List.of(first, second));
     verify(fileRepositoryMock).save(file);
-  }
-
-  @Test
-  void givenTwoPuIdsForOneExportedRowWhenRecordTransferOutcomeThenRejectsBeforeBinding() {
-    MigrationFileExecutionDetail original = exportedDetail();
-    prepare(List.of(original));
-    Uploads upload = upload(UploadsStatusEnum.PROCESSING).numTotalFiles(2);
-    List<UploadDetails> snapshot = List.of(detail(IngestionFlowFileStatus.PROCESSING, 10L, 3L),
-      detail(IngestionFlowFileStatus.PROCESSING, 10L, 3L).uploadDetailId(124L));
-
-    assertThrows(InvalidValueException.class, () -> service.recordTransferOutcome(FILE_ID, 42L, upload, snapshot));
-
-    assertNull(original.getUploadDetailId());
-    assertNull(original.getNumTotalRows());
-    verifyReads();
   }
 
   @Test
@@ -763,11 +725,11 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     MigrationFileExecutionDetail original = localDetail(IngestionFlowFileStatus.COMPLETED, 10L, 10L);
     prepare(List.of(original));
 
-    service.recordTransferOutcome(FILE_ID, 42L, upload(UploadsStatusEnum.COMPLETED),
+    service.recordTransferOutcome(FILE_ID, upload(UploadsStatusEnum.COMPLETED),
       List.of(detail(IngestionFlowFileStatus.COMPLETED, null, null).discardFileName(null)));
 
     assertEquals(COMPLETED, file.getStatus());
-    assertEquals(10, original.getNumTotalRows());
+    assertEquals(10L, original.getNumTotalRows());
     assertEquals("organizations.errors.csv", original.getDiscardFileName());
     verifyReads();
   }
@@ -780,7 +742,7 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     original.setStatus(MigrationFileExecutionDetailStatus.FAILED);
     prepare(List.of(original));
 
-    service.recordTransferOutcome(FILE_ID, 42L, upload(UploadsStatusEnum.ERROR), List.of());
+    service.recordTransferOutcome(FILE_ID, upload(UploadsStatusEnum.ERROR), List.of());
 
     assertEquals(FAILED, file.getStatus());
     assertEquals(MigrationFileExecutionDetailStatus.FAILED, original.getStatus());
@@ -800,16 +762,16 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     List<UploadDetails> snapshot = List.of(detail(IngestionFlowFileStatus.ERROR, 10L, 2L),
       detail(pendingStatus, 5L, 1L).uploadDetailId(124L).fileName(second.getFileName()));
 
-    service.recordTransferOutcome(FILE_ID, 42L, upload, snapshot);
-    service.recordTransferOutcome(FILE_ID, 42L, upload, snapshot);
+    service.recordTransferOutcome(FILE_ID, upload, snapshot);
+    service.recordTransferOutcome(FILE_ID, upload, snapshot);
 
     assertEquals(FAILED, file.getStatus());
     assertEquals(MigrationFileExecutionDetailStatus.FAILED, first.getStatus());
     assertEquals(MigrationFileExecutionDetailStatus.FAILED, second.getStatus());
     assertEquals(124L, second.getUploadDetailId());
-    assertEquals(5, second.getNumTotalRows());
-    assertEquals(1, second.getNumCorrectlyImportedRows());
-    verify(fileRepositoryMock, times(2)).findByIdForUpdate(FILE_ID);
+    assertEquals(5L, second.getNumTotalRows());
+    assertEquals(1L, second.getNumCorrectlyImportedRows());
+    verify(fileRepositoryMock, times(2)).findById(FILE_ID);
     verify(detailRepositoryMock, times(2)).findAllByMigrationFileExecutionId(FILE_ID);
     verify(detailRepositoryMock).saveAll(List.of(first, second));
     verify(fileRepositoryMock).save(file);
@@ -824,9 +786,9 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     Uploads upload = upload(UploadsStatusEnum.ERROR);
     List<UploadDetails> snapshot = List.of(detail(IngestionFlowFileStatus.PROCESSING, 10L, 4L));
 
-    assertThrows(ConflictException.class, () -> service.recordTransferOutcome(FILE_ID, 42L, upload, snapshot));
+    assertThrows(ConflictException.class, () -> service.recordTransferOutcome(FILE_ID, upload, snapshot));
 
-    assertEquals(3, original.getNumCorrectlyImportedRows());
+    assertEquals(3L, original.getNumCorrectlyImportedRows());
     assertEquals(MigrationFileExecutionDetailStatus.FAILED, original.getStatus());
     verifyReads();
   }
@@ -837,30 +799,32 @@ class MigrationFileExecutionTransferOutcomeServiceTest {
     prepare(List.of(original));
     when(fileRepositoryMock.save(file)).thenReturn(file);
 
-    service.recordTransferOutcome(FILE_ID, 42L, upload(UploadsStatusEnum.PROCESSING),
+    service.recordTransferOutcome(FILE_ID, upload(UploadsStatusEnum.PROCESSING),
       List.of(detail(IngestionFlowFileStatus.COMPLETED, null, null).discardFileName(null)));
 
     assertEquals(WAITING_PU, file.getStatus());
     assertEquals(MigrationFileExecutionDetailStatus.COMPLETED, original.getStatus());
-    assertEquals(10, original.getNumCorrectlyImportedRows());
+    assertEquals(10L, original.getNumCorrectlyImportedRows());
     verifyReads();
     verify(detailRepositoryMock).saveAll(List.of(original));
     verify(fileRepositoryMock).save(file);
   }
 
   private void prepare(List<MigrationFileExecutionDetail> existing) {
-    when(fileRepositoryMock.findByIdForUpdate(FILE_ID)).thenReturn(Optional.of(file));
+    when(fileRepositoryMock.findById(FILE_ID)).thenReturn(Optional.of(file));
     when(detailRepositoryMock.findAllByMigrationFileExecutionId(FILE_ID)).thenReturn(existing);
   }
 
   private void verifyReads() {
-    verify(fileRepositoryMock).findByIdForUpdate(FILE_ID);
+    verify(fileRepositoryMock).findById(FILE_ID);
     verify(detailRepositoryMock).findAllByMigrationFileExecutionId(FILE_ID);
   }
 
   private MigrationFileExecutionDetail localDetail(IngestionFlowFileStatus status, Long total, Long accepted) {
     MigrationFileExecutionDetail original = exportedDetail();
-    new MigrationFileExecutionDetailMapper().updateMigrationFileExecutionDetail(original, detail(status, total, accepted), true);
+    MigrationFileExecutionDetailMapper mapper = new MigrationFileExecutionDetailMapper();
+    mapper.updateMigrationFileExecutionDetail(original, detail(status, total, accepted));
+    original.setStatus(mapper.toLocalStatus(status));
     return original;
   }
 

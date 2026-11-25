@@ -52,8 +52,8 @@ public abstract class MigrationFileExecutionService {
       ));
   }
 
-  protected final MigrationFileExecution findRequiredForUpdate(UUID fileId) {
-    return migrationFileExecutionRepository.findByIdForUpdate(fileId)
+  protected final MigrationFileExecution findRequired(UUID fileId) {
+    return migrationFileExecutionRepository.findById(fileId)
       .orElseThrow(() -> new NotFoundException(
         "MIGRATION_FILE_EXECUTION_NOT_FOUND", "File execution does not exist: " + fileId
       ));

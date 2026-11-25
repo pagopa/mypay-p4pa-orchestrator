@@ -252,7 +252,7 @@ class MigrationFileExecutionTransferDetailsTest {
         .status(puStatus).numTotalRows(10L).numCorrectlyImportedRows(accepted)
     );
 
-    transferOutcomeService.recordTransferOutcome(execution.getId(), 42L, upload, snapshot);
+    transferOutcomeService.recordTransferOutcome(execution.getId(), upload, snapshot);
 
     List<MigrationFileExecutionDetail> collected = details(execution);
     assertEquals(expected, executionRepository.findById(execution.getId()).orElseThrow().getStatus());
@@ -265,12 +265,12 @@ class MigrationFileExecutionTransferDetailsTest {
       assertEquals(0L, original.getFileSize());
       assertEquals(5L, updated.getFileSize());
       assertEquals(original.getCreationDate(), updated.getCreationDate());
-      assertEquals(10, updated.getNumTotalRows());
-      assertEquals((int) accepted, updated.getNumCorrectlyImportedRows());
+      assertEquals(10L, updated.getNumTotalRows());
+      assertEquals(accepted, updated.getNumCorrectlyImportedRows());
       assertEquals(original.getFileName().equals(FILE_NAME) ? 123L : 124L, updated.getUploadDetailId());
     }
 
-    transferOutcomeService.recordTransferOutcome(execution.getId(), 42L, upload, snapshot);
+    transferOutcomeService.recordTransferOutcome(execution.getId(), upload, snapshot);
 
     assertEquals(collected, details(execution));
   }
@@ -292,7 +292,7 @@ class MigrationFileExecutionTransferDetailsTest {
       execution.getMigrationId(), FILE_TYPE, 42L, UploadsStatusEnum.UPLOADED, COMPLETED_AT
     );
 
-    transferOutcomeService.markFailed(execution.getId(), 42L, "TRANSFER_OUTCOME_TIMEOUT", "timed out");
+    transferOutcomeService.markFailed(execution.getId(), "TRANSFER_OUTCOME_TIMEOUT", "timed out");
 
     MigrationFileExecutionDetail failed = details(execution).getFirst();
     assertEquals(original.getId(), failed.getId());
@@ -315,7 +315,7 @@ class MigrationFileExecutionTransferDetailsTest {
     UploadDetails observation = new UploadDetails().uploadId(42L).uploadDetailId(123L)
       .fileName(FILE_NAME).fileSize(puSize).status(IngestionFlowFileStatus.PROCESSING);
 
-    transferOutcomeService.recordTransferOutcome(execution.getId(), 42L, upload, List.of(observation));
+    transferOutcomeService.recordTransferOutcome(execution.getId(), upload, List.of(observation));
 
     MigrationFileExecutionDetail bound = details(execution).getFirst();
     assertEquals(puSize, bound.getFileSize());
@@ -326,7 +326,7 @@ class MigrationFileExecutionTransferDetailsTest {
     UUID executionId = execution.getId();
     List<UploadDetails> snapshot = List.of(observation);
     InvalidValueException failure = assertThrows(InvalidValueException.class,
-      () -> transferOutcomeService.recordTransferOutcome(executionId, 42L, upload, snapshot));
+      () -> transferOutcomeService.recordTransferOutcome(executionId, upload, snapshot));
 
     assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
     assertEquals(bound, details(execution).getFirst());
@@ -335,7 +335,7 @@ class MigrationFileExecutionTransferDetailsTest {
   }
 
   @Test
-  void givenAmbiguousProvisionalFilesWhenRecordTransferOutcomeThenRejectsWithoutBindingDetails() {
+  void givenOnlyBaseNameWhenRecordTransferOutcomeThenRejectsWithoutBindingDetails() {
     MigrationFileExecution execution = exportingExecution();
     UUID migrationId = execution.getMigrationId();
     List<String> files = List.of("first/" + FILE_NAME, "second/" + FILE_NAME);
@@ -350,7 +350,7 @@ class MigrationFileExecutionTransferDetailsTest {
 
     UUID executionId = execution.getId();
     InvalidValueException failure = assertThrows(InvalidValueException.class,
-      () -> transferOutcomeService.recordTransferOutcome(executionId, 42L, upload, snapshot));
+      () -> transferOutcomeService.recordTransferOutcome(executionId, upload, snapshot));
 
     assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
     assertEquals(original, details(execution));

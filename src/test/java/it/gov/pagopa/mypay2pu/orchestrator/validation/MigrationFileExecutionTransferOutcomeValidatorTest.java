@@ -38,29 +38,14 @@ class MigrationFileExecutionTransferOutcomeValidatorTest {
     assertEquals(status, file.getStatus());
   }
 
-  @ParameterizedTest
-  @EnumSource(value = MigrationFileExecutionStatus.class, names = {"COMPLETED", "WARNING", "FAILED"})
-  void givenWaitingFileWhenValidateRecordTransferOutcomeThenAllowsOnlyConfirmedTerminalTargets(MigrationFileExecutionStatus target) {
+  @Test
+  void givenWaitingFileWhenValidateRecordTransferOutcomeThenAllowsPuUpdate() {
     MigrationFileExecution file = file();
     Uploads upload = new Uploads().uploadId(42L).status(UploadsStatusEnum.COMPLETED);
 
-    assertDoesNotThrow(() -> validator.validateRecordTransferOutcome(file, upload, target));
+    assertDoesNotThrow(() -> validator.validateRecordTransferOutcome(file, upload));
 
     assertEquals(MigrationFileExecutionStatus.WAITING_PU, file.getStatus());
-  }
-
-  @ParameterizedTest
-  @MethodSource("invalidFileCounts")
-  void givenInvalidFileCountsWhenValidateUploadThenRejectsTransferOutcome(Integer total, Integer processed) {
-    MigrationFileExecution file = file();
-    Uploads upload = new Uploads().uploadId(42L).status(UploadsStatusEnum.COMPLETED)
-      .numTotalFiles(total).numCorrectlyProcessedFiles(processed);
-
-    assertThrows(InvalidValueException.class, () -> validator.validateUpload(file, 42L, upload));
-  }
-
-  static Stream<Arguments> invalidFileCounts() {
-    return Stream.of(Arguments.of(-1, 0), Arguments.of(1, -1), Arguments.of(1, 2));
   }
 
   @Test
@@ -69,7 +54,7 @@ class MigrationFileExecutionTransferOutcomeValidatorTest {
     Uploads upload = new Uploads().uploadId(43L).status(UploadsStatusEnum.COMPLETED);
 
     InvalidValueException failure = assertThrows(InvalidValueException.class,
-      () -> validator.validateUpload(file, 42L, upload));
+      () -> validator.validateUpload(file, upload));
 
     assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
     assertEquals("PU returned a missing status or a different upload ID for upload 42", failure.getMessage());
@@ -84,17 +69,14 @@ class MigrationFileExecutionTransferOutcomeValidatorTest {
       () -> validator.validateDetails(42L, details));
 
     assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
-    assertEquals("PU returned invalid or duplicate details for upload 42", failure.getMessage());
+    assertEquals("PU returned invalid details for upload 42", failure.getMessage());
   }
 
   static Stream<Arguments> invalidDetailIdentifiers() {
     return Stream.of(
       Arguments.of((UploadDetails) null),
-      Arguments.of(new UploadDetails().uploadId(43L).uploadDetailId(1L)
-        .fileSize(1L).status(IngestionFlowFileStatus.COMPLETED)),
-      Arguments.of(new UploadDetails().uploadId(42L).fileSize(1L).status(IngestionFlowFileStatus.COMPLETED)),
-      Arguments.of(new UploadDetails().uploadId(42L).uploadDetailId(0L)
-        .fileSize(1L).status(IngestionFlowFileStatus.COMPLETED))
+      Arguments.of(puDetail().uploadId(43L)),
+      Arguments.of(puDetail().uploadDetailId(null))
     );
   }
 
@@ -114,7 +96,7 @@ class MigrationFileExecutionTransferOutcomeValidatorTest {
     MigrationFileExecution file = file();
     Uploads upload = new Uploads().uploadId(42L);
 
-    assertThrows(InvalidValueException.class, () -> validator.validateUpload(file, 42L, upload));
+    assertThrows(InvalidValueException.class, () -> validator.validateUpload(file, upload));
   }
 
   @ParameterizedTest
@@ -127,15 +109,15 @@ class MigrationFileExecutionTransferOutcomeValidatorTest {
 
   static Stream<Arguments> missingDetailMetadata() {
     return Stream.of(Arguments.of(puDetail().status(null)), Arguments.of(puDetail().fileName(null)),
-      Arguments.of(puDetail().fileSize(null)), Arguments.of(puDetail().fileSize(-1L)));
+      Arguments.of(puDetail().fileSize(null)));
   }
 
-  @ParameterizedTest
-  @MethodSource("invalidDetailUpdates")
-  void givenInvalidPuDetailWhenValidateDetailUpdateThenRejectsWithoutChangingExport(UploadDetails detail) {
+  @Test
+  void givenChangedFileSizeWhenValidateDetailUpdateThenRejectsWithoutChangingExport() {
+    UploadDetails detail = puDetail().fileSize(501L);
     MigrationFileExecutionDetail original = MigrationFileExecutionDetail.builder()
       .fileName("IPA_TEST_2-organizations.csv").ipaCode("IPA_TEST_2").fileSize(500L)
-      .status(MigrationFileExecutionDetailStatus.WAITING_PU).build();
+      .uploadDetailId(123L).status(MigrationFileExecutionDetailStatus.WAITING_PU).build();
     MigrationFileExecution file = file();
 
     InvalidValueException failure = assertThrows(InvalidValueException.class, () -> validator.validateDetailUpdate(
@@ -145,20 +127,8 @@ class MigrationFileExecutionTransferOutcomeValidatorTest {
     assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
     assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, original.getStatus());
     assertEquals("IPA_TEST_2", original.getIpaCode());
-    assertNull(original.getUploadDetailId());
+    assertEquals(123L, original.getUploadDetailId());
     assertNull(original.getNumTotalRows());
-  }
-
-  static Stream<Arguments> invalidDetailUpdates() {
-    return Stream.of(
-      Arguments.of(puDetail().fileName("IPA_TEST_3-organizations.csv")),
-      Arguments.of(puDetail().fileSize(501L)),
-      Arguments.of(puDetail().numTotalRows(-1L)),
-      Arguments.of(puDetail().numCorrectlyImportedRows(-1L)),
-      Arguments.of(puDetail().numCorrectlyImportedRows(11L)),
-      Arguments.of(puDetail().numTotalRows(Long.MAX_VALUE)),
-      Arguments.of(puDetail().numCorrectlyImportedRows(Long.MAX_VALUE))
-    );
   }
 
   @ParameterizedTest
@@ -171,7 +141,7 @@ class MigrationFileExecutionTransferOutcomeValidatorTest {
     Uploads upload = new Uploads().uploadId(42L).status(incoming);
 
     ConflictException failure = assertThrows(ConflictException.class,
-      () -> validator.validateRecordTransferOutcome(file, upload, MigrationFileExecutionStatus.WAITING_PU));
+      () -> validator.validateRecordTransferOutcome(file, upload));
 
     assertEquals("TRANSFER_OUTCOME_CONFLICT", failure.getCode());
     assertEquals(current, file.getUploadStatus());
@@ -188,13 +158,26 @@ class MigrationFileExecutionTransferOutcomeValidatorTest {
 
   @ParameterizedTest
   @EnumSource(value = MigrationFileExecutionStatus.class, names = {"WAITING_PU", "COMPLETED", "WARNING", "FAILED"})
-  void givenDifferentUploadWhenValidateMarkFailedThenRejectsWithoutMutation(MigrationFileExecutionStatus status) {
+  void givenWaitingOrTerminalStateWhenValidateMarkFailedThenPreservesPersistedUpload(MigrationFileExecutionStatus status) {
     MigrationFileExecution file = file();
     file.setStatus(status);
 
-    ConflictException failure = assertThrows(ConflictException.class, () -> validator.validateMarkFailed(file, 43L));
+    assertDoesNotThrow(() -> validator.validateMarkFailed(file));
 
-    assertEquals("TRANSFER_OUTCOME_CONFLICT", failure.getCode());
+    assertEquals(42L, file.getUploadId());
+    assertEquals(status, file.getStatus());
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = MigrationFileExecutionStatus.class, names = {"WAITING_PU", "COMPLETED", "WARNING", "FAILED"},
+    mode = EnumSource.Mode.EXCLUDE)
+  void givenInvalidStateWhenValidateMarkFailedThenRejectsWithoutMutation(MigrationFileExecutionStatus status) {
+    MigrationFileExecution file = file();
+    file.setStatus(status);
+
+    ConflictException failure = assertThrows(ConflictException.class, () -> validator.validateMarkFailed(file));
+
+    assertEquals("INVALID_MIGRATION_FILE_EXECUTION_TRANSITION", failure.getCode());
     assertEquals(42L, file.getUploadId());
     assertEquals(status, file.getStatus());
   }
@@ -208,7 +191,7 @@ class MigrationFileExecutionTransferOutcomeValidatorTest {
     file.setStatus(MigrationFileExecutionStatus.FAILED);
     MigrationFileExecutionDetail original = MigrationFileExecutionDetail.builder()
       .fileName("IPA_TEST_2-organizations.csv").fileSize(500L).uploadDetailId(123L)
-      .status(local).numTotalRows(10).numCorrectlyImportedRows(10).build();
+      .status(local).numTotalRows(10L).numCorrectlyImportedRows(10L).build();
     UploadDetails updated = puDetail().status(remote);
 
     assertDoesNotThrow(() -> validator.validateDetailUpdate(file, original, updated));
@@ -234,7 +217,7 @@ class MigrationFileExecutionTransferOutcomeValidatorTest {
     MigrationFileExecutionDetail original = MigrationFileExecutionDetail.builder()
       .fileName("IPA_TEST_2-organizations.csv").fileSize(500L).uploadDetailId(123L)
       .status(MigrationFileExecutionDetailStatus.FAILED)
-      .numTotalRows(10).numCorrectlyImportedRows(10).build();
+      .numTotalRows(10L).numCorrectlyImportedRows(10L).build();
     UploadDetails updated = puDetail().status(IngestionFlowFileStatus.PROCESSING);
 
     assertThrows(ConflictException.class, () -> validator.validateDetailUpdate(file, original, updated));

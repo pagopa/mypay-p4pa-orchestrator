@@ -50,10 +50,24 @@ Transfer only updates the existing details to `TRANSFERING`, `WAITING_PU` or
 PU upload details. Upload-detail identifiers, import counts, errors and discard
 files remain unset until the separate transfer outcome phase enriches the existing rows.
 That phase will also replace the provisional file sizes with values from PU
-`UploadDetails` at the first correlated observation. Correlation requires a unique
-exported base file name; once bound to an upload detail, its size is immutable.
-Non-zero sizes recorded by earlier Extract versions remain immutable and can
-still disambiguate files with the same base name.
+`UploadDetails` at the first correlated observation. Correlation uses the unique
+exported `fileName`, which must match the PU detail's `fileName` exactly.
+It does not infer matches from base names, file sizes or previously stored PU IDs.
+Once bound to an upload detail, its ID and size are immutable. Non-zero sizes
+recorded by earlier Extract versions also remain immutable.
+Row counts use nullable `Long` values, matching PU without narrowing conversions.
+Outcome calculation uses the current PU snapshot, treating missing counts as zero
+instead of reusing counts from earlier observations.
+Existing databases must support `BIGINT` for both row-count columns. Schema
+updates are not automatic (`ddl-auto: none`); apply this change before deployment
+if the columns are still `INTEGER`:
+
+```sql
+ALTER TABLE orchestrator.migration_file_execution_detail
+  ALTER COLUMN num_total_rows TYPE BIGINT,
+  ALTER COLUMN num_correctly_imported_rows TYPE BIGINT;
+```
+
 Previously exported executions without details require backfilling before using
 this lifecycle; Transfer does not recreate missing extraction details.
 

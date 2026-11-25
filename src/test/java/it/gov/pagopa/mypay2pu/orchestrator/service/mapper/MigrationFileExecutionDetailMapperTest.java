@@ -192,7 +192,7 @@ class MigrationFileExecutionDetailMapperTest {
       .numTotalRows(10L).numCorrectlyImportedRows(8L)
       .errorDescription("Two rejected rows").discardFileName("rejects.csv");
 
-    mapper.updateMigrationFileExecutionDetail(result, detail, true);
+    mapper.updateMigrationFileExecutionDetail(result, detail);
 
     checkNotNullFields(result);
     assertEquals(detailId, result.getId());
@@ -204,11 +204,27 @@ class MigrationFileExecutionDetailMapperTest {
     assertEquals(createdAt, result.getUpdateDate());
     assertEquals("trace", result.getUpdateTraceId());
     assertEquals(123L, result.getUploadDetailId());
-    assertEquals(expected, result.getStatus());
-    assertEquals(10, result.getNumTotalRows());
-    assertEquals(8, result.getNumCorrectlyImportedRows());
+    assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, result.getStatus());
+    assertEquals(expected, mapper.toLocalStatus(puStatus));
+    assertEquals(10L, result.getNumTotalRows());
+    assertEquals(8L, result.getNumCorrectlyImportedRows());
     assertEquals("Two rejected rows", result.getErrorDescription());
     assertEquals("rejects.csv", result.getDiscardFileName());
+  }
+
+  @Test
+  void givenLongCountsWhenUpdateMigrationFileExecutionDetailThenPreservesFullPrecision() {
+    MigrationFileExecutionDetail result = mapper.toMigrationFileExecutionDetail(
+      FILE_EXECUTION_ID, "IPA_TEST_2-organizations.csv", 500L);
+    UploadDetails detail = new UploadDetails().uploadId(42L).uploadDetailId(123L)
+      .numTotalRows(Long.MAX_VALUE).numCorrectlyImportedRows(Long.MAX_VALUE - 1);
+
+    mapper.updateMigrationFileExecutionDetail(result, detail);
+
+    checkNotNullFields(result, "id", "creationDate", "updateDate", "updateTraceId",
+      "errorDescription", "discardFileName");
+    assertEquals(Long.MAX_VALUE, result.getNumTotalRows());
+    assertEquals(Long.MAX_VALUE - 1, result.getNumCorrectlyImportedRows());
   }
 
   static Stream<Arguments> puStatuses() {
@@ -230,16 +246,16 @@ class MigrationFileExecutionDetailMapperTest {
     UploadDetails first = new UploadDetails().uploadId(42L).uploadDetailId(123L)
       .status(IngestionFlowFileStatus.COMPLETED).numTotalRows(10L).numCorrectlyImportedRows(3L)
       .errorDescription("Rejected rows").discardFileName("rejects.csv");
-    mapper.updateMigrationFileExecutionDetail(result, first, false);
+    mapper.updateMigrationFileExecutionDetail(result, first);
 
     mapper.updateMigrationFileExecutionDetail(result, new UploadDetails().uploadId(42L).uploadDetailId(123L)
-      .status(IngestionFlowFileStatus.PROCESSING).numCorrectlyImportedRows(4L), false);
+      .status(IngestionFlowFileStatus.PROCESSING).numCorrectlyImportedRows(4L));
 
     checkNotNullFields(result, "id", "creationDate", "updateDate", "updateTraceId");
     assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, result.getStatus());
     assertEquals(123L, result.getUploadDetailId());
-    assertEquals(10, result.getNumTotalRows());
-    assertEquals(4, result.getNumCorrectlyImportedRows());
+    assertEquals(10L, result.getNumTotalRows());
+    assertEquals(4L, result.getNumCorrectlyImportedRows());
     assertEquals("Rejected rows", result.getErrorDescription());
     assertEquals("rejects.csv", result.getDiscardFileName());
   }
@@ -251,7 +267,7 @@ class MigrationFileExecutionDetailMapperTest {
     UploadDetails detail = new UploadDetails().uploadId(42L).uploadDetailId(123L)
       .fileSize(500L).status(IngestionFlowFileStatus.PROCESSING);
 
-    mapper.updateMigrationFileExecutionDetail(result, detail, false);
+    mapper.updateMigrationFileExecutionDetail(result, detail);
 
     checkNotNullFields(result, "id", "creationDate", "updateDate", "updateTraceId",
       "errorDescription", "discardFileName", "numTotalRows", "numCorrectlyImportedRows");

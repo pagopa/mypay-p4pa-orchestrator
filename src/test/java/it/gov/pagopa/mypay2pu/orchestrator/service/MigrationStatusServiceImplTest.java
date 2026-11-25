@@ -79,8 +79,8 @@ class MigrationStatusServiceImplTest {
     UUID migrationId = UUID.randomUUID();
     MigrationExecution execution = migrationExecution(migrationId);
     MigrationFileExecution fileExecution = fileExecution(migrationId, MigrationFileExecutionStatus.COMPLETED);
-    MigrationFileExecutionDetail firstDetail = fileExecutionDetail(fileExecution.getId(), 10, 8, 700L);
-    MigrationFileExecutionDetail secondDetail = fileExecutionDetail(fileExecution.getId(), 5, 4, 300L);
+    MigrationFileExecutionDetail firstDetail = fileExecutionDetail(fileExecution.getId(), 10L, 8L, 700L);
+    MigrationFileExecutionDetail secondDetail = fileExecutionDetail(fileExecution.getId(), 5L, 4L, 300L);
     firstDetail.setUpdateDate(EXTRACTED_AT);
     secondDetail.setUpdateDate(UPLOADED_AT);
     when(migrationExecutionRepositoryMock.findById(migrationId)).thenReturn(Optional.of(execution));
@@ -137,7 +137,7 @@ class MigrationStatusServiceImplTest {
   void returnsPersistedExportFileFields() {
     UUID migrationId = UUID.randomUUID();
     MigrationFileExecution fileExecution = fileExecution(migrationId, MigrationFileExecutionStatus.EXPORTED);
-    MigrationFileExecutionDetail detail = fileExecutionDetail(fileExecution.getId(), 10, 8, 700L);
+    MigrationFileExecutionDetail detail = fileExecutionDetail(fileExecution.getId(), 10L, 8L, 700L);
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(migrationId, MigrationFileType.ORGANIZATIONS))
       .thenReturn(Optional.of(fileExecution));
     when(migrationFileExecutionDetailRepositoryMock.findAllByMigrationFileExecutionId(fileExecution.getId()))
@@ -159,7 +159,7 @@ class MigrationStatusServiceImplTest {
   void returnsPersistedTransferFileFields() {
     UUID migrationId = UUID.randomUUID();
     MigrationFileExecution fileExecution = fileExecution(migrationId, MigrationFileExecutionStatus.WAITING_PU);
-    MigrationFileExecutionDetail detail = fileExecutionDetail(fileExecution.getId(), 10, 8, 700L);
+    MigrationFileExecutionDetail detail = fileExecutionDetail(fileExecution.getId(), 10L, 8L, 700L);
     detail.setUpdateDate(UPLOADED_AT);
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(migrationId, MigrationFileType.ORGANIZATIONS))
       .thenReturn(Optional.of(fileExecution));
@@ -184,12 +184,12 @@ class MigrationStatusServiceImplTest {
   void evidenceCollectedAtUsesLatestTerminalDetailEvenIfAnotherDetailIsPending() {
     UUID migrationId = UUID.randomUUID();
     MigrationFileExecution fileExecution = fileExecution(migrationId, MigrationFileExecutionStatus.WAITING_PU);
-    MigrationFileExecutionDetail completedDetail = fileExecutionDetail(fileExecution.getId(), 10, 8, 700L);
+    MigrationFileExecutionDetail completedDetail = fileExecutionDetail(fileExecution.getId(), 10L, 8L, 700L);
     completedDetail.setUpdateDate(EXTRACTED_AT);
-    MigrationFileExecutionDetail partialDetail = fileExecutionDetail(fileExecution.getId(), 5, 4, 300L);
+    MigrationFileExecutionDetail partialDetail = fileExecutionDetail(fileExecution.getId(), 5L, 4L, 300L);
     partialDetail.setStatus(MigrationFileExecutionDetailStatus.PARTIAL);
     partialDetail.setUpdateDate(UPLOADED_AT);
-    MigrationFileExecutionDetail pendingDetail = fileExecutionDetail(fileExecution.getId(), 2, 0, 100L);
+    MigrationFileExecutionDetail pendingDetail = fileExecutionDetail(fileExecution.getId(), 2L, 0L, 100L);
     pendingDetail.setStatus(MigrationFileExecutionDetailStatus.PENDING);
     pendingDetail.setUpdateDate(UPDATED_AT);
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(migrationId, MigrationFileType.ORGANIZATIONS))
@@ -292,8 +292,8 @@ class MigrationStatusServiceImplTest {
 
   private MigrationFileExecutionDetail fileExecutionDetail(
     UUID fileExecutionId,
-    Integer totalRows,
-    Integer correctlyImportedRows,
+    Long totalRows,
+    Long correctlyImportedRows,
     Long fileSize
   ) {
     return MigrationFileExecutionDetail.builder()
