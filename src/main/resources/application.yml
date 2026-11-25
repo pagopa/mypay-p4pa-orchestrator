@@ -134,3 +134,7 @@ orchestrator:
 cipher:
   file-encrypt-enabled: "\${FILE_ENCRYPT_ENABLED:false}"
   file-encrypt-psw: "\${FILE_ENCRYPT_PSW:default_password}"
+
+csv:
+  separator: "\${CSV_SEPARATOR_CHAR:;}"
+  quote-char: "\${CSV_QUOTE_CHAR:\\\"}"

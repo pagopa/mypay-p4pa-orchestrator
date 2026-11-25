@@ -116,6 +116,13 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 
 #### 🔁 Integrations
 
+#### CSV parsing
+
+| ENV | DESCRIPTION | DEFAULT |
+|---|---|---|
+| CSV_SEPARATOR_CHAR | CSV field separator | `;` |
+| CSV_QUOTE_CHAR | CSV quote character | `"` |
+
 #### 🗄️ Orchestrator database
 | ENV                      | DESCRIPTION                            | DEFAULT |
 |--------------------------|----------------------------------------|---------|
