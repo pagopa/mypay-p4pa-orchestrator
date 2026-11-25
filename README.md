@@ -208,9 +208,7 @@ so adjustments to the clock can shorten or extend the effective wait.
 | FILE_ENCRYPT_ENABLED | Enable file encryption              | false            |
 | FILE_ENCRYPT_PSW     | Password used for file encryption   | default_password |
 
-#### 💼 Business logic
-
-##### ZIP extraction limits
+##### 📄 File
 
 | ENV | DESCRIPTION | DEFAULT |
 |---|---|---|
