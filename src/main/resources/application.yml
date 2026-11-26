@@ -138,3 +138,8 @@ cipher:
 csv:
   separator: "\${CSV_SEPARATOR_CHAR:;}"
   quote-char: "\${CSV_QUOTE_CHAR:\\\"}"
+
+zip-file:
+  max-entries: "\${ZIP_MAX_ENTRIES:1000}"
+  max-uncompressed-size: "\${ZIP_MAX_UNCOMPRESSED_SIZE:52428800}" # 50MB
+  max-compression-ratio: "\${ZIP_MAX_COMPRESSION_RATIO:100}" # Allowing file having at most a compression ratio 100:1

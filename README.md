@@ -116,14 +116,8 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 
 #### 🔁 Integrations
 
-#### CSV parsing
+##### 🗄️ Orchestrator database
 
-| ENV | DESCRIPTION | DEFAULT |
-|---|---|---|
-| CSV_SEPARATOR_CHAR | CSV field separator | `;` |
-| CSV_QUOTE_CHAR | CSV quote character | `"` |
-
-#### 🗄️ Orchestrator database
 | ENV                      | DESCRIPTION                            | DEFAULT |
 |--------------------------|----------------------------------------|---------|
 | ORCHESTRATOR_DB_URL      | PostgreSQL JDBC URL                    | `jdbc:postgresql://${ORCHESTRATOR_DB_HOST:}:${ORCHESTRATOR_DB_PORT:5432}/${ORCHESTRATOR_DB_NAME:}?currentSchema=orchestrator` |
@@ -214,6 +208,16 @@ so adjustments to the clock can shorten or extend the effective wait.
 |---------------------|-------------------------------------|------------------|
 | FILE_ENCRYPT_ENABLED | Enable file encryption              | false            |
 | FILE_ENCRYPT_PSW     | Password used for file encryption   | default_password |
+
+##### 📄 File
+
+| ENV                       | DESCRIPTION                               | DEFAULT  |
+|---------------------------|-------------------------------------------|----------|
+| CSV_SEPARATOR_CHAR        | CSV column separator                      | ;        |
+| CSV_QUOTE_CHAR            | CSV quote character                       | "        |
+| ZIP_MAX_ENTRIES           | Maximum allowed number of zip entries     | 1000     |
+| ZIP_MAX_UNCOMPRESSED_SIZE | Maximum uncompressed size of zipped files | 52428800 |
+| ZIP_MAX_COMPRESSION_RATIO | Maximum compression ratio of zipped files | 100      |
 
 ## 🛠️ Getting Started
 
