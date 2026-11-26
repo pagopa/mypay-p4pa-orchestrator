@@ -116,7 +116,7 @@ See [application.yml](src/main/resources/application.yml) for each configurable 
 
 #### 🔁 Integrations
 
-#### 🗄️ Orchestrator database
+##### 🗄️ Orchestrator database
 | ENV                      | DESCRIPTION                            | DEFAULT |
 |--------------------------|----------------------------------------|---------|
 | ORCHESTRATOR_DB_URL      | PostgreSQL JDBC URL                    | `jdbc:postgresql://${ORCHESTRATOR_DB_HOST:}:${ORCHESTRATOR_DB_PORT:5432}/${ORCHESTRATOR_DB_NAME:}?currentSchema=orchestrator` |
@@ -207,6 +207,14 @@ so adjustments to the clock can shorten or extend the effective wait.
 |---------------------|-------------------------------------|------------------|
 | FILE_ENCRYPT_ENABLED | Enable file encryption              | false            |
 | FILE_ENCRYPT_PSW     | Password used for file encryption   | default_password |
+
+##### 📄 File
+
+| ENV | DESCRIPTION | DEFAULT |
+|---|---|---|
+| ZIP_MAX_ENTRIES | Maximum entries per archive | `1000` |
+| ZIP_MAX_UNCOMPRESSED_SIZE | Maximum total extracted bytes per archive | `52428800` |
+| ZIP_MAX_COMPRESSION_RATIO | Maximum uncompressed-to-compressed ratio per entry | `100` |
 
 ## 🛠️ Getting Started
 
