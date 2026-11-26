@@ -39,12 +39,12 @@ public abstract class MigrationFileExecutionService {
   protected final MigrationFileExecution update(UUID migrationId,
                                                 MigrationFileType fileType,
                                                 Consumer<MigrationFileExecution> transition) {
-    MigrationFileExecution fileExecution = getRequired(migrationId, fileType);
+    MigrationFileExecution fileExecution = findRequiredByMigrationIdAndFileType(migrationId, fileType);
     transition.accept(fileExecution);
     return migrationFileExecutionRepository.save(fileExecution);
   }
 
-  public MigrationFileExecution getRequired(UUID migrationId, MigrationFileType fileType) {
+  public MigrationFileExecution findRequiredByMigrationIdAndFileType(UUID migrationId, MigrationFileType fileType) {
     return migrationFileExecutionRepository.findByMigrationIdAndFileType(migrationId, fileType)
       .orElseThrow(() -> new NotFoundException(
         "MIGRATION_FILE_EXECUTION_NOT_FOUND",

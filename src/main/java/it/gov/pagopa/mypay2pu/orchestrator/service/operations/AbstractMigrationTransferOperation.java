@@ -60,7 +60,7 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
   @Override
   public final void execute(MigrationRequestDto request) {
     UUID migrationId = request.getMigrationId();
-    MigrationFileExecution fileExecution = transferService.getRequired(migrationId, fileType);
+    MigrationFileExecution fileExecution = transferService.findRequiredByMigrationIdAndFileType(migrationId, fileType);
 
     MigrationFileExecutionStatus status = fileExecution.getStatus();
     if (status == MigrationFileExecutionStatus.WAITING_PU

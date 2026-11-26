@@ -305,7 +305,7 @@ class MigrationFileExecutionTransferDetailsTest {
 
   @ParameterizedTest
   @ValueSource(longs = {0L, 5L})
-  void givenProvisionalSizeWhenRecordTransferOutcomeThenBindsPuSizeAndRejectsSubsequentChanges(long puSize) {
+  void givenProvisionalSizeWhenRecordTransferOutcomeThenUpdatesSizeOnEveryObservation(long puSize) {
     MigrationFileExecution execution = exportingExecution();
     UUID migrationId = execution.getMigrationId();
     exportService.markExported(migrationId, FILE_TYPE, archives(), COMPLETED_AT);
@@ -323,13 +323,14 @@ class MigrationFileExecutionTransferDetailsTest {
     assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, bound.getStatus());
     observation.setFileSize(puSize + 1L);
 
-    UUID executionId = execution.getId();
-    List<UploadDetails> snapshot = List.of(observation);
-    InvalidValueException failure = assertThrows(InvalidValueException.class,
-      () -> transferOutcomeService.recordTransferOutcome(executionId, upload, snapshot));
+    transferOutcomeService.recordTransferOutcome(execution.getId(), upload, List.of(observation));
 
-    assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
-    assertEquals(bound, details(execution).getFirst());
+    MigrationFileExecutionDetail updated = details(execution).getFirst();
+    assertEquals(bound.getId(), updated.getId());
+    assertEquals(bound.getCreationDate(), updated.getCreationDate());
+    assertEquals(puSize + 1L, updated.getFileSize());
+    assertEquals(123L, updated.getUploadDetailId());
+    assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, updated.getStatus());
     assertEquals(MigrationFileExecutionStatus.WAITING_PU,
       executionRepository.findById(execution.getId()).orElseThrow().getStatus());
   }

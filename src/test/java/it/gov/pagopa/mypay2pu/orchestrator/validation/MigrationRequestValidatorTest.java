@@ -278,7 +278,7 @@ class MigrationRequestValidatorTest {
       .fileTypesToInclude(List.of(MigrationFileType.DEBT_POSITIONS, MigrationFileType.ASSESSMENTS));
     MigrationExecution previous = deltaPrevious(request);
     previous.setIpacodes(List.of("IPA2", "IPA1", "IPA1"));
-    var fileExecutions = List.of(
+    List<MigrationFileExecution> fileExecutions = List.of(
       MigrationFileExecution.builder().fileType(MigrationFileType.DEBT_POSITIONS).status(status).build(),
       MigrationFileExecution.builder().fileType(MigrationFileType.ASSESSMENTS).status(status).build(),
       MigrationFileExecution.builder().fileType(MigrationFileType.ORGANIZATIONS)

@@ -1,5 +1,6 @@
 package it.gov.pagopa.mypay2pu.orchestrator.service;
 
+import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.otel.bridge.EventPublishingContextWrapper;
 import io.micrometer.tracing.otel.bridge.OtelCurrentTraceContext;
@@ -7,6 +8,7 @@ import io.micrometer.tracing.otel.bridge.OtelTracer;
 import io.micrometer.tracing.otel.bridge.Slf4JEventListener;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.ContextStorage;
+import io.opentelemetry.context.Scope;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.config.AsyncConfiguration;
@@ -28,6 +30,7 @@ import java.util.Set;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -177,7 +180,7 @@ class MigrationPlanExecutorServiceTest {
     throws Exception {
     Map<String, String> previous = MDC.getCopyOfContextMap();
     try (SdkTracerProvider provider = SdkTracerProvider.builder().build()) {
-      var otelTracer = provider.get("migration-test");
+      io.opentelemetry.api.trace.Tracer otelTracer = provider.get("migration-test");
       Slf4JEventListener listener = new Slf4JEventListener();
       Tracer tracer = new OtelTracer(otelTracer, new OtelCurrentTraceContext(), listener::onEvent);
       ContextStorage storage = new EventPublishingContextWrapper(listener::onEvent).apply(ContextStorage.get());
@@ -185,11 +188,11 @@ class MigrationPlanExecutorServiceTest {
       ThreadPoolTaskExecutor executor = (ThreadPoolTaskExecutor) new AsyncConfiguration()
         .orchestratorTaskExecutor(1, 1, 10, tracer);
       executor.initialize();
-      var parent = tracer.nextSpan().name("migration").start();
+      Span parent = tracer.nextSpan().name("migration").start();
       try {
         Set<MigrationFileType> executed = ConcurrentHashMap.newKeySet();
         IllegalStateException failure = new IllegalStateException("client failed");
-        try (var ignored = tracer.withSpan(parent)) {
+        try (Tracer.SpanInScope ignored = tracer.withSpan(parent)) {
           Map<String, String> parentMdc = Map.of(
             "traceId", parent.context().traceId(),
             "spanId", parent.context().spanId(),
@@ -207,9 +210,9 @@ class MigrationPlanExecutorServiceTest {
               assertEquals(parent.context().spanId(), tracer.currentSpan().context().spanId());
               assertEquals(parentMdc, MDC.getCopyOfContextMap());
               assertEquals(fileType != MigrationFileType.DEBT_POSITIONS_TYPE, Thread.currentThread().isVirtual());
-              var clientSpan = otelTracer.spanBuilder("extractor-http").startSpan();
+              io.opentelemetry.api.trace.Span clientSpan = otelTracer.spanBuilder("extractor-http").startSpan();
               try {
-                try (var scope = storage.attach(Context.current().with(clientSpan))) {
+                try (Scope scope = storage.attach(Context.current().with(clientSpan))) {
                   assertEquals(parent.context().traceId(), clientSpan.getSpanContext().getTraceId());
                   assertEquals(clientSpan.getSpanContext().getSpanId(), MDC.get("spanId"));
                 }
@@ -224,7 +227,7 @@ class MigrationPlanExecutorServiceTest {
               }
             }));
           }
-          var result = executor.submit(() -> tracedPlanExecutor.execute(
+          Future<?> result = executor.submit(() -> tracedPlanExecutor.execute(
             request(operations.keySet().toArray(MigrationFileType[]::new)), operations));
           if (fail) {
             assertSame(failure, assertThrows(ExecutionException.class,

@@ -86,25 +86,16 @@ public class MigrationFileExecutionDetailMapper {
     MigrationFileExecutionDetail target,
     UploadDetails uploadDetail
   ) {
-    if (target.getUploadDetailId() == null && Long.valueOf(0L).equals(target.getFileSize())) {
-      target.setFileSize(uploadDetail.getFileSize());
-    }
+    target.setStatus(toLocalStatus(uploadDetail.getStatus()));
+    target.setFileSize(uploadDetail.getFileSize());
     target.setUploadDetailId(uploadDetail.getUploadDetailId());
-    if (uploadDetail.getErrorDescription() != null) {
-      target.setErrorDescription(uploadDetail.getErrorDescription());
-    }
-    if (uploadDetail.getDiscardFileName() != null) {
-      target.setDiscardFileName(uploadDetail.getDiscardFileName());
-    }
-    if (uploadDetail.getNumTotalRows() != null) {
-      target.setNumTotalRows(uploadDetail.getNumTotalRows());
-    }
-    if (uploadDetail.getNumCorrectlyImportedRows() != null) {
-      target.setNumCorrectlyImportedRows(uploadDetail.getNumCorrectlyImportedRows());
-    }
+    target.setErrorDescription(uploadDetail.getErrorDescription());
+    target.setDiscardFileName(uploadDetail.getDiscardFileName());
+    target.setNumTotalRows(uploadDetail.getNumTotalRows());
+    target.setNumCorrectlyImportedRows(uploadDetail.getNumCorrectlyImportedRows());
   }
 
-  public MigrationFileExecutionDetailStatus toLocalStatus(IngestionFlowFileStatus status) {
+  private MigrationFileExecutionDetailStatus toLocalStatus(IngestionFlowFileStatus status) {
     return switch (status) {
       case UPLOADED, PROCESSING, WAITING_FILE -> MigrationFileExecutionDetailStatus.WAITING_PU;
       case COMPLETED -> MigrationFileExecutionDetailStatus.COMPLETED;

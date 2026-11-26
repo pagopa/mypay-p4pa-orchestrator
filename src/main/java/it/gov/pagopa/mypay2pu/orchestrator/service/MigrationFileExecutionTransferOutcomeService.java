@@ -59,12 +59,12 @@ public class MigrationFileExecutionTransferOutcomeService extends MigrationFileE
     List<UploadDetails> snapshot = uploadDetails == null ? List.of() : uploadDetails;
     validator.validateDetails(file.getUploadId(), snapshot);
     List<MigrationFileExecutionDetail> existing = detailRepository.findAllByMigrationFileExecutionId(migrationFileExecutionId);
-    boolean terminalFile = validator.isCompleted(file);
-    Map<Long, MigrationFileExecutionDetail> uploadDetailId2MigrationFileDetail = correlateDetails(file, snapshot, existing);
+    boolean isCompleted = validator.isCompleted(file);
+    Map<Long, MigrationFileExecutionDetail> uploadDetailId2MigrationFileDetail = correlateDetails(snapshot, existing);
     boolean missingExisting = snapshot.size() != existing.size();
     MigrationFileExecutionStatus target = resolveOutcome(upload, snapshot, missingExisting);
 
-    if (terminalFile) {
+    if (isCompleted) {
       validator.validateTerminalReplay(file, upload, target, !missingExisting);
       return file;
     }
@@ -73,9 +73,6 @@ public class MigrationFileExecutionTransferOutcomeService extends MigrationFileE
     snapshot.forEach(detail -> {
       MigrationFileExecutionDetail original = uploadDetailId2MigrationFileDetail.get(detail.getUploadDetailId());
       detailMapper.updateMigrationFileExecutionDetail(original, detail);
-      if (target != WAITING_PU) {
-        original.setStatus(detailMapper.toLocalStatus(detail.getStatus()));
-      }
     });
     if (target == FAILED) {
       failWaitingDetails(existing);
@@ -111,7 +108,6 @@ public class MigrationFileExecutionTransferOutcomeService extends MigrationFileE
   }
 
   private Map<Long, MigrationFileExecutionDetail> correlateDetails(
-    MigrationFileExecution file,
     List<UploadDetails> snapshot,
     List<MigrationFileExecutionDetail> existing
   ) {
@@ -123,7 +119,6 @@ public class MigrationFileExecutionTransferOutcomeService extends MigrationFileE
         throw new InvalidValueException("TRANSFER_OUTCOME_INVALID_RESPONSE",
           "PU returned a file not present in the export: " + detail.getFileName());
       }
-      validator.validateDetailUpdate(file, original, detail);
       return original;
     }));
   }

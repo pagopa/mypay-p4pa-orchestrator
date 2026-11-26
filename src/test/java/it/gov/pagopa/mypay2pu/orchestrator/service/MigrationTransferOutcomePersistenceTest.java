@@ -114,7 +114,7 @@ class MigrationTransferOutcomePersistenceTest {
     createFile();
     MigrationFileExecution persisted = fileRepository.findById(fileId).orElseThrow();
 
-    MigrationFileExecution result = service.getRequired(persisted.getMigrationId(), MigrationFileType.ORGANIZATIONS);
+    MigrationFileExecution result = service.findRequiredByMigrationIdAndFileType(persisted.getMigrationId(), MigrationFileType.ORGANIZATIONS);
 
     assertEquals(fileId, result.getId());
     assertEquals(MigrationFileExecutionStatus.WAITING_PU, result.getStatus());
@@ -170,7 +170,7 @@ class MigrationTransferOutcomePersistenceTest {
     assertEquals(MigrationFileExecutionStatus.WAITING_PU, pending.getStatus());
     assertEquals(UploadsStatusEnum.PROCESSING, pending.getUploadStatus());
     assertNull(pending.getUploadErrorCode());
-    assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, persisted.getStatus());
+    assertEquals(expectedDetailStatus, persisted.getStatus());
     assertEquals(91L, persisted.getUploadDetailId());
     assertEquals(2L, persisted.getNumTotalRows());
     assertEquals(accepted, persisted.getNumCorrectlyImportedRows());
@@ -192,7 +192,7 @@ class MigrationTransferOutcomePersistenceTest {
   }
 
   @Test
-  void givenSuccessivePartialSnapshotsWhenRecordTransferOutcomeThenAccumulatesWithoutPrematureFinalization() {
+  void givenSuccessivePartialSnapshotsWhenRecordTransferOutcomeThenUpdatesObservedDetailsWithoutPrematureFinalization() {
     createFile();
     UUID secondId = detailRepository.saveAndFlush(MigrationFileExecutionDetail.builder()
       .migrationFileExecutionId(fileId).fileName("IPA_TEST_3-organizations.csv").ipaCode("IPA_TEST_3")
@@ -232,7 +232,7 @@ class MigrationTransferOutcomePersistenceTest {
 
     service.recordTransferOutcome(fileId, completed, List.of(firstTerminal));
     assertEquals(MigrationFileExecutionStatus.WAITING_PU, fileRepository.findById(fileId).orElseThrow().getStatus());
-    assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU,
+    assertEquals(MigrationFileExecutionDetailStatus.PARTIAL,
       detailRepository.findById(detailId).orElseThrow().getStatus());
     service.recordTransferOutcome(fileId, completed, List.of(secondTerminal, firstTerminal));
 
@@ -241,12 +241,12 @@ class MigrationTransferOutcomePersistenceTest {
     assertEquals(MigrationFileExecutionStatus.WARNING, fileRepository.findById(fileId).orElseThrow().getStatus());
     assertEquals(MigrationFileExecutionDetailStatus.PARTIAL, finalized.getStatus());
     assertEquals(MigrationFileExecutionDetailStatus.COMPLETED, secondFinalized.getStatus());
-    assertEquals(10L, finalized.getNumTotalRows());
+    assertNull(finalized.getNumTotalRows());
     assertEquals(8L, finalized.getNumCorrectlyImportedRows());
-    assertEquals(5L, secondFinalized.getNumTotalRows());
+    assertNull(secondFinalized.getNumTotalRows());
     assertEquals(5L, secondFinalized.getNumCorrectlyImportedRows());
-    assertEquals("Two rejected rows", finalized.getErrorDescription());
-    assertEquals("rejects.csv", finalized.getDiscardFileName());
+    assertNull(finalized.getErrorDescription());
+    assertNull(finalized.getDiscardFileName());
 
     service.recordTransferOutcome(fileId, completed, List.of(firstTerminal, secondTerminal));
 

@@ -123,7 +123,7 @@ class MigrationActionExecutorTest {
   void givenTerminalSaveFailureWhenExecuteThenRestoresCheckpointBeforeSavingFailure() {
     MigrationRequestDto request = new MigrationRequestDto().action(MigrationAction.EXPORT);
     MigrationExecution execution = execution(MigrationAction.EXPORT);
-    var previousCheckpoint = execution.getDateTo().minusDays(1);
+    LocalDateTime previousCheckpoint = execution.getDateTo().minusDays(1);
     execution.setLastSuccessfulExtractionAt(previousCheckpoint);
     IllegalStateException failure = new IllegalStateException("save failed");
     when(migrationExecutionRepositoryMock.save(same(execution))).thenThrow(failure).thenReturn(execution);
@@ -142,7 +142,7 @@ class MigrationActionExecutorTest {
     MigrationRequestDto request = new MigrationRequestDto().action(MigrationAction.TRANSFER);
     MigrationExecution execution = execution(MigrationAction.TRANSFER);
     execution.setOrchestrationMode(mode);
-    var previousCheckpoint = execution.getDateTo().minusDays(1);
+    LocalDateTime previousCheckpoint = execution.getDateTo().minusDays(1);
     execution.setLastSuccessfulExtractionAt(previousCheckpoint);
 
     executor.execute(request, execution);
