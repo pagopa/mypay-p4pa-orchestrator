@@ -104,6 +104,38 @@ class MigrationRequestValidatorTest {
     }
   }
 
+  @ParameterizedTest
+  @EnumSource(MigrationAction.class)
+  void givenBothPaymentsReportingTypesWhenValidateThenRejectRequest(MigrationAction action) {
+    MigrationRequestDto request = request(action, OrchestrationMode.FULL)
+      .migrationId(UUID.randomUUID())
+      .period(new PeriodDto())
+      .fileTypesToInclude(List.of(
+        MigrationFileType.PAYMENTS_REPORTING_MYPAY,
+        MigrationFileType.PAYMENTS_REPORTING_MYPIVOT
+      ));
+
+    InvalidValueException exception = assertThrows(InvalidValueException.class, () -> validator.validate(request));
+
+    assertEquals("INVALID_MIGRATION_REQUEST", exception.getCode());
+    assertEquals(
+      "fileTypesToInclude must not contain both PAYMENTS_REPORTING_MYPAY and PAYMENTS_REPORTING_MYPIVOT",
+      exception.getMessage()
+    );
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = MigrationFileType.class, names = {
+    "PAYMENTS_REPORTING_MYPAY", "PAYMENTS_REPORTING_MYPIVOT"
+  })
+  void givenOnePaymentsReportingTypeWithOtherTypesWhenValidateThenAcceptRequest(MigrationFileType fileType) {
+    MigrationRequestDto request = request(MigrationAction.EXPORT, OrchestrationMode.FULL)
+      .period(new PeriodDto())
+      .fileTypesToInclude(List.of(MigrationFileType.DEBT_POSITIONS, fileType));
+
+    assertDoesNotThrow(() -> validator.validate(request));
+  }
+
   @Test
   void givenTransferWithoutExportFieldsWhenValidateThenRequireOnlyMigrationId() {
     MigrationRequestDto request = new MigrationRequestDto();
@@ -278,7 +310,7 @@ class MigrationRequestValidatorTest {
       .fileTypesToInclude(List.of(MigrationFileType.DEBT_POSITIONS, MigrationFileType.ASSESSMENTS));
     MigrationExecution previous = deltaPrevious(request);
     previous.setIpaCodes(List.of("IPA2", "IPA1", "IPA1"));
-    var fileExecutions = List.of(
+    List<MigrationFileExecution> fileExecutions = List.of(
       MigrationFileExecution.builder().fileType(MigrationFileType.DEBT_POSITIONS).status(status).build(),
       MigrationFileExecution.builder().fileType(MigrationFileType.ASSESSMENTS).status(status).build(),
       MigrationFileExecution.builder().fileType(MigrationFileType.ORGANIZATIONS)
