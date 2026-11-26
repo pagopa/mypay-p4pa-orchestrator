@@ -28,7 +28,7 @@ class MigrationResponseMapperTest {
       .status(MigrationExecutionStatus.RUNNING)
       .orchestrationMode(OrchestrationMode.FULL)
       .action(MigrationAction.COMPLETE)
-      .ipacodes(List.of("80000000000", "80000000001"))
+      .ipaCodes(List.of("80000000000", "80000000001"))
       .creationDate(CREATION_DATE)
       .build();
 
@@ -51,7 +51,7 @@ class MigrationResponseMapperTest {
       .status(MigrationExecutionStatus.RUNNING)
       .orchestrationMode(OrchestrationMode.DELTA)
       .action(MigrationAction.TRANSFER)
-      .ipacodes(List.of("80000000000"))
+      .ipaCodes(List.of("80000000000"))
       .creationDate(CREATION_DATE)
       .build();
 

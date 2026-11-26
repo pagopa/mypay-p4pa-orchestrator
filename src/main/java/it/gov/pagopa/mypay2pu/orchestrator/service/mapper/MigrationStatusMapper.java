@@ -41,7 +41,7 @@ public class MigrationStatusMapper {
       .action(execution.getAction())
       .status(execution.getStatus())
       .orchestrationMode(execution.getOrchestrationMode())
-      .ipaCodes(execution.getIpacodes())
+      .ipaCodes(execution.getIpaCodes())
       .createdAt(LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(execution.getCreationDate()))
       .updatedAt(LocalDateTimeToOffsetDateTimeSerializer.convertToOffsetDateTime(execution.getUpdateDate()))
       .errorCode(execution.getErrorCode())

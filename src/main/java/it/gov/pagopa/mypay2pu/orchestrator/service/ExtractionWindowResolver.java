@@ -44,8 +44,7 @@ public class ExtractionWindowResolver {
     PeriodDto period = request.getPeriod();
     OffsetDateTime from = period == null ? null : period.getFromDate();
     MigrationExecution previous = null;
-    boolean delta = request.getOrchestrationMode() == OrchestrationMode.DELTA;
-    if (delta) {
+    if (request.getOrchestrationMode() == OrchestrationMode.DELTA) {
       previous = migrationRequestValidator.requireDeltaPreviousMigration(request);
       if (previous.getDateTo() == null || previous.getLastSuccessfulExtractionAt() == null
         || previous.getDateTo().compareTo(previous.getLastSuccessfulExtractionAt()) != 0) {
@@ -61,7 +60,7 @@ public class ExtractionWindowResolver {
       from = previousEnd;
     }
 
-    OffsetDateTime to = resolveUpperBound(period, delta);
+    OffsetDateTime to = resolveUpperBound(period);
     if (from != null && !from.isBefore(to)) {
       throw new InvalidValueException("INVALID_MIGRATION_REQUEST",
         "extraction period must have a start before its exclusive end");
@@ -74,11 +73,10 @@ public class ExtractionWindowResolver {
     }
   }
 
-  private OffsetDateTime resolveUpperBound(PeriodDto period, boolean delta) {
+  private OffsetDateTime resolveUpperBound(PeriodDto period) {
     OffsetDateTime to = period == null ? null : period.getToDate();
     if (to == null) {
-      LocalDate today = LocalDate.now(Constants.ZONEID);
-      to = (delta ? today.minusDays(1) : today).atStartOfDay(Constants.ZONEID).toOffsetDateTime();
+      to = LocalDate.now(Constants.ZONEID).atStartOfDay(Constants.ZONEID).toOffsetDateTime();
     }
     if (to.isAfter(OffsetDateTime.now(Constants.ZONEID))) {
       throw new InvalidValueException("INVALID_MIGRATION_REQUEST",
