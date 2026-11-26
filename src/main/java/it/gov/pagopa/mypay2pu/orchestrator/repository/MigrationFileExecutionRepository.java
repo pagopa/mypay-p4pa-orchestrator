@@ -15,6 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 public interface MigrationFileExecutionRepository extends JpaRepository<MigrationFileExecution, UUID> {
   List<MigrationFileExecution> findAllByMigrationIdOrderByCreationDateAscIdAsc(UUID migrationId);
 
+  List<MigrationFileExecution> findAllByMigrationIdAndFileTypeOrderByCreationDateAscIdAsc(
+    UUID migrationId, MigrationFileType fileType);
+
   Optional<MigrationFileExecution> findByMigrationIdAndFileType(UUID migrationId, MigrationFileType fileType);
 
   @Modifying(clearAutomatically = true, flushAutomatically = true)
@@ -23,14 +26,12 @@ public interface MigrationFileExecutionRepository extends JpaRepository<Migratio
     update MigrationFileExecution fileExecution
     set fileExecution.status = it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus.TRANSFERING,
         fileExecution.uploadStartedAt = :startedAt
-    where fileExecution.migrationId = :migrationId
-      and fileExecution.fileType = :fileType
+    where fileExecution.id = :fileExecutionId
       and fileExecution.status = it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus.EXPORTED
       and fileExecution.uploadId is null
     """)
   int claimTransfer(
-    @Param("migrationId") UUID migrationId,
-    @Param("fileType") MigrationFileType fileType,
+    @Param("fileExecutionId") UUID fileExecutionId,
     @Param("startedAt") LocalDateTime startedAt
   );
 }

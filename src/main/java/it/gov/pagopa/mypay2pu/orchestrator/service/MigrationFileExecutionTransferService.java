@@ -4,6 +4,7 @@ import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionDetailStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.ConflictException;
+import it.gov.pagopa.mypay2pu.orchestrator.exception.NotFoundException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecution;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
 import it.gov.pagopa.mypay2pu.orchestrator.repository.MigrationFileExecutionDetailRepository;
@@ -38,8 +39,16 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
     this.validator = validator;
   }
 
-  public MigrationFileExecution getRequired(UUID migrationId, MigrationFileType fileType) {
-    return findRequired(migrationId, fileType);
+  public List<MigrationFileExecution> getRequired(UUID migrationId, MigrationFileType fileType) {
+    List<MigrationFileExecution> executions =
+      migrationFileExecutionRepository.findAllByMigrationIdAndFileTypeOrderByCreationDateAscIdAsc(migrationId, fileType);
+    if (executions.isEmpty()) {
+      throw new NotFoundException(
+        "MIGRATION_FILE_EXECUTION_NOT_FOUND",
+        "File execution does not exist for migration %s and file type %s".formatted(migrationId, fileType)
+      );
+    }
+    return executions;
   }
 
   /**
@@ -47,22 +56,19 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
    */
   @Transactional
   public MigrationFileExecution markTransferring(
-    UUID migrationId,
-    MigrationFileType fileType,
+    UUID fileExecutionId,
     LocalDateTime startedAt
   ) {
-    MigrationFileExecution fileExecution = findRequired(migrationId, fileType);
+    MigrationFileExecution fileExecution = findRequired(fileExecutionId);
     validator.validateMarkTransferring(fileExecution);
     int claimed = migrationFileExecutionRepository.claimTransfer(
-      migrationId,
-      fileType,
+      fileExecution.getId(),
       startedAt
     );
     if (claimed != 1) {
       throw new ConflictException(
         "INVALID_MIGRATION_FILE_EXECUTION_TRANSITION",
-        "Transfer for migration %s and file type %s was claimed by another request"
-          .formatted(migrationId, fileType)
+        "Transfer for file execution %s was claimed by another request".formatted(fileExecutionId)
       );
     }
     fileExecution.setStatus(MigrationFileExecutionStatus.TRANSFERING);
@@ -75,13 +81,12 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
 
   @Transactional
   public MigrationFileExecution recordUploadAccepted(
-    UUID migrationId,
-    MigrationFileType fileType,
+    UUID fileExecutionId,
     Long uploadId,
     UploadsStatusEnum uploadStatus,
     LocalDateTime completedAt
   ) {
-    return update(migrationId, fileType, fileExecution -> {
+    return update(fileExecutionId, fileExecution -> {
       validator.validateRecordUploadAccepted(fileExecution, uploadId, uploadStatus);
       fileExecution.setStatus(MigrationFileExecutionStatus.WAITING_PU);
       fileExecution.setUploadId(uploadId);
@@ -95,12 +100,11 @@ public class MigrationFileExecutionTransferService extends MigrationFileExecutio
 
   @Transactional
   public MigrationFileExecution markTransferFailed(
-    UUID migrationId,
-    MigrationFileType fileType,
+    UUID fileExecutionId,
     String errorCode,
     String errorMessage
   ) {
-    return update(migrationId, fileType, fileExecution -> {
+    return update(fileExecutionId, fileExecution -> {
       validator.validateMarkTransferFailed(fileExecution, errorCode, errorMessage);
       fileExecution.setStatus(MigrationFileExecutionStatus.FAILED);
       fileExecution.setUploadErrorCode(errorCode);

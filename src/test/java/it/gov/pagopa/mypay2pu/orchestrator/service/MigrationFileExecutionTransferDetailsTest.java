@@ -65,6 +65,35 @@ class MigrationFileExecutionTransferDetailsTest {
   private MigrationFileExecutionTransferService transferService;
 
   @Test
+  void givenExecutionsOfSameTypeWhenTransferringOneThenOtherAndItsDetailsAreUnchanged() {
+    UUID migrationId = UUID.randomUUID();
+    MigrationFileExecution first = executionRepository.saveAndFlush(MigrationFileExecution.builder()
+      .migrationId(migrationId).fileType(FILE_TYPE).status(MigrationFileExecutionStatus.EXPORTED)
+      .extractionId("first").filePath("first.zip").build());
+    MigrationFileExecution second = executionRepository.saveAndFlush(MigrationFileExecution.builder()
+      .migrationId(migrationId).fileType(FILE_TYPE).status(MigrationFileExecutionStatus.EXPORTED)
+      .extractionId("second").filePath("second.zip").build());
+    detailRepository.saveAndFlush(MigrationFileExecutionDetail.builder()
+      .migrationFileExecutionId(first.getId()).fileName("IPA1-first.csv").fileSize(0L)
+      .status(MigrationFileExecutionDetailStatus.EXPORTED).build());
+    detailRepository.saveAndFlush(MigrationFileExecutionDetail.builder()
+      .migrationFileExecutionId(second.getId()).fileName("IPA2-second.csv").fileSize(0L)
+      .status(MigrationFileExecutionDetailStatus.EXPORTED).build());
+
+    assertEquals(2, transferService.getRequired(migrationId, FILE_TYPE).size());
+    transferService.markTransferring(first.getId(), COMPLETED_AT);
+    transferService.recordUploadAccepted(first.getId(), 42L, UploadsStatusEnum.UPLOADED, COMPLETED_AT);
+
+    assertEquals(MigrationFileExecutionStatus.WAITING_PU, executionRepository.findById(first.getId()).orElseThrow().getStatus());
+    assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, details(first).getFirst().getStatus());
+    assertEquals(MigrationFileExecutionStatus.EXPORTED, executionRepository.findById(second.getId()).orElseThrow().getStatus());
+    assertEquals(MigrationFileExecutionDetailStatus.EXPORTED, details(second).getFirst().getStatus());
+    transferService.markTransferFailed(second.getId(), "UPLOAD_ERROR", "Upload failed");
+    assertEquals(MigrationFileExecutionDetailStatus.FAILED, details(second).getFirst().getStatus());
+    assertEquals(MigrationFileExecutionDetailStatus.WAITING_PU, details(first).getFirst().getStatus());
+  }
+
+  @Test
   void givenExtractedFileWhenRecordUploadAcceptedThenUpdatesOnlyExistingDetailStatus() throws IOException {
     MigrationFileExecution execution = completeExtraction();
     MigrationFileExecutionDetail exportedDetail = details(execution).getFirst();
@@ -75,12 +104,12 @@ class MigrationFileExecutionTransferDetailsTest {
     assertNull(exportedDetail.getUploadDetailId());
     assertNull(exportedDetail.getNumTotalRows());
 
-    transferService.markTransferring(execution.getMigrationId(), FILE_TYPE, COMPLETED_AT);
+    transferService.markTransferring(execution.getId(), COMPLETED_AT);
     assertEquals(MigrationFileExecutionDetailStatus.TRANSFERING, details(execution).getFirst().getStatus());
     assertEquals("IPA_TEST_2", details(execution).getFirst().getIpaCode());
 
     transferService.recordUploadAccepted(
-      execution.getMigrationId(), FILE_TYPE, 42L, UploadsStatusEnum.UPLOADED, COMPLETED_AT
+      execution.getId(), 42L, UploadsStatusEnum.UPLOADED, COMPLETED_AT
     );
 
     List<MigrationFileExecutionDetail> acceptedDetails = details(execution);
@@ -98,7 +127,7 @@ class MigrationFileExecutionTransferDetailsTest {
     MigrationFileExecution execution = completeExtraction();
     UUID detailId = details(execution).getFirst().getId();
 
-    transferService.markTransferFailed(execution.getMigrationId(), FILE_TYPE, "UPLOAD_ERROR", "Upload failed");
+    transferService.markTransferFailed(execution.getId(), "UPLOAD_ERROR", "Upload failed");
 
     assertEquals(detailId, details(execution).getFirst().getId());
     assertEquals(MigrationFileExecutionDetailStatus.FAILED, details(execution).getFirst().getStatus());
@@ -108,16 +137,15 @@ class MigrationFileExecutionTransferDetailsTest {
   @Test
   void givenInvalidAcceptedUploadWhenRecordUploadAcceptedThenKeepsDetailState() throws IOException {
     MigrationFileExecution execution = completeExtraction();
-    UUID migrationId = execution.getMigrationId();
-    transferService.markTransferring(migrationId, FILE_TYPE, COMPLETED_AT);
+    UUID executionId = execution.getId();
+    transferService.markTransferring(executionId, COMPLETED_AT);
 
     assertThrows(InvalidValueException.class, () -> transferService.recordUploadAccepted(
-      migrationId, FILE_TYPE, 0L, UploadsStatusEnum.UPLOADED, COMPLETED_AT
-    ));
+      executionId, 0L, UploadsStatusEnum.UPLOADED, COMPLETED_AT)
+    );
 
     assertEquals(MigrationFileExecutionDetailStatus.TRANSFERING, details(execution).getFirst().getStatus());
-    assertEquals(MigrationFileExecutionStatus.TRANSFERING,
-      executionRepository.findById(execution.getId()).orElseThrow().getStatus());
+    assertEquals(MigrationFileExecutionStatus.TRANSFERING, executionRepository.findById(executionId).orElseThrow().getStatus());
   }
 
   @Test

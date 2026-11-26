@@ -60,8 +60,13 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
   @Override
   public final void execute(MigrationRequestDto request) {
     UUID migrationId = request.getMigrationId();
-    MigrationFileExecution fileExecution = transferService.getRequired(migrationId, fileType);
+    for (MigrationFileExecution fileExecution : transferService.getRequired(migrationId, fileType)) {
+      transferFile(request, fileExecution);
+    }
+  }
 
+  private void transferFile(MigrationRequestDto request, MigrationFileExecution fileExecution) {
+    UUID migrationId = request.getMigrationId();
     MigrationFileExecutionStatus status = fileExecution.getStatus();
     if (status == MigrationFileExecutionStatus.WAITING_PU
       || status == MigrationFileExecutionStatus.COMPLETED || status == MigrationFileExecutionStatus.WARNING) {
@@ -90,11 +95,11 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
     try {
       archive = archiveService.getDataArchive(fileExecution, fileType);
     } catch (RuntimeException failure) {
-      markTransferFailed(migrationId, failure);
+      markTransferFailed(fileExecution.getId(), failure);
       throw failure;
     }
 
-    transferService.markTransferring(migrationId, fileType, LocalDateTime.now(ZoneOffset.UTC));
+    transferService.markTransferring(fileExecution.getId(), LocalDateTime.now(ZoneOffset.UTC));
     try {
       UploadMigrationFileResponseDTO response = puMigrationService.uploadMigrationFile(
         fileType,
@@ -108,25 +113,24 @@ public abstract class AbstractMigrationTransferOperation implements MigrationTra
         );
       }
       transferService.recordUploadAccepted(
-        migrationId,
-        fileType,
+        fileExecution.getId(),
         uploadId,
         UploadsStatusEnum.UPLOADED,
         LocalDateTime.now(ZoneOffset.UTC)
       );
     } catch (RuntimeException failure) {
-      markTransferFailed(migrationId, failure);
+      markTransferFailed(fileExecution.getId(), failure);
       throw failure;
     }
   }
 
-  private void markTransferFailed(UUID migrationId, RuntimeException failure) {
+  private void markTransferFailed(UUID fileExecutionId, RuntimeException failure) {
     String errorCode = transferErrorCode(failure);
     String errorMessage = StringUtils.isBlank(failure.getMessage())
       ? failure.getClass().getSimpleName()
       : failure.getMessage();
     try {
-      transferService.markTransferFailed(migrationId, fileType, errorCode, errorMessage);
+      transferService.markTransferFailed(fileExecutionId, errorCode, errorMessage);
     } catch (RuntimeException persistenceFailure) {
       failure.addSuppressed(persistenceFailure);
     }

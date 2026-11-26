@@ -39,9 +39,26 @@ public abstract class MigrationFileExecutionService {
   protected final MigrationFileExecution update(UUID migrationId,
                                                 MigrationFileType fileType,
                                                 Consumer<MigrationFileExecution> transition) {
-    MigrationFileExecution fileExecution = findRequired(migrationId, fileType);
+    return applyUpdate(findRequired(migrationId, fileType), transition);
+  }
+
+  protected final MigrationFileExecution update(UUID fileExecutionId,
+                                                Consumer<MigrationFileExecution> transition) {
+    return applyUpdate(findRequired(fileExecutionId), transition);
+  }
+
+  private MigrationFileExecution applyUpdate(MigrationFileExecution fileExecution,
+                                             Consumer<MigrationFileExecution> transition) {
     transition.accept(fileExecution);
     return migrationFileExecutionRepository.save(fileExecution);
+  }
+
+  protected final MigrationFileExecution findRequired(UUID fileExecutionId) {
+    return migrationFileExecutionRepository.findById(fileExecutionId)
+      .orElseThrow(() -> new NotFoundException(
+        "MIGRATION_FILE_EXECUTION_NOT_FOUND",
+        "File execution does not exist for id %s".formatted(fileExecutionId)
+      ));
   }
 
   protected final MigrationFileExecution findRequired(UUID migrationId, MigrationFileType fileType) {
