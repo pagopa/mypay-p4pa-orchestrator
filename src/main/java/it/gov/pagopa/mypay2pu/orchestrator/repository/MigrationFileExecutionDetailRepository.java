@@ -1,6 +1,7 @@
 package it.gov.pagopa.mypay2pu.orchestrator.repository;
 
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
+import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionDetailStatus;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -10,4 +11,7 @@ public interface MigrationFileExecutionDetailRepository extends JpaRepository<Mi
   List<MigrationFileExecutionDetail> findAllByMigrationFileExecutionId(UUID migrationFileExecutionId);
 
   List<MigrationFileExecutionDetail> findAllByMigrationFileExecutionIdIn(Collection<UUID> migrationFileExecutionIds);
+
+  List<MigrationFileExecutionDetail> findAllByMigrationFileExecutionIdInAndStatus(
+    Collection<UUID> migrationFileExecutionIds, MigrationFileExecutionDetailStatus status);
 }

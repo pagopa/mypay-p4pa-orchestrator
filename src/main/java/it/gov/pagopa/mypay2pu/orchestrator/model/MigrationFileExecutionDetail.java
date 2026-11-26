@@ -28,6 +28,7 @@ public class MigrationFileExecutionDetail extends BaseEntity {
   @NotNull
   @Enumerated(EnumType.STRING)
   private MigrationFileExecutionDetailStatus status;
+  @NotEmpty
   private String ipaCode;
   @NotEmpty
   private String fileName;

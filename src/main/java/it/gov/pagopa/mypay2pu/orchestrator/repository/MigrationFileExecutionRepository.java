@@ -15,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 public interface MigrationFileExecutionRepository extends JpaRepository<MigrationFileExecution, UUID> {
   List<MigrationFileExecution> findAllByMigrationIdOrderByCreationDateAscIdAsc(UUID migrationId);
 
+  List<MigrationFileExecution> findAllByMigrationIdAndFileType(UUID migrationId, MigrationFileType fileType);
+
   Optional<MigrationFileExecution> findByMigrationIdAndFileType(UUID migrationId, MigrationFileType fileType);
 
   @Modifying(clearAutomatically = true, flushAutomatically = true)
