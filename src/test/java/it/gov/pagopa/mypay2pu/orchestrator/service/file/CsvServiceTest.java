@@ -29,7 +29,8 @@ class CsvServiceTest {
     Path csv = writeCsv("""
       \uFEFFCodice;Descrizione;Ignorato;Numero Riga
       A1;"Città; centro";extra;3
-    """);
+      """);
+    assertEquals('\uFEFF', Files.readString(csv, StandardCharsets.UTF_8).charAt(0));
 
     List<ErrorRow> rows = service.readCsv(csv, ErrorRow.class, (iterator, errors) -> {
       List<ErrorRow> result = new ArrayList<>();
