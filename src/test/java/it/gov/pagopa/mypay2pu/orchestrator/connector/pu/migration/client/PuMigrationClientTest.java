@@ -8,16 +8,22 @@ import it.gov.pagopa.mypay2pu.orchestrator.connector.pu.migration.mapper.PuMigra
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.extractor.dto.generated.MigrationFileType;
 import it.gov.pagopa.pu.migration.controller.generated.MigrationFileApi;
+import it.gov.pagopa.pu.migration.dto.generated.IngestionFlowFileStatus;
+import it.gov.pagopa.pu.migration.dto.generated.IngestionFlowFileTypeEnum;
 import it.gov.pagopa.pu.migration.dto.generated.MigrationFileTypeEnum;
 import it.gov.pagopa.pu.migration.dto.generated.UploadDetails;
 import it.gov.pagopa.pu.migration.dto.generated.UploadMigrationFileResponseDTO;
 import it.gov.pagopa.pu.migration.dto.generated.Uploads;
+import it.gov.pagopa.pu.migration.dto.generated.UploadsStatusEnum;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
@@ -26,7 +32,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
 
 @ExtendWith(MockitoExtension.class)
 class PuMigrationClientTest {
@@ -90,11 +98,12 @@ class PuMigrationClientTest {
     Mockito.verify(migrationApiMock).uploadMigrationFile(orgIpaCode, fileType, file);
   }
 
-  @Test
-  void givenUploadIdWhenGetMigrationUploadThenReturnsUploadStatus() {
+  @ParameterizedTest
+  @EnumSource(UploadsStatusEnum.class)
+  void givenUploadIdWhenGetMigrationUploadThenReturnsUploadStatus(UploadsStatusEnum status) {
     String orgIpaCode = "orgIpaCode";
     Long uploadId = 123L;
-    Uploads expectedResponse = new Uploads();
+    Uploads expectedResponse = new Uploads().uploadId(uploadId).status(status);
     Mockito.when(puMigrationApisHolderMock.getMigrationFileApi(ACCESS_TOKEN))
       .thenReturn(migrationApiMock);
     Mockito.when(migrationApiMock.getMigrationUpload(orgIpaCode, uploadId)).thenReturn(expectedResponse);
@@ -106,11 +115,37 @@ class PuMigrationClientTest {
     Mockito.verify(migrationApiMock).getMigrationUpload(orgIpaCode, uploadId);
   }
 
-  @Test
-  void givenUploadIdWhenGetMigrationUploadDetailsThenReturnsDetails() {
+  @ParameterizedTest
+  @MethodSource("invalidUploadResponses")
+  void givenInvalidUploadResponseWhenGetMigrationUploadThenRejectsResponse(Uploads upload) {
     String orgIpaCode = "orgIpaCode";
     Long uploadId = 123L;
-    List<UploadDetails> expectedResponse = List.of(new UploadDetails());
+    Mockito.when(puMigrationApisHolderMock.getMigrationFileApi(ACCESS_TOKEN))
+      .thenReturn(migrationApiMock);
+    Mockito.when(migrationApiMock.getMigrationUpload(orgIpaCode, uploadId)).thenReturn(upload);
+
+    InvalidValueException failure = Assertions.assertThrows(InvalidValueException.class,
+      () -> puMigrationFileClient.getMigrationUpload(orgIpaCode, uploadId, ACCESS_TOKEN));
+
+    Assertions.assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
+    Assertions.assertEquals("PU returned a missing upload or status for upload 123", failure.getMessage());
+    Mockito.verify(puMigrationApisHolderMock).getMigrationFileApi(ACCESS_TOKEN);
+    Mockito.verify(migrationApiMock).getMigrationUpload(orgIpaCode, uploadId);
+  }
+
+  static Stream<Arguments> invalidUploadResponses() {
+    return Stream.of(
+      Arguments.of((Uploads) null),
+      Arguments.of(new Uploads().uploadId(123L))
+    );
+  }
+
+  @ParameterizedTest
+  @EnumSource(IngestionFlowFileStatus.class)
+  void givenUploadIdWhenGetMigrationUploadDetailsThenReturnsDetails(IngestionFlowFileStatus status) {
+    String orgIpaCode = "orgIpaCode";
+    Long uploadId = 123L;
+    List<UploadDetails> expectedResponse = List.of(uploadDetail().status(status));
     Mockito.when(puMigrationApisHolderMock.getMigrationFileApi(ACCESS_TOKEN))
       .thenReturn(migrationApiMock);
     Mockito.when(migrationApiMock.getMigrationUploadDetails(orgIpaCode, uploadId))
@@ -120,6 +155,81 @@ class PuMigrationClientTest {
       puMigrationFileClient.getMigrationUploadDetails(orgIpaCode, uploadId, ACCESS_TOKEN);
 
     Assertions.assertSame(expectedResponse, response);
+    Mockito.verify(puMigrationApisHolderMock).getMigrationFileApi(ACCESS_TOKEN);
+    Mockito.verify(migrationApiMock).getMigrationUploadDetails(orgIpaCode, uploadId);
+  }
+
+  private static UploadDetails uploadDetail() {
+    return new UploadDetails().uploadId(123L).organizationId(1L)
+      .ingestionFlowFileType(IngestionFlowFileTypeEnum.ORGANIZATIONS)
+      .filePathName("organizations.csv").fileName("organizations.csv")
+      .fileSize(500L).status(IngestionFlowFileStatus.PROCESSING);
+  }
+
+  @ParameterizedTest
+  @MethodSource("invalidDetailResponses")
+  void givenInvalidDetailResponseWhenGetMigrationUploadDetailsThenRejectsResponse(List<UploadDetails> details) {
+    String orgIpaCode = "orgIpaCode";
+    Long uploadId = 123L;
+    Mockito.when(puMigrationApisHolderMock.getMigrationFileApi(ACCESS_TOKEN))
+      .thenReturn(migrationApiMock);
+    Mockito.when(migrationApiMock.getMigrationUploadDetails(orgIpaCode, uploadId)).thenReturn(details);
+
+    InvalidValueException failure = Assertions.assertThrows(InvalidValueException.class,
+      () -> puMigrationFileClient.getMigrationUploadDetails(orgIpaCode, uploadId, ACCESS_TOKEN));
+
+    Assertions.assertEquals("TRANSFER_OUTCOME_INVALID_RESPONSE", failure.getCode());
+    Assertions.assertEquals("PU returned invalid details for upload 123", failure.getMessage());
+    Mockito.verify(puMigrationApisHolderMock).getMigrationFileApi(ACCESS_TOKEN);
+    Mockito.verify(migrationApiMock).getMigrationUploadDetails(orgIpaCode, uploadId);
+  }
+
+  static Stream<Arguments> invalidDetailResponses() {
+    return Stream.of(
+      Arguments.of((List<UploadDetails>) null),
+      Arguments.of(Collections.singletonList(null)),
+      Arguments.of(List.of(uploadDetail().uploadId(null))),
+      Arguments.of(List.of(uploadDetail().organizationId(null))),
+      Arguments.of(List.of(uploadDetail().ingestionFlowFileType(null))),
+      Arguments.of(List.of(uploadDetail().filePathName(null))),
+      Arguments.of(List.of(uploadDetail().fileName(null))),
+      Arguments.of(List.of(uploadDetail().fileSize(null))),
+      Arguments.of(List.of(uploadDetail().status(null)))
+    );
+  }
+
+  @Test
+  void givenEmptyDetailResponseWhenGetMigrationUploadDetailsThenReturnsEmptyList() {
+    String orgIpaCode = "orgIpaCode";
+    Long uploadId = 123L;
+    List<UploadDetails> expectedResponse = List.of();
+    Mockito.when(puMigrationApisHolderMock.getMigrationFileApi(ACCESS_TOKEN))
+      .thenReturn(migrationApiMock);
+    Mockito.when(migrationApiMock.getMigrationUploadDetails(orgIpaCode, uploadId)).thenReturn(expectedResponse);
+
+    List<UploadDetails> response =
+      puMigrationFileClient.getMigrationUploadDetails(orgIpaCode, uploadId, ACCESS_TOKEN);
+
+    Assertions.assertSame(expectedResponse, response);
+    Mockito.verify(puMigrationApisHolderMock).getMigrationFileApi(ACCESS_TOKEN);
+    Mockito.verify(migrationApiMock).getMigrationUploadDetails(orgIpaCode, uploadId);
+  }
+
+  @Test
+  void givenOpenApiValidDetailWithoutDomainRequirementsWhenGetMigrationUploadDetailsThenReturnsPayload() {
+    String orgIpaCode = "orgIpaCode";
+    Long uploadId = 123L;
+    List<UploadDetails> expectedResponse = List.of(uploadDetail().fileName(" "));
+    Mockito.when(puMigrationApisHolderMock.getMigrationFileApi(ACCESS_TOKEN))
+      .thenReturn(migrationApiMock);
+    Mockito.when(migrationApiMock.getMigrationUploadDetails(orgIpaCode, uploadId)).thenReturn(expectedResponse);
+
+    List<UploadDetails> response =
+      puMigrationFileClient.getMigrationUploadDetails(orgIpaCode, uploadId, ACCESS_TOKEN);
+
+    Assertions.assertSame(expectedResponse, response);
+    Assertions.assertNull(response.getFirst().getUploadDetailId());
+    Assertions.assertEquals(" ", response.getFirst().getFileName());
     Mockito.verify(puMigrationApisHolderMock).getMigrationFileApi(ACCESS_TOKEN);
     Mockito.verify(migrationApiMock).getMigrationUploadDetails(orgIpaCode, uploadId);
   }
@@ -167,7 +277,7 @@ class PuMigrationClientTest {
     String orgIpaCode = "orgIpaCode";
     Long uploadId = 123L;
     String accessToken = "accessToken";
-    Uploads expectedResponse = new Uploads();
+    Uploads expectedResponse = new Uploads().uploadId(uploadId).status(UploadsStatusEnum.PROCESSING);
     Mockito.when(puMigrationFileClientMock.getMigrationUpload(
       orgIpaCode, uploadId, accessToken
     )).thenReturn(expectedResponse);
@@ -187,7 +297,7 @@ class PuMigrationClientTest {
     String orgIpaCode = "orgIpaCode";
     Long uploadId = 123L;
     String accessToken = "accessToken";
-    List<UploadDetails> expectedResponse = List.of(new UploadDetails());
+    List<UploadDetails> expectedResponse = List.of(uploadDetail());
     Mockito.when(puMigrationFileClientMock.getMigrationUploadDetails(
       orgIpaCode, uploadId, accessToken
     )).thenReturn(expectedResponse);

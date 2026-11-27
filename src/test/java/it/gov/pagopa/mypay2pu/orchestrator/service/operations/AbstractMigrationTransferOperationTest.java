@@ -77,7 +77,7 @@ class AbstractMigrationTransferOperationTest {
     );
     MigrationFileExecution acceptedFileExecution = acceptedUploadExecution(fileExecution);
     createArchive(fileExecution, dataArchive);
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
     when(transferServiceMock.markTransferring(
       eq(MIGRATION_ID), eq(MigrationFileType.ORGANIZATIONS), argThat(Objects::nonNull)
     )).thenReturn(fileExecution);
@@ -96,7 +96,7 @@ class AbstractMigrationTransferOperationTest {
 
     operation(MigrationFileType.ORGANIZATIONS).execute(request(List.of("ORG_IPA")));
 
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
     verify(transferServiceMock).markTransferring(
       eq(MIGRATION_ID), eq(MigrationFileType.ORGANIZATIONS), argThat(Objects::nonNull)
     );
@@ -120,7 +120,7 @@ class AbstractMigrationTransferOperationTest {
       MigrationFileType.PAYMENTS_REPORTING_MYPAY,
       "R_LOMBAR-PAYMENTS_REPORTING_MYPAY-1.zip,IPACODE1-PAYMENTS_REPORTING_MYPAY-2.zip"
     );
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.PAYMENTS_REPORTING_MYPAY))
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.PAYMENTS_REPORTING_MYPAY))
       .thenReturn(fileExecution);
     when(transferServiceMock.markTransferFailed(
       MIGRATION_ID,
@@ -139,7 +139,7 @@ class AbstractMigrationTransferOperationTest {
     );
 
     assertEquals("TRANSFER_MULTIPLE_ARCHIVES_NOT_SUPPORTED", exception.getCode());
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.PAYMENTS_REPORTING_MYPAY);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.PAYMENTS_REPORTING_MYPAY);
     verify(transferServiceMock).markTransferFailed(
       MIGRATION_ID,
       MigrationFileType.PAYMENTS_REPORTING_MYPAY,
@@ -158,7 +158,7 @@ class AbstractMigrationTransferOperationTest {
     );
     MigrationFileExecution acceptedFileExecution = acceptedUploadExecution(fileExecution);
     createArchive(fileExecution, dataArchive);
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.PAYMENTS_REPORTING_MYPAY))
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.PAYMENTS_REPORTING_MYPAY))
       .thenReturn(fileExecution);
     when(transferServiceMock.markTransferring(
       eq(MIGRATION_ID), eq(MigrationFileType.PAYMENTS_REPORTING_MYPAY), argThat(Objects::nonNull)
@@ -179,7 +179,7 @@ class AbstractMigrationTransferOperationTest {
     operation(MigrationFileType.PAYMENTS_REPORTING_MYPAY)
       .execute(request(List.of("R_LOMBAR", "IPACODE1")));
 
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.PAYMENTS_REPORTING_MYPAY);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.PAYMENTS_REPORTING_MYPAY);
     verify(transferServiceMock).markTransferring(
       eq(MIGRATION_ID), eq(MigrationFileType.PAYMENTS_REPORTING_MYPAY), argThat(Objects::nonNull)
     );
@@ -205,11 +205,11 @@ class AbstractMigrationTransferOperationTest {
     );
     fileExecution.setStatus(MigrationFileExecutionStatus.WAITING_PU);
     fileExecution.setUploadId(42L);
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
 
     operation(MigrationFileType.ORGANIZATIONS).execute(request(List.of("ORG_IPA")));
 
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
   }
 
   @Test
@@ -220,7 +220,7 @@ class AbstractMigrationTransferOperationTest {
     );
     fileExecution.setStatus(MigrationFileExecutionStatus.WAITING_PU);
     fileExecution.setUploadId(42L);
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
 
     AbstractMigrationTransferOperation operation = operation(MigrationFileType.ORGANIZATIONS);
     MigrationRequestDto request = request(List.of("ORG_IPA"));
@@ -230,7 +230,7 @@ class AbstractMigrationTransferOperationTest {
 
     assertEquals(MigrationFileExecutionStatus.WAITING_PU, fileExecution.getStatus());
     assertEquals(42L, fileExecution.getUploadId());
-    verify(transferServiceMock, times(2)).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
+    verify(transferServiceMock, times(2)).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
   }
 
   @Test
@@ -239,7 +239,7 @@ class AbstractMigrationTransferOperationTest {
     MigrationFileExecution fileExecution = exportedExecution(MigrationFileType.ORGANIZATIONS, dataArchive);
     MigrationFileExecution acceptedFileExecution = acceptedUploadExecution(fileExecution);
     createArchive(fileExecution, dataArchive);
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
     when(transferServiceMock.markTransferring(
       eq(MIGRATION_ID), eq(MigrationFileType.ORGANIZATIONS), argThat(Objects::nonNull)
     )).thenReturn(fileExecution);
@@ -260,7 +260,7 @@ class AbstractMigrationTransferOperationTest {
     MigrationRequestDto migrationRequest = request(List.of("ORG_IPA"));
     transferOperation.execute(migrationRequest);
 
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
     verify(transferServiceMock).markTransferring(
       eq(MIGRATION_ID), eq(MigrationFileType.ORGANIZATIONS), argThat(Objects::nonNull)
     );
@@ -286,7 +286,7 @@ class AbstractMigrationTransferOperationTest {
     String dataArchive = "organizations.zip";
     MigrationFileExecution fileExecution = exportedExecution(MigrationFileType.ORGANIZATIONS, dataArchive);
     createArchive(fileExecution, dataArchive);
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
     when(transferServiceMock.markTransferring(
       eq(MIGRATION_ID), eq(MigrationFileType.ORGANIZATIONS), argThat(Objects::nonNull)
     )).thenReturn(fileExecution);
@@ -310,7 +310,7 @@ class AbstractMigrationTransferOperationTest {
     );
 
     assertEquals("TRANSFER_INVALID_UPLOAD_RESPONSE", exception.getCode());
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
     verify(transferServiceMock).markTransferring(
       eq(MIGRATION_ID), eq(MigrationFileType.ORGANIZATIONS), argThat(Objects::nonNull)
     );
@@ -332,18 +332,18 @@ class AbstractMigrationTransferOperationTest {
   void givenTerminalExecutionWhenExecuteThenDoesNotSubmitDuplicateUpload(MigrationFileExecutionStatus status) {
     MigrationFileExecution fileExecution = exportedExecution(MigrationFileType.ORGANIZATIONS, "organizations.zip");
     fileExecution.setStatus(status);
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
 
     operation(MigrationFileType.ORGANIZATIONS).execute(request(List.of("ORG_IPA")));
 
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
   }
 
   @Test
   void givenTransferringExecutionWhenExecuteThenThrowsConflict() {
     MigrationFileExecution fileExecution = exportedExecution(MigrationFileType.ORGANIZATIONS, "organizations.zip");
     fileExecution.setStatus(MigrationFileExecutionStatus.TRANSFERING);
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
 
     AbstractMigrationTransferOperation transferOperation = operation(MigrationFileType.ORGANIZATIONS);
     MigrationRequestDto migrationRequest = request(List.of("ORG_IPA"));
@@ -353,7 +353,7 @@ class AbstractMigrationTransferOperationTest {
     );
 
     assertEquals("INVALID_MIGRATION_FILE_EXECUTION_TRANSITION", exception.getCode());
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
   }
 
   @ParameterizedTest
@@ -361,7 +361,7 @@ class AbstractMigrationTransferOperationTest {
   void givenExecutionNotReadyForTransferWhenExecuteThenThrowsConflict(MigrationFileExecutionStatus status) {
     MigrationFileExecution fileExecution = exportedExecution(MigrationFileType.ORGANIZATIONS, "organizations.zip");
     fileExecution.setStatus(status);
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
 
     AbstractMigrationTransferOperation transferOperation = operation(MigrationFileType.ORGANIZATIONS);
     MigrationRequestDto migrationRequest = request(List.of("ORG_IPA"));
@@ -371,7 +371,7 @@ class AbstractMigrationTransferOperationTest {
     );
 
     assertEquals("TRANSFER_FILE_NOT_READY", exception.getCode());
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
   }
 
   @Test
@@ -380,7 +380,7 @@ class AbstractMigrationTransferOperationTest {
     fileExecution.setStatus(MigrationFileExecutionStatus.FAILED);
     fileExecution.setUploadErrorCode("UPLOAD_REJECTED");
     fileExecution.setUploadErrorMsg("PU rejected the archive");
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
 
     AbstractMigrationTransferOperation transferOperation = operation(MigrationFileType.ORGANIZATIONS);
     MigrationRequestDto migrationRequest = request(List.of("ORG_IPA"));
@@ -391,7 +391,7 @@ class AbstractMigrationTransferOperationTest {
 
     assertEquals("UPLOAD_REJECTED", exception.getCode());
     assertEquals("PU rejected the archive", exception.getMessage());
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
   }
 
   @Test
@@ -400,7 +400,7 @@ class AbstractMigrationTransferOperationTest {
     fileExecution.setStatus(MigrationFileExecutionStatus.FAILED);
     fileExecution.setExtractionErrorCode("EXTRACTION_FAILED");
     fileExecution.setExtractionErrorMsg("Extractor failed");
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
 
     AbstractMigrationTransferOperation transferOperation = operation(MigrationFileType.ORGANIZATIONS);
     MigrationRequestDto migrationRequest = request(List.of("ORG_IPA"));
@@ -411,14 +411,14 @@ class AbstractMigrationTransferOperationTest {
 
     assertEquals("EXTRACTION_FAILED", exception.getCode());
     assertEquals("Extractor failed", exception.getMessage());
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
   }
 
   @Test
   void givenFailedExecutionWithoutStoredErrorsWhenExecuteThenUsesDefaultFailure() {
     MigrationFileExecution fileExecution = exportedExecution(MigrationFileType.ORGANIZATIONS, "organizations.zip");
     fileExecution.setStatus(MigrationFileExecutionStatus.FAILED);
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
 
     AbstractMigrationTransferOperation transferOperation = operation(MigrationFileType.ORGANIZATIONS);
     MigrationRequestDto migrationRequest = request(List.of("ORG_IPA"));
@@ -429,7 +429,7 @@ class AbstractMigrationTransferOperationTest {
 
     assertEquals("TRANSFER_ALREADY_FAILED", exception.getCode());
     assertEquals("Transfer is already FAILED", exception.getMessage());
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
   }
 
   @ParameterizedTest
@@ -441,7 +441,7 @@ class AbstractMigrationTransferOperationTest {
   ) {
     MigrationFileExecution fileExecution = exportedExecution(MigrationFileType.ORGANIZATIONS, filePath);
     fileExecution.setExtractionId(extractionId);
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
     when(transferServiceMock.markTransferFailed(
       eq(MIGRATION_ID),
       eq(MigrationFileType.ORGANIZATIONS),
@@ -457,7 +457,7 @@ class AbstractMigrationTransferOperationTest {
     );
 
     assertEquals(expectedErrorCode, exception.getCode());
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
     verify(transferServiceMock).markTransferFailed(
       eq(MIGRATION_ID),
       eq(MigrationFileType.ORGANIZATIONS),
@@ -488,7 +488,7 @@ class AbstractMigrationTransferOperationTest {
     String dataArchive = "organizations.zip";
     MigrationFileExecution fileExecution = exportedExecution(MigrationFileType.ORGANIZATIONS, dataArchive);
     createArchive(fileExecution, dataArchive);
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
     stubTransferClaim(fileExecution, MigrationFileType.ORGANIZATIONS);
     when(transferServiceMock.markTransferFailed(
       eq(MIGRATION_ID),
@@ -509,7 +509,7 @@ class AbstractMigrationTransferOperationTest {
     );
 
     assertEquals("TRANSFER_INVALID_UPLOAD_RESPONSE", exception.getCode());
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
     verifyTransferClaim(MigrationFileType.ORGANIZATIONS);
     verify(transferServiceMock).markTransferFailed(
       eq(MIGRATION_ID),
@@ -529,7 +529,7 @@ class AbstractMigrationTransferOperationTest {
     String dataArchive = "organizations.zip";
     MigrationFileExecution fileExecution = exportedExecution(MigrationFileType.ORGANIZATIONS, dataArchive);
     createArchive(fileExecution, dataArchive);
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
     stubTransferClaim(fileExecution, MigrationFileType.ORGANIZATIONS);
     when(transferServiceMock.markTransferFailed(
       eq(MIGRATION_ID),
@@ -551,7 +551,7 @@ class AbstractMigrationTransferOperationTest {
     );
 
     assertEquals("TRANSFER_INVALID_UPLOAD_RESPONSE", exception.getCode());
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
     verifyTransferClaim(MigrationFileType.ORGANIZATIONS);
     verify(transferServiceMock).markTransferFailed(
       eq(MIGRATION_ID),
@@ -571,7 +571,7 @@ class AbstractMigrationTransferOperationTest {
     String dataArchive = "organizations.zip";
     MigrationFileExecution fileExecution = exportedExecution(MigrationFileType.ORGANIZATIONS, dataArchive);
     createArchive(fileExecution, dataArchive);
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
     stubTransferClaim(fileExecution, MigrationFileType.ORGANIZATIONS);
     HttpClientErrorException tooManyRequests = HttpClientErrorException.create(
       HttpStatus.TOO_MANY_REQUESTS,
@@ -599,7 +599,7 @@ class AbstractMigrationTransferOperationTest {
     );
 
     assertSame(tooManyRequests, exception);
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
     verifyTransferClaim(MigrationFileType.ORGANIZATIONS);
     verify(transferServiceMock).markTransferFailed(
       MIGRATION_ID,
@@ -619,7 +619,7 @@ class AbstractMigrationTransferOperationTest {
     String dataArchive = "organizations.zip";
     MigrationFileExecution fileExecution = exportedExecution(MigrationFileType.ORGANIZATIONS, dataArchive);
     createArchive(fileExecution, dataArchive);
-    when(transferServiceMock.getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS)).thenReturn(fileExecution);
     stubTransferClaim(fileExecution, MigrationFileType.ORGANIZATIONS);
     IllegalStateException uploadFailure = new IllegalStateException();
     IllegalStateException persistenceFailure = new IllegalStateException("database unavailable");
@@ -644,7 +644,7 @@ class AbstractMigrationTransferOperationTest {
     assertSame(uploadFailure, exception);
     assertEquals(1, exception.getSuppressed().length);
     assertSame(persistenceFailure, exception.getSuppressed()[0]);
-    verify(transferServiceMock).getRequired(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, MigrationFileType.ORGANIZATIONS);
     verifyTransferClaim(MigrationFileType.ORGANIZATIONS);
     verify(transferServiceMock).markTransferFailed(
       MIGRATION_ID,
@@ -678,7 +678,7 @@ class AbstractMigrationTransferOperationTest {
     MigrationFileType fileType,
     String dataArchive
   ) {
-    when(transferServiceMock.getRequired(MIGRATION_ID, fileType)).thenReturn(fileExecution);
+    when(transferServiceMock.findRequiredByMigrationIdAndFileType(MIGRATION_ID, fileType)).thenReturn(fileExecution);
     stubTransferClaim(fileExecution, fileType);
     MigrationFileExecution acceptedFileExecution = acceptedUploadExecution(fileExecution);
     when(transferServiceMock.recordUploadAccepted(
@@ -699,7 +699,7 @@ class AbstractMigrationTransferOperationTest {
     MigrationFileType fileType,
     String dataArchive
   ) {
-    verify(transferServiceMock).getRequired(MIGRATION_ID, fileType);
+    verify(transferServiceMock).findRequiredByMigrationIdAndFileType(MIGRATION_ID, fileType);
     verifyTransferClaim(fileType);
     verify(transferServiceMock).recordUploadAccepted(
       eq(MIGRATION_ID),

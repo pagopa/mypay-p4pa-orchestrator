@@ -20,6 +20,7 @@ import it.gov.pagopa.mypay2pu.orchestrator.validation.MigrationRequestValidator;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.time.Month;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -259,7 +260,7 @@ class OrchestrateMigrationServiceImplTest {
   @Test
   void givenEmptyFullWindowWhenStartMigrationThenRejectsBeforeSaving() {
     MigrationRequestDto request = request(MigrationAction.EXPORT);
-    var day = LocalDate.of(2026, Month.JANUARY, 2).atStartOfDay(Constants.ZONEID).toOffsetDateTime();
+    OffsetDateTime day = LocalDate.of(2026, Month.JANUARY, 2).atStartOfDay(Constants.ZONEID).toOffsetDateTime();
     request.setPeriod(new PeriodDto(day, day));
 
     InvalidValueException failure = assertThrows(InvalidValueException.class, () -> service.startMigration(request));

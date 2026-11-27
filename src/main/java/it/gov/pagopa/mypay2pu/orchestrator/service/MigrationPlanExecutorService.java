@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
 
@@ -52,7 +53,7 @@ public class MigrationPlanExecutorService {
   public void execute(MigrationRequestDto request,
                       Map<MigrationFileType, ? extends MigrationOperation> operationMap) {
     Set<MigrationFileType> selectedFileTypes = Set.copyOf(request.getFileTypesToInclude());
-    try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       executePlan(
         request,
         PLAN_ROOT,

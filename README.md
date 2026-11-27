@@ -48,9 +48,41 @@ and a non-empty suffix. Invalid names fail export with
 Transfer only updates the existing details to `TRANSFERING`, `WAITING_PU` or
 `FAILED` alongside the file execution transition. It does not retrieve or create
 PU upload details. Upload-detail identifiers, import counts, errors and discard
-files remain unset until the separate Evidence phase enriches the existing rows.
-That phase will also replace the provisional file sizes with values from PU
-`UploadDetails`.
+files remain unset until the separate transfer outcome phase enriches the existing rows.
+That phase replaces each observed detail's metadata with the current PU
+`UploadDetails`, including null optional values and the latest file size.
+Details absent from a snapshot are not updated. Correlation uses the unique
+exported `fileName`, which must match the PU detail's `fileName` exactly.
+It does not infer matches from base names, file sizes or previously stored PU IDs.
+The PU connector rejects missing upload responses or statuses with
+`TRANSFER_OUTCOME_INVALID_RESPONSE`. Matching the returned upload ID to the
+persisted file execution remains an outcome-domain validation.
+The details connector validates all required `UploadDetails` fields (`uploadId`,
+`organizationId`, `ingestionFlowFileType`, `filePathName`, `fileName`, `fileSize`,
+`status`) and rejects missing bodies or null items. Empty arrays remain valid.
+Generated model annotations are not automatically enforced by the REST client.
+The outcome domain additionally requires `uploadDetailId`, a non-blank file name
+and membership of the expected upload.
+Consistency of detail identifiers, file sizes and terminal detail data across PU
+snapshots is trusted to PU; no additional cross-snapshot immutability checks are
+performed. Already finalized file executions are not updated by repeated snapshots.
+Each observed detail's status is mapped from PU independently of the aggregate
+file outcome. Details may be completed, partial or failed while the file remains
+`WAITING_PU`. If the file fails overall, details still in `WAITING_PU` are marked
+`FAILED`; completed and partial details remain unchanged.
+Row counts use nullable `Long` values, matching PU without narrowing conversions.
+Outcome calculation uses the current PU snapshot, treating missing counts as zero
+instead of reusing counts from earlier observations.
+Existing databases must support `BIGINT` for both row-count columns. Schema
+updates are not automatic (`ddl-auto: none`); apply this change before deployment
+if the columns are still `INTEGER`:
+
+```sql
+ALTER TABLE orchestrator.migration_file_execution_detail
+  ALTER COLUMN num_total_rows TYPE BIGINT,
+  ALTER COLUMN num_correctly_imported_rows TYPE BIGINT;
+```
+
 Previously exported executions without details require backfilling before using
 this lifecycle; Transfer does not recreate missing extraction details.
 

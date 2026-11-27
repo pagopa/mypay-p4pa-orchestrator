@@ -4,6 +4,8 @@ import it.gov.pagopa.mypay2pu.extractor.dto.generated.ArchiveFile;
 import it.gov.pagopa.mypay2pu.orchestrator.dto.generated.MigrationFileExecutionDetailStatus;
 import it.gov.pagopa.mypay2pu.orchestrator.exception.InvalidValueException;
 import it.gov.pagopa.mypay2pu.orchestrator.model.MigrationFileExecutionDetail;
+import it.gov.pagopa.pu.migration.dto.generated.IngestionFlowFileStatus;
+import it.gov.pagopa.pu.migration.dto.generated.UploadDetails;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
@@ -78,5 +80,27 @@ public class MigrationFileExecutionDetailMapper {
       );
     }
     return baseName.substring(0, separator);
+  }
+
+  public void updateMigrationFileExecutionDetail(
+    MigrationFileExecutionDetail target,
+    UploadDetails uploadDetail
+  ) {
+    target.setStatus(toLocalStatus(uploadDetail.getStatus()));
+    target.setFileSize(uploadDetail.getFileSize());
+    target.setUploadDetailId(uploadDetail.getUploadDetailId());
+    target.setErrorDescription(uploadDetail.getErrorDescription());
+    target.setDiscardFileName(uploadDetail.getDiscardFileName());
+    target.setNumTotalRows(uploadDetail.getNumTotalRows());
+    target.setNumCorrectlyImportedRows(uploadDetail.getNumCorrectlyImportedRows());
+  }
+
+  private MigrationFileExecutionDetailStatus toLocalStatus(IngestionFlowFileStatus status) {
+    return switch (status) {
+      case UPLOADED, PROCESSING, WAITING_FILE -> MigrationFileExecutionDetailStatus.WAITING_PU;
+      case COMPLETED -> MigrationFileExecutionDetailStatus.COMPLETED;
+      case WARNING -> MigrationFileExecutionDetailStatus.PARTIAL;
+      case ERROR -> MigrationFileExecutionDetailStatus.FAILED;
+    };
   }
 }

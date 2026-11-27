@@ -133,7 +133,7 @@ class MigrationFileExecutionTransferServiceTest {
     when(migrationFileExecutionRepositoryMock.findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE))
       .thenReturn(Optional.of(execution));
 
-    MigrationFileExecution result = service.getRequired(MIGRATION_ID, FILE_TYPE);
+    MigrationFileExecution result = service.findRequiredByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
 
     assertSame(execution, result);
     verify(migrationFileExecutionRepositoryMock).findByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE);
@@ -146,7 +146,7 @@ class MigrationFileExecutionTransferServiceTest {
 
     NotFoundException exception = assertThrows(
       NotFoundException.class,
-      () -> service.getRequired(MIGRATION_ID, FILE_TYPE)
+      () -> service.findRequiredByMigrationIdAndFileType(MIGRATION_ID, FILE_TYPE)
     );
 
     assertEquals("MIGRATION_FILE_EXECUTION_NOT_FOUND", exception.getCode());
