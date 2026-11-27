@@ -62,6 +62,7 @@ val kafkaAppender = "0.2.0-RC2"
 val lz4JavaVersion = "1.12.1"
 val postgresJdbcVersion = "42.7.14"
 val podamVersion = "8.0.2.RELEASE"
+val openCsvVersion = "5.12.0"
 
 // CVE Security dependencies
 val jackson2DatabindVersion = "2.22.3"
@@ -88,6 +89,7 @@ dependencies {
       exclude(group = "org.xerial.snappy", module = "snappy-java")
   }
   implementation("at.yawk.lz4:lz4-java:$lz4JavaVersion")
+  implementation("com.opencsv:opencsv:$openCsvVersion")
   runtimeOnly("org.postgresql:postgresql:$postgresJdbcVersion")
 
   // CVE Security dependencies

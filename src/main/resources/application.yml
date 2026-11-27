@@ -135,6 +135,10 @@ cipher:
   file-encrypt-enabled: "\${FILE_ENCRYPT_ENABLED:false}"
   file-encrypt-psw: "\${FILE_ENCRYPT_PSW:default_password}"
 
+csv:
+  separator: "\${CSV_SEPARATOR_CHAR:;}"
+  quote-char: "\${CSV_QUOTE_CHAR:\\\"}"
+
 zip-file:
   max-entries: "\${ZIP_MAX_ENTRIES:1000}"
   max-uncompressed-size: "\${ZIP_MAX_UNCOMPRESSED_SIZE:52428800}" # 50MB
